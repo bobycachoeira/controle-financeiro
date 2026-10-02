@@ -1,0 +1,20 @@
+services:
+  pocketbase:
+    build:
+      context: ../apps/pocketbase
+      dockerfile: ../../docker/Dockerfile.pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      CF_ENCRYPTION_KEY: ${CF_ENCRYPTION_KEY:-dev-insecure-encryption-key-change-me}
+      CF_MAIL_HOST: ${CF_MAIL_HOST:-}
+      CF_MAIL_FROM: ${CF_MAIL_FROM:-no-reply@controle-financeiro.local}
+      CF_CORS_ORIGINS: ${CF_CORS_ORIGINS:-http://localhost:5173}
+      CF_STEPUP_TTL: ${CF_STEPUP_TTL:-10m}
+      CF_APP_URL: ${CF_APP_URL:-http://localhost:5173}
+    volumes:
+      - pb_data:/pb/pb_data
+
+volumes:
+  pb_data:

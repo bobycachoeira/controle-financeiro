@@ -1,0 +1,17 @@
+{
+  "name": "@cf/pocketbase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "node --check pb_hooks/main.pb.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@cf/shared": "workspace:*",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.2",
+    "zod": "^3.23.8"
+  }
+}

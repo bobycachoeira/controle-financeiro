@@ -1,0 +1,49 @@
+{
+  "name": "@cf/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:contract": "vitest run tests/contract",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@cf/shared": "workspace:*",
+    "@simplewebauthn/browser": "^10.0.0",
+    "@vueuse/core": "^10.11.1",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "dexie": "^4.0.8",
+    "lucide-vue-next": "^0.441.0",
+    "otpauth": "^9.3.2",
+    "pinia": "^2.2.4",
+    "reka-ui": "^2.5.0",
+    "tailwind-merge": "^2.5.2",
+    "vue": "^3.4.38",
+    "vue-router": "^4.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.2",
+    "@types/node": "^20.16.10",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vite-plugin-pwa": "^0.20.5",
+    "vitest": "^2.1.2",
+    "vue-tsc": "^2.1.6"
+  }
+}

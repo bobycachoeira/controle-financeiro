@@ -1,0 +1,30 @@
+{
+  "name": "controle-financeiro",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx,.vue,.js,.mjs,.cjs",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test:shared": "pnpm --filter @cf/shared test",
+    "test:web": "pnpm --filter @cf/web test",
+    "test:contract": "pnpm --filter @cf/web test:contract",
+    "test:pb": "pnpm --filter @cf/pocketbase test",
+    "test:e2e": "pnpm --filter @cf/web test:e2e",
+    "build:hooks": "pnpm --filter @cf/shared build:hooks"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-vue": "^9.28.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5",
+    "vue-eslint-parser": "^9.4.3"
+  }
+}

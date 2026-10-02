@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: Controle Financeiro Familiar — Sync API
+  version: 1.0.0
+  description: >
+    Sincronização offline-first. Toda escrita do cliente passa por `/sync/push` (Outbox) e
+    toda leitura incremental por `/sync/pull`. Idempotência por `sync_id`; conflitos por
+    Last-Write-Wins no `updated_at` do servidor (empate → servidor) com marcação
+    `conflict=true`; soft deletes incluídos no pull. Schemas canônicos em
+    packages/shared/src/api (Zod).
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+
+paths:
+  /sync/push:
+    post:
+      tags: [Sync]
+      summary: Envia um lote de operações da Outbox (FIFO)
+      description: >
+        Operações são processadas em ordem. Reenvios com o mesmo
+        `(household, entity, sync_id)` retornam o resultado anterior sem reaplicar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushRequest' }
+      responses:
+        '200':
+          description: Resultado por item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushResponse' }
+        '401': { description: Não autenticado }
+        '403':
+          description: Sem permissão para a operação/entidade (RBAC)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Lote rejeitado por pré-condição de estado (ex.: household divergente)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate limit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /sync/pull:
+    get:
+      tags: [Sync]
+      summary: Retorna o delta de registros desde o cursor
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: Cursor `seq` do último pull; ausente = do início
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PullResponse' }
+        '401': { description: Não autenticado }
+        '429':
+          description: Rate limit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+
+    EntityName:
+      type: string
+      enum:
+        - households
+        - household_members
+        - accounts
+        - credit_cards
+        - categories
+        - transactions
+        - installments
+        - invoices
+        - transfers
+        - bills
+
+    PushRequest:
+      type: object
+      required: [household, operations]
+      properties:
+        household: { type: string }
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SyncOperation' }
+
+    SyncOperation:
+      type: object
+      required: [sync_id, entity, operation, client_ts]
+      properties:
+        sync_id:
+          type: string
+          format: uuid
+          description: Gerado no cliente; chave de idempotência
+        entity: { $ref: '#/components/schemas/EntityName' }
+        operation: { type: string, enum: [create, update, delete] }
+        entity_id:
+          type: string
+          nullable: true
+          description: Obrigatório para update/delete
+        payload:
+          type: object
+          additionalProperties: true
+          description: >
+            Corpo da entidade (validado por Zod no servidor). Para delete, apenas os campos
+            de identidade.
+        client_ts: { type: string, format: date-time }
+
+    PushResponse:
+      type: object
+      required: [results, server_seq]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/OperationResult' }
+        server_seq:
+          type: integer
+          description: Cursor atual após o processamento
+
+    OperationResult:
+      type: object
+      required: [sync_id, entity, status]
+      properties:
+        sync_id: { type: string, format: uuid }
+        entity: { $ref: '#/components/schemas/EntityName' }
+        status:
+          type: string
+          enum: [applied, conflict, ignored, error]
+          description: >
+            applied = gravado; conflict = versão do cliente descartada (LWW), servidor
+            venceu; ignored = já aplicado (idempotência) ou órfão descartado; error =
+            validação/permissão.
+        remote_id: { type: string, nullable: true }
+        conflict: { type: boolean, default: false }
+        code:
+          type: string
+          nullable: true
+          description: Ex.: conflict_kept_server, orphan_update_discarded, forbidden
+        message: { type: string, nullable: true }
+        record:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Estado atual no servidor (para reconciliação local)
+
+    PullResponse:
+      type: object
+      required: [server_seq, has_more, changes]
+      properties:
+        server_seq:
+          type: integer
+          description: Cursor a persistir localmente para o próximo pull
+        has_more: { type: boolean }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/PullChange' }
+
+    PullChange:
+      type: object
+      required: [entity, id, seq]
+      properties:
+        entity: { $ref: '#/components/schemas/EntityName' }
+        id: { type: string }
+        seq: { type: integer }
+        deleted: { type: boolean, default: false }
+        record:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: >
+            Registro completo (inclui `deleted_at` quando `deleted=true`). Ausente quando o
+            registro já não é visível ao usuário.

@@ -1,0 +1,429 @@
+openapi: 3.1.0
+info:
+  title: Controle Financeiro Familiar — Auth API
+  version: 1.0.0
+  description: >
+    Autenticação Magic Link + 2FA TOTP step-up, dispositivos confiáveis, recovery codes e
+    convites. Schemas canônicos em packages/shared/src/api (Zod).
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: 2FA
+  - name: Devices
+  - name: Invites
+
+paths:
+  /auth/magic-link/request:
+    post:
+      tags: [Auth]
+      summary: Solicita o envio de um Magic Link
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: Aceito; envio assíncrono (resposta idêntica exista ou não o e-mail)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Accepted' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/magic-link/verify:
+    post:
+      tags: [Auth]
+      summary: Valida o Magic Link e inicia a sessão
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, device_label]
+              properties:
+                token: { type: string }
+                device_label: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: >
+            Sessão criada. Se 2FA for exigido (dispositivo desconhecido), retorna
+            step_up_required=true e um token de sessão parcial.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410':
+          description: Token expirado, já usado ou inválido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/2fa/setup:
+    post:
+      tags: [2FA]
+      summary: Gera segredo TOTP e URI otpauth (requer step-up)
+      responses:
+        '200':
+          description: Segredo e otpauth URI (segredo exibido uma única vez)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [otpauth_uri, secret]
+                properties:
+                  otpauth_uri: { type: string }
+                  secret: { type: string }
+        '403': { $ref: '#/components/responses/StepUpRequired' }
+
+  /auth/2fa/confirm:
+    post:
+      tags: [2FA]
+      summary: Confirma o setup e devolve os recovery codes (uma vez)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recovery_codes]
+                properties:
+                  recovery_codes:
+                    type: array
+                    items: { type: string }
+                    minItems: 10
+                    maxItems: 10
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /auth/2fa/verify:
+    post:
+      tags: [2FA]
+      summary: Valida TOTP ou recovery code e emite token de step-up
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_token, code, kind]
+              properties:
+                session_token: { type: string }
+                code: { type: string }
+                kind: { type: string, enum: [totp, recovery] }
+                remember_device: { type: boolean, default: false }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/2fa/disable:
+    post:
+      tags: [2FA]
+      summary: Desativa o 2FA (requer step-up)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '204': { description: 2FA desativado }
+        '403': { $ref: '#/components/responses/StepUpRequired' }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Dados do usuário, papéis e household atual
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Encerra a sessão atual e revoga o refresh token
+      responses:
+        '204': { description: Encerrado }
+
+  /auth/devices:
+    get:
+      tags: [Devices]
+      summary: Lista dispositivos confiáveis
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TrustedDevice' }
+    post:
+      tags: [Devices]
+      summary: Marca o dispositivo atual como confiável por 30 dias
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrustedDevice' }
+
+  /auth/devices/{id}:
+    delete:
+      tags: [Devices]
+      summary: Revoga um dispositivo confiável (passa a exigir 2FA)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Revogado }
+        '403':
+          description: Não pode revogar dispositivo de outro usuário
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /households:
+    post:
+      tags: [Invites]
+      summary: Cria o household e torna o usuário owner (seed de categorias)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  household: { $ref: '#/components/schemas/Household' }
+        '409':
+          description: Usuário já possui household
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /households/{id}/invites:
+    post:
+      tags: [Invites]
+      summary: Cria um convite de uso único (requer step-up; owner/partner)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email_invited, role]
+              properties:
+                email_invited: { type: string, format: email }
+                role:
+                  type: string
+                  enum: [partner, teen, child, viewer]
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invite: { $ref: '#/components/schemas/Invite' }
+        '409':
+          description: Limite de adultos plenos atingido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/StepUpRequired' }
+
+  /invites/{token}/accept:
+    post:
+      tags: [Invites]
+      summary: Aceita um convite e cria o vínculo de membro
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  member: { $ref: '#/components/schemas/HouseholdMember' }
+        '410':
+          description: Convite expirado ou já usado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Validação falhou
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Não autenticado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    StepUpRequired:
+      description: Ação sensível exige 2FA step-up
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, const: step_up_required }
+                  message: { type: string }
+    RateLimited:
+      description: Muitas tentativas
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+
+    Accepted:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+
+    AuthResult:
+      type: object
+      required: [token, refresh_token, step_up_required]
+      properties:
+        token: { type: string }
+        refresh_token: { type: string }
+        step_up_required: { type: boolean }
+        step_up_token:
+          type: string
+          description: Presente quando step-up foi concluído
+        trusted_device:
+          type: boolean
+          description: Se o dispositivo foi lembrado
+
+    Me:
+      type: object
+      required: [user, memberships]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        memberships:
+          type: array
+          items: { $ref: '#/components/schemas/HouseholdMember' }
+        twofa_enabled: { type: boolean }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        active: { type: boolean }
+
+    Household:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        base_currency: { type: string, const: BRL }
+        created_by: { type: string }
+
+    HouseholdMember:
+      type: object
+      properties:
+        id: { type: string }
+        household: { type: string }
+        user: { type: string }
+        role: { type: string, enum: [owner, partner, teen, child, viewer] }
+        invite_status: { type: string, enum: [pending, accepted] }
+        permissions:
+          type: object
+          additionalProperties: true
+
+    Invite:
+      type: object
+      properties:
+        id: { type: string }
+        role: { type: string, enum: [partner, teen, child, viewer] }
+        email_invited: { type: string, format: email }
+        expires_at: { type: string, format: date-time }
+
+    TrustedDevice:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        last_seen_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time, nullable: true }
