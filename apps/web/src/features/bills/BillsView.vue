@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { BillNature, BillType } from "@cf/shared";
 import { addDays, billDueDate, computeBillsTotals, nextOccurrence, todayISO } from "@cf/shared";
-import { Check, Clock, CreditCard, Pencil, Plus, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
+import { Check, Clock, CreditCard, Pause, Pencil, Play, Plus, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
 import { db, type LocalBill, type LocalCategory } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
 import { useSessionStore } from "@/stores/session";
@@ -37,9 +37,15 @@ const categories = ref<LocalCategory[]>([]);
 const month = ref(todayISO().slice(0, 7));
 const totals = computed(() => computeBillsTotals(bills.value, month.value));
 
+const recurringBills = computed(() =>
+  recurrencesStore.items.filter((recurrence) => recurrence.target === "bill" && !recurrence.deleted_at),
+);
 const pendingConfirm = computed(() => bills.value.filter((b) => b.status === "a_confirmar"));
 const payable = computed(() => bills.value.filter((b) => b.status === "pendente"));
 const settled = computed(() => bills.value.filter((b) => b.status === "pago" || b.status === "cancelado"));
+
+// choose type
+const chooserOpen = ref(false);
 
 // one-off bill
 const oneOpen = ref(false);
@@ -53,6 +59,8 @@ const saving = ref(false);
 
 // recurring bill
 const recOpen = ref(false);
+const recEditingId = ref<string | null>(null);
+const recOriginalStart = ref<string | null>(null);
 const recName = ref("");
 const recNature = ref<BillNature>("saida");
 const recPeriodicity = ref("mensal");
@@ -215,7 +223,17 @@ async function submitOne(): Promise<void> {
   }
 }
 
+function periodicityFromRrule(rrule: string): string {
+  if (/FREQ=YEARLY/i.test(rrule)) return "anual";
+  const interval = Number(rrule.match(/INTERVAL=(\d+)/i)?.[1] ?? "1");
+  if (interval === 2) return "bimestral";
+  if (interval === 3) return "trimestral";
+  return "mensal";
+}
+
 function openRecurring(): void {
+  recEditingId.value = null;
+  recOriginalStart.value = null;
   recName.value = "";
   recNature.value = "saida";
   recPeriodicity.value = "mensal";
@@ -228,6 +246,35 @@ function openRecurring(): void {
   recCategory.value = "";
   recAttribution.value = "ambos";
   recOpen.value = true;
+}
+
+function openEditRecurring(recurrence: (typeof recurrencesStore.items)[number]): void {
+  recEditingId.value = recurrence.id;
+  recOriginalStart.value = recurrence.start_date.slice(0, 10);
+  recName.value = recurrence.name;
+  recNature.value = recurrence.template.nature ?? "saida";
+  recPeriodicity.value = periodicityFromRrule(recurrence.rrule);
+  recEmissionDay.value = recurrence.template.emission_day ?? Number(recurrence.start_date.slice(8, 10));
+  recDueDay.value = recurrence.template.due_day ?? Number(recurrence.start_date.slice(8, 10));
+  recVariable.value = Boolean(recurrence.template.confirm_required);
+  const reference = recurrence.template.default_amount_cents ?? recurrence.template.amount_cents ?? 0;
+  recAmount.value = reference > 0 ? formatCentsToInput(reference) : "";
+  const countMatch = recurrence.rrule.match(/COUNT=(\d+)/i);
+  recDuration.value = countMatch ? "meses" : "sempre";
+  recMonths.value = countMatch ? Number(countMatch[1]) : 12;
+  recCategory.value = recurrence.template.category ?? "";
+  recAttribution.value =
+    recurrence.template.attribution === "meu" || recurrence.template.attribution === "dela"
+      ? recurrence.template.attribution
+      : "ambos";
+  recOpen.value = true;
+}
+
+function anchorDate(originalStart: string, emissionDay: number): string {
+  const [year, month] = originalStart.split("-").map(Number);
+  const clamp = Math.min(emissionDay, new Date(Date.UTC(year!, month!, 0)).getUTCDate());
+  const candidate = `${year}-${String(month).padStart(2, "0")}-${String(clamp).padStart(2, "0")}`;
+  return candidate < originalStart ? originalStart : candidate;
 }
 
 async function submitRecurring(): Promise<void> {
@@ -252,17 +299,21 @@ async function submitRecurring(): Promise<void> {
     if (recDuration.value === "meses" && Number(recMonths.value) > 0) {
       rrule += `;COUNT=${Number(recMonths.value)}`;
     }
-    await recurrencesStore.create({
+    const startDate =
+      recEditingId.value && recOriginalStart.value
+        ? anchorDate(recOriginalStart.value, Number(recEmissionDay.value))
+        : nextEmissionDate(Number(recEmissionDay.value));
+    const payload = {
       name: recName.value,
       rrule,
-      start_date: nextEmissionDate(Number(recEmissionDay.value)),
-      target: "bill",
-      creates_status: "a_pagar",
+      start_date: startDate,
+      target: "bill" as const,
+      creates_status: "a_pagar" as const,
       template: {
         amount_cents: defaultCents ?? 0,
         default_amount_cents: defaultCents ?? 0,
         confirm_required: recVariable.value,
-        type: recNature.value === "entrada" ? "receita" : "despesa",
+        type: (recNature.value === "entrada" ? "receita" : "despesa") as "receita" | "despesa",
         nature: recNature.value,
         category: recCategory.value || null,
         attribution: recAttribution.value,
@@ -270,14 +321,29 @@ async function submitRecurring(): Promise<void> {
         emission_day: Number(recEmissionDay.value),
         due_day: Number(recDueDay.value),
       },
-    });
-    toast.success("Conta recorrente criada. As parcelas aparecerão para confirmação.");
+    };
+    if (recEditingId.value) {
+      await recurrencesStore.update(recEditingId.value, payload);
+      toast.success("Conta recorrente atualizada.");
+    } else {
+      await recurrencesStore.create(payload);
+      toast.success("Conta recorrente criada. As parcelas aparecerão para confirmação.");
+    }
     recOpen.value = false;
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Falha ao criar recorrência.");
+    toast.error(error instanceof Error ? error.message : "Falha ao salvar recorrência.");
   } finally {
     recSaving.value = false;
   }
+}
+
+async function toggleRecurring(recurrence: (typeof recurrencesStore.items)[number]): Promise<void> {
+  await recurrencesStore.setActive(recurrence.id, !recurrence.active);
+}
+
+async function removeRecurring(id: string): Promise<void> {
+  await recurrencesStore.remove(id);
+  toast.info("Conta recorrente removida.");
 }
 
 function openConfirm(bill: LocalBill): void {
@@ -392,10 +458,7 @@ watch(() => sync.dataVersion, async () => {
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Compromissos</p>
         <h1 class="font-display text-3xl font-black tracking-tight">Contas</h1>
       </div>
-      <div class="flex gap-2">
-        <Button size="sm" variant="secondary" @click="openRecurring">Recorrente</Button>
-        <Button size="sm" @click="openOne"><Plus class="h-4 w-4" /> Nova</Button>
-      </div>
+      <Button size="sm" @click="chooserOpen = true"><Plus class="h-4 w-4" /> Nova</Button>
     </div>
 
     <div class="grid grid-cols-3 gap-3">
@@ -527,6 +590,60 @@ watch(() => sync.dataVersion, async () => {
       </CardContent>
     </Card>
 
+    <Card v-if="recurringBills.length > 0">
+      <CardContent class="p-3">
+        <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Contas recorrentes
+        </p>
+        <ul class="stagger">
+          <li
+            v-for="recurrence in recurringBills"
+            :key="recurrence.id"
+            class="group flex items-center gap-3 rounded-[1.2rem] px-2 py-2.5 transition hover:bg-muted/70"
+          >
+            <IconChip name="repeat" color="#8A6FD1" size="md" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-bold">
+                {{ recurrence.name }}
+                <span v-if="!recurrence.active" class="text-xs font-semibold text-muted-foreground">(pausada)</span>
+              </p>
+              <p class="truncate text-xs font-semibold text-muted-foreground">
+                {{ periodicityFromRrule(recurrence.rrule) }} · emite dia {{ recurrence.template.emission_day ?? "—" }} ·
+                vence dia {{ recurrence.template.due_day ?? "—" }}
+              </p>
+            </div>
+            <Badge :variant="recurrence.template.confirm_required ? 'warning' : 'secondary'">
+              {{ recurrence.template.confirm_required ? "variável" : "fixa" }}
+            </Badge>
+            <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                aria-label="Editar conta recorrente"
+                @click="openEditRecurring(recurrence)"
+              >
+                <Pencil class="h-3.5 w-3.5" />
+              </button>
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
+                :aria-label="recurrence.active ? 'Pausar' : 'Ativar'"
+                @click="toggleRecurring(recurrence)"
+              >
+                <Pause v-if="recurrence.active" class="h-3.5 w-3.5" />
+                <Play v-else class="h-3.5 w-3.5" />
+              </button>
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                aria-label="Excluir conta recorrente"
+                @click="removeRecurring(recurrence.id)"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
+
     <Card v-if="settled.length > 0">
       <CardContent class="p-3">
         <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
@@ -551,6 +668,36 @@ watch(() => sync.dataVersion, async () => {
         </ul>
       </CardContent>
     </Card>
+
+    <!-- Escolha do tipo -->
+    <Modal v-model="chooserOpen" title="O que você quer criar?" description="Escolha o tipo de conta.">
+      <div class="grid gap-3">
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-2xl border-2 border-border p-4 text-left transition hover:border-primary hover:bg-muted"
+          @click="chooserOpen = false; openOne()"
+        >
+          <IconChip name="receipt" color="#E4572E" size="lg" />
+          <span>
+            <span class="block font-bold">Conta única</span>
+            <span class="block text-xs text-muted-foreground">Uma conta pontual, com valor e vencimento.</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-2xl border-2 border-border p-4 text-left transition hover:border-primary hover:bg-muted"
+          @click="chooserOpen = false; openRecurring()"
+        >
+          <IconChip name="repeat" color="#8A6FD1" size="lg" />
+          <span>
+            <span class="block font-bold">Conta recorrente</span>
+            <span class="block text-xs text-muted-foreground">
+              Emite todo mês num dia (ex.: água/luz) para você confirmar o valor.
+            </span>
+          </span>
+        </button>
+      </div>
+    </Modal>
 
     <!-- Nova/editar conta avulsa -->
     <Modal v-model="oneOpen" :title="editingId ? 'Editar conta' : 'Nova conta'">
@@ -595,7 +742,7 @@ watch(() => sync.dataVersion, async () => {
     <!-- Nova conta recorrente -->
     <Modal
       v-model="recOpen"
-      title="Conta recorrente"
+      :title="recEditingId ? 'Editar conta recorrente' : 'Conta recorrente'"
       description="Emite todo mês num dia e você confirma o valor."
     >
       <form class="space-y-4" @submit.prevent="submitRecurring">
@@ -673,7 +820,9 @@ watch(() => sync.dataVersion, async () => {
         </div>
         <div class="flex justify-end gap-2 pt-1">
           <Button variant="ghost" type="button" @click="recOpen = false">Cancelar</Button>
-          <Button type="submit" :loading="recSaving">Criar recorrente</Button>
+          <Button type="submit" :loading="recSaving">
+            {{ recEditingId ? "Salvar alterações" : "Criar recorrente" }}
+          </Button>
         </div>
       </form>
     </Modal>
