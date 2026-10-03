@@ -48,7 +48,14 @@ async function verifyLink(): Promise<void> {
       router.push({ name: "2fa" });
       return;
     }
-    router.push({ name: session.hasHousehold ? "dashboard" : "onboarding" });
+    const pendingInvite = sessionStorage.getItem("cf.pendingInvite");
+    if (pendingInvite) {
+      router.push({ name: "join", query: { token: pendingInvite } });
+      return;
+    }
+    router.push({
+      name: session.hasHousehold ? "dashboard" : session.hasPending ? "pending" : "onboarding",
+    });
   } catch (error) {
     if (error instanceof ApiError && error.status === 410) {
       toast.error("Este link expirou ou já foi usado. Solicite um novo.");

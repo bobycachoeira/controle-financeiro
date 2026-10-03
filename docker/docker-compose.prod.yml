@@ -42,6 +42,9 @@ services:
     environment:
       CF_ENCRYPTION_KEY: ${CF_ENCRYPTION_KEY:?defina CF_ENCRYPTION_KEY}
       CF_APP_URL: ${CF_APP_URL:?defina CF_APP_URL}
+      CF_SINGLE_HOUSEHOLD: ${CF_SINGLE_HOUSEHOLD:-true}
+      CF_ADMIN_EMAIL: ${CF_ADMIN_EMAIL:-}
+      CF_ADMIN_NAME: ${CF_ADMIN_NAME:-Titular}
       CF_STEPUP_TTL: ${CF_STEPUP_TTL:-10m}
       CF_TIMEZONE: ${CF_TIMEZONE:-America/Sao_Paulo}
       CF_MAIL_HOST: ${CF_MAIL_HOST:-}

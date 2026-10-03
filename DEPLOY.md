@@ -78,10 +78,13 @@ docker compose -f docker/docker-compose.prod.yml exec pocketbase \
 ```
 
 ### 6. Primeiro uso
-1. Painel: `https://<seu-host>/_/` → crie o **primeiro usuário** (Collections → `users`:
-   e-mail, `name`, senha, `active=true`).
-2. App: `https://<seu-host>` → **Magic Link** → criar família → convidar em
-   **Mais → Família e convites** → ajustar **Mais → Pessoas**.
+1. Configure `CF_ADMIN_EMAIL` (seu e-mail) em `docker/.env` — no **primeiro** Magic Link
+   com esse e-mail a conta é criada automaticamente como `active`. (Alternativa manual:
+   painel `https://<seu-host>/_/` → `users` → e-mail, `name`, senha, `active=true`.)
+2. App: `https://<seu-host>` → informe o e-mail → **Magic Link** → **criar família** (você
+   vira o **Owner**) → convidar em **Mais → Família e convites** → ajustar **Mais → Pessoas**.
+3. Por padrão `CF_SINGLE_HOUSEHOLD=true`: depois da sua família, novas famílias ficam
+   bloqueadas. Para permitir várias no futuro, mude para `false`.
 
 ### 7. Backup e atualizações
 ```bash
@@ -102,8 +105,8 @@ git pull && docker compose --env-file docker/.env -f docker/docker-compose.prod.
 | Oracle Security List | liberar 22, 80, 443 |
 | Firewall do SO (iptables) | liberar 80, 443 e persistir |
 | DuckDNS (ou DNS do domínio) | hostname → **IP da VM** |
-| `docker/.env` | `CF_DOMAIN`, `CF_APP_URL`, `CF_ENCRYPTION_KEY`, `CF_MAIL_*` |
-| Painel `/_/` | criar o 1º usuário |
+| `docker/.env` | `CF_DOMAIN`, `CF_APP_URL`, `CF_ENCRYPTION_KEY`, `CF_MAIL_*`, `CF_ADMIN_EMAIL` |
+| Painel `/_/` | (opcional) criar o 1º usuário manualmente |
 | App | criar família, convidar, ajustar Pessoas |
 
 ---

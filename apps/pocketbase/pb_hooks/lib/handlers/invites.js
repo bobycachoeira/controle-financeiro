@@ -14,6 +14,7 @@ function adultCount(householdId) {
     .filter(
       (member) =>
         !member.getString("deleted_at") &&
+        member.getString("invite_status") !== "pending" &&
         (member.getString("role") === "owner" || member.getString("role") === "partner"),
     ).length;
 }
@@ -52,7 +53,13 @@ function create(c) {
   invite.set("created_by", user.id);
   $app.save(invite);
 
-  mailer.sendSecurityAlert($app, email, "Convite para a família", "Você foi convidado. Código do convite: " + token);
+  const appUrl = $os.getenv("CF_APP_URL") || "http://localhost:5173";
+  mailer.sendSecurityAlert(
+    $app,
+    email,
+    "Convite para a família",
+    "Você foi convidado. Acesse o link para entrar: " + appUrl + "/join?token=" + token,
+  );
   audit.writeAudit($app, {
     household: householdId,
     user: user.id,
@@ -97,8 +104,10 @@ function accept(c) {
 
   const householdId = invite.getString("household");
   const role = invite.getString("role");
-  if (role === "partner" && adultCount(householdId) >= 2) {
-    return http.fail(c, 409, "adult_limit", "Limite de 2 adultos plenos atingido");
+
+  // O link só vale para o e-mail convidado.
+  if (String(invite.getString("email_invited")).toLowerCase() !== String(user.email()).toLowerCase()) {
+    return http.fail(c, 403, "email_mismatch", "Este convite é para outro e-mail");
   }
 
   let member = null;
@@ -111,22 +120,19 @@ function accept(c) {
   } catch (err) {
     member = null;
   }
-  if (member) {
-    member.set("role", role);
-    member.set("deleted_at", null);
-    member.set("invite_status", "accepted");
-    $app.save(member);
-  } else {
+  if (!member) {
     member = new Record($app.findCollectionByNameOrId("household_members"));
     member.set("household", householdId);
     member.set("user", user.id);
-    member.set("role", role);
-    member.set("invite_status", "accepted");
     member.set("permissions", {});
-    member.set("joined_at", new Date().toISOString());
     member.set("sync_id", $security.randomString(20));
-    $app.save(member);
   }
+  // Fica como solicitação pendente até o owner aprovar (papel definitivo na aprovação).
+  member.set("role", role);
+  member.set("deleted_at", null);
+  member.set("invite_status", "pending");
+  member.set("joined_at", new Date().toISOString());
+  $app.save(member);
 
   invite.set("used_at", new Date().toISOString());
   invite.set("used_by", user.id);
@@ -140,7 +146,7 @@ function accept(c) {
       household: householdId,
       user: user.id,
       role: role,
-      invite_status: "accepted",
+      invite_status: "pending",
       permissions: member.get("permissions") || {},
     },
   });

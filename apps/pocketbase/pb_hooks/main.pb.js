@@ -40,6 +40,16 @@ routerAdd("DELETE", "/api/households/{id}/members/{memberId}", (c) =>
 routerAdd("POST", "/api/households/{id}/invites", (c) =>
   require(`${__hooks}/lib/handlers/invites.js`).create(c),
 );
+
+routerAdd("GET", "/api/households/{id}/join-requests", (c) =>
+  require(`${__hooks}/lib/handlers/join-requests.js`).list(c),
+);
+routerAdd("POST", "/api/households/{id}/join-requests/{memberId}/approve", (c) =>
+  require(`${__hooks}/lib/handlers/join-requests.js`).approve(c),
+);
+routerAdd("POST", "/api/households/{id}/join-requests/{memberId}/reject", (c) =>
+  require(`${__hooks}/lib/handlers/join-requests.js`).reject(c),
+);
 routerAdd("POST", "/api/invites/{token}/accept", (c) =>
   require(`${__hooks}/lib/handlers/invites.js`).accept(c),
 );
@@ -100,21 +110,22 @@ onBootstrap((e) => {
   // permitindo enviar Magic Link sem configurar manualmente no painel.
   try {
     const host = $os.getenv("CF_MAIL_HOST");
-    if (!host) return;
-    const settings = e.app.settings();
-    settings.smtp.enabled = true;
-    settings.smtp.host = host;
-    settings.smtp.port = Number($os.getenv("CF_MAIL_PORT") || 587);
-    const user = $os.getenv("CF_MAIL_USER");
-    const pass = $os.getenv("CF_MAIL_PASSWORD");
-    if (user) settings.smtp.username = user;
-    if (pass) settings.smtp.password = pass;
-    const from = $os.getenv("CF_MAIL_FROM");
-    if (from) settings.meta.senderAddress = from;
-    const appUrl = $os.getenv("CF_APP_URL");
-    if (appUrl) settings.meta.appURL = appUrl;
-    e.app.save(settings);
-    console.log("SMTP configurado via CF_MAIL_* (" + host + ")");
+    if (host) {
+      const settings = e.app.settings();
+      settings.smtp.enabled = true;
+      settings.smtp.host = host;
+      settings.smtp.port = Number($os.getenv("CF_MAIL_PORT") || 587);
+      const user = $os.getenv("CF_MAIL_USER");
+      const pass = $os.getenv("CF_MAIL_PASSWORD");
+      if (user) settings.smtp.username = user;
+      if (pass) settings.smtp.password = pass;
+      const from = $os.getenv("CF_MAIL_FROM");
+      if (from) settings.meta.senderAddress = from;
+      const appUrl = $os.getenv("CF_APP_URL");
+      if (appUrl) settings.meta.appURL = appUrl;
+      e.app.save(settings);
+      console.log("SMTP configurado via CF_MAIL_* (" + host + ")");
+    }
   } catch (err) {
     console.log("Falha ao configurar SMTP: " + String(err));
   }

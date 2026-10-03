@@ -47,6 +47,18 @@ function create(c) {
   if (!user) return http.fail(c, 401, "unauthorized", "Autenticação necessária");
   if (!user.getBool("active")) return http.fail(c, 403, "account_locked", "Conta bloqueada");
 
+  // Enquanto o app for de uso pessoal, só permitimos uma família.
+  // Para liberar várias, defina CF_SINGLE_HOUSEHOLD=false.
+  const single = ($os.getenv("CF_SINGLE_HOUSEHOLD") || "true") !== "false";
+  if (single && $app.findAllRecords("households").length > 0) {
+    return http.fail(
+      c,
+      409,
+      "single_household",
+      "A aplicação está limitada a uma família no momento",
+    );
+  }
+
   const data = http.requestBody(c);
   const name = String(data.name || "").trim();
   if (!name || name.length > 80) return http.fail(c, 400, "invalid_name", "Nome inválido");
@@ -105,7 +117,10 @@ function listMembers(c) {
       $app.findCollectionByNameOrId("household_members"),
       $dbx.hashExp({ household: householdId }),
     )
-    .filter((member) => !member.getString("deleted_at"));
+    .filter(
+      (member) =>
+        !member.getString("deleted_at") && member.getString("invite_status") !== "pending",
+    );
   return http.ok(c, {
     items: members.map((member) => ({
       id: member.id,

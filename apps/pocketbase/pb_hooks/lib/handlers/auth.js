@@ -26,8 +26,7 @@ function householdName(householdId) {
   }
 }
 
-function memberSummary(member) {
-  return {
+function memberSummary(member) {  return {
     id: member.id,
     household: member.getString("household"),
     user: member.getString("user"),
@@ -36,6 +35,19 @@ function memberSummary(member) {
     invite_status: member.getString("invite_status") || "accepted",
     permissions: member.get("permissions") || {},
   };
+}
+
+function createInitialUser(email) {
+  const collection = $app.findCollectionByNameOrId("users");
+  const record = new Record(collection);
+  record.setEmail(email);
+  record.setPassword($security.randomString(40));
+  record.set("name", $os.getenv("CF_ADMIN_NAME") || "Titular");
+  record.set("active", true);
+  record.set("emailVisibility", true);
+  $app.save(record);
+  console.log("Usuário inicial criado: " + email);
+  return record;
 }
 
 function buildAuthResult(user, options) {
@@ -69,12 +81,27 @@ function magicLinkRequest(c) {
     );
   }
   if (email) {
+    let user = null;
     try {
-      const user = $app.findAuthRecordByEmail("users", email);
+      user = $app.findAuthRecordByEmail("users", email);
+    } catch (err) {
+      user = null;
+    }
+    // Provisiona o dono inicial definido em CF_ADMIN_EMAIL (apenas o 1º usuário).
+    if (!user) {
+      const adminEmail = ($os.getenv("CF_ADMIN_EMAIL") || "").toLowerCase();
+      if (adminEmail && email === adminEmail && $app.findAllRecords("users").length === 0) {
+        try {
+          user = createInitialUser(email);
+        } catch (err) {
+          console.log("Falha ao criar usuário inicial: " + String(err));
+          user = null;
+        }
+      }
+    }
+    if (user) {
       const issued = magic.issueMagicToken($app, user);
       mailer.sendMagicLink($app, email, issued.token);
-    } catch (err) {
-      // não revelar existência do e-mail
     }
   }
   audit.writeAudit($app, { action: "auth.magic_link.request", entity: "users", ip: http.clientIp(c) });

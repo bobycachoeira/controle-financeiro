@@ -46,7 +46,7 @@ describe("RBAC and member limits", () => {
     expect(withStepUp.data.invite.token).toBeTruthy();
   });
 
-  it("accepts an invite and enforces the two-adult limit", async () => {
+  it("creates a pending request on accept and enforces the two-adult limit at approval", async () => {
     const invite = await api<{ invite: { token: string } }>(
       harness,
       `/api/households/${owner.householdId}/invites`,
@@ -58,19 +58,59 @@ describe("RBAC and member limits", () => {
     );
     await createUser(harness, "partner@example.com", "Partner");
     const partner = await loginWithMagicLink(harness, "partner@example.com");
-    const accepted = await api(harness, `/api/invites/${invite.data.invite.token}/accept`, {
-      token: partner.token,
-      method: "POST",
-      body: {},
-    });
+    const accepted = await api<{ member: { invite_status: string } }>(
+      harness,
+      `/api/invites/${invite.data.invite.token}/accept`,
+      { token: partner.token, method: "POST", body: {} },
+    );
     expect(accepted.status).toBe(200);
+    expect(accepted.data.member.invite_status).toBe("pending");
 
-    const thirdAdult = await api(harness, `/api/households/${owner.householdId}/invites`, {
+    const membersBefore = await api<{ items: Array<{ user: string }> }>(
+      harness,
+      `/api/households/${owner.householdId}/members`,
+      { token: owner.token },
+    );
+    expect(membersBefore.data.items).toHaveLength(1);
+
+    const requests = await api<{
+      items: Array<{ id: string; email: string; role_suggested: string }>;
+    }>(harness, `/api/households/${owner.householdId}/join-requests`, { token: owner.token });
+    const request = requests.data.items.find((item) => item.email === "partner@example.com");
+    expect(request).toBeTruthy();
+
+    // Pendente ainda não conta para o limite de 2 adultos.
+    const anotherInvite = await api(harness, `/api/households/${owner.householdId}/invites`, {
       token: owner.token,
       headers: { "X-Step-Up-Token": stepUpToken },
       body: { email_invited: "third@example.com", role: "partner" },
     });
-    expect(thirdAdult.status).toBe(409);
+    expect(anotherInvite.status).toBe(201);
+
+    const approved = await api(
+      harness,
+      `/api/households/${owner.householdId}/join-requests/${request?.id}/approve`,
+      {
+        token: owner.token,
+        headers: { "X-Step-Up-Token": stepUpToken },
+        body: { role: "partner" },
+      },
+    );
+    expect(approved.status).toBe(200);
+
+    const membersAfter = await api<{ items: Array<{ role: string }> }>(
+      harness,
+      `/api/households/${owner.householdId}/members`,
+      { token: owner.token },
+    );
+    expect(membersAfter.data.items.some((member) => member.role === "partner")).toBe(true);
+
+    const fourthAdult = await api(harness, `/api/households/${owner.householdId}/invites`, {
+      token: owner.token,
+      headers: { "X-Step-Up-Token": stepUpToken },
+      body: { email_invited: "fourth@example.com", role: "partner" },
+    });
+    expect(fourthAdult.status).toBe(409);
   });
 
   it("only the owner can change member roles", async () => {
@@ -94,5 +134,65 @@ describe("RBAC and member limits", () => {
       },
     );
     expect(denied.status).toBe(403);
+  });
+
+  it("allows the owner to reject a request", async () => {
+    const invite = await api<{ invite: { token: string } }>(
+      harness,
+      `/api/households/${owner.householdId}/invites`,
+      {
+        token: owner.token,
+        headers: { "X-Step-Up-Token": stepUpToken },
+        body: { email_invited: "rejected@example.com", role: "child" },
+      },
+    );
+    await createUser(harness, "rejected@example.com", "Rejected");
+    const rejected = await loginWithMagicLink(harness, "rejected@example.com");
+    await api(harness, `/api/invites/${invite.data.invite.token}/accept`, {
+      token: rejected.token,
+      method: "POST",
+      body: {},
+    });
+
+    const requests = await api<{ items: Array<{ id: string; email: string }> }>(
+      harness,
+      `/api/households/${owner.householdId}/join-requests`,
+      { token: owner.token },
+    );
+    const request = requests.data.items.find((item) => item.email === "rejected@example.com");
+    expect(request).toBeTruthy();
+
+    const removed = await api(
+      harness,
+      `/api/households/${owner.householdId}/join-requests/${request?.id}/reject`,
+      { token: owner.token, headers: { "X-Step-Up-Token": stepUpToken }, method: "POST", body: {} },
+    );
+    expect(removed.status).toBe(204);
+
+    const after = await api<{ items: Array<{ email: string }> }>(
+      harness,
+      `/api/households/${owner.householdId}/join-requests`,
+      { token: owner.token },
+    );
+    expect(after.data.items.find((item) => item.email === "rejected@example.com")).toBeUndefined();
+  });
+
+  it("rejects an accept from a different e-mail", async () => {
+    const invite = await api<{ invite: { token: string } }>(
+      harness,
+      `/api/households/${owner.householdId}/invites`,
+      {
+        token: owner.token,
+        headers: { "X-Step-Up-Token": stepUpToken },
+        body: { email_invited: "someone-else@example.com", role: "child" },
+      },
+    );
+    const partnerSession = await loginWithMagicLink(harness, "partner@example.com");
+    const mismatch = await api(harness, `/api/invites/${invite.data.invite.token}/accept`, {
+      token: partnerSession.token,
+      method: "POST",
+      body: {},
+    });
+    expect(mismatch.status).toBe(403);
   });
 });

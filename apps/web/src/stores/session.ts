@@ -58,14 +58,23 @@ export const useSessionStore = defineStore("session", () => {
   const loading = ref(false);
 
   const isAuthenticated = computed(() => Boolean(loadTokens()?.token && user.value));
+  const acceptedMemberships = computed(() =>
+    memberships.value.filter((membership) => membership.invite_status !== "pending"),
+  );
+  const pendingMemberships = computed(() =>
+    memberships.value.filter((membership) => membership.invite_status === "pending"),
+  );
   const currentMembership = computed(
     () =>
-      memberships.value.find((membership) => membership.household === currentHouseholdId.value) ??
-      memberships.value[0] ??
+      acceptedMemberships.value.find(
+        (membership) => membership.household === currentHouseholdId.value,
+      ) ??
+      acceptedMemberships.value[0] ??
       null,
   );
   const currentRole = computed<Role | null>(() => currentMembership.value?.role ?? null);
-  const hasHousehold = computed(() => memberships.value.length > 0);
+  const hasHousehold = computed(() => acceptedMemberships.value.length > 0);
+  const hasPending = computed(() => pendingMemberships.value.length > 0);
 
   function persistAuth(result: AuthResult): void {
     saveTokens({
@@ -116,8 +125,9 @@ export const useSessionStore = defineStore("session", () => {
       memberships.value = me.memberships;
       members.value = me.members ?? [];
       twofaEnabled.value = me.twofa_enabled;
-      if (!currentHouseholdId.value && me.memberships[0]) {
-        currentHouseholdId.value = me.memberships[0].household;
+      const accepted = me.memberships.filter((membership) => membership.invite_status !== "pending");
+      if (!currentHouseholdId.value && accepted[0]) {
+        currentHouseholdId.value = accepted[0].household;
       }
       initialized.value = true;
     } finally {
@@ -158,9 +168,12 @@ export const useSessionStore = defineStore("session", () => {
     stepUpRequired,
     loading,
     isAuthenticated,
+    acceptedMemberships,
+    pendingMemberships,
     currentMembership,
     currentRole,
     hasHousehold,
+    hasPending,
     requestMagicLink,
     verifyMagicLink,
     verify2fa,

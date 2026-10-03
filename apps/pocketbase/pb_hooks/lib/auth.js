@@ -11,6 +11,8 @@ function findMembership(app, userId, householdId) {
       { household: householdId, user: userId },
     );
     if (!member || http.isDeleted(member)) return null;
+    // Solicitação ainda não aprovada pelo owner não concede acesso.
+    if (member.getString("invite_status") === "pending") return null;
     return member;
   } catch (err) {
     return null;

@@ -34,7 +34,7 @@ async function waitForHealth(baseUrl: string, timeoutMs = 30_000): Promise<void>
   throw new Error("PocketBase did not become healthy in time");
 }
 
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(options: { env?: Record<string, string> } = {}): Promise<Harness> {
   const dataDir = mkdtempSync(join(tmpdir(), "cf-pb-"));
   const port = 18200 + Math.floor(Math.random() * 500);
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -54,7 +54,7 @@ export async function startHarness(): Promise<Harness> {
       `--migrationsDir=${migrationsDir}`,
       `--hooksDir=${hooksDir}`,
     ],
-    { cwd: appDir },
+    { cwd: appDir, env: { ...process.env, CF_SINGLE_HOUSEHOLD: "false", ...(options.env ?? {}) } },
   );
 
   let output = "";

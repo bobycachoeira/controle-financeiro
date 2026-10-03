@@ -22,6 +22,18 @@ const routes: RouteRecordRaw[] = [
     meta: { auth: true },
   },
   {
+    path: "/pending",
+    name: "pending",
+    component: () => import("@/features/household/PendingApprovalView.vue"),
+    meta: { auth: true },
+  },
+  {
+    path: "/join",
+    name: "join",
+    component: () => import("@/features/household/JoinView.vue"),
+    meta: { public: true },
+  },
+  {
     path: "/",
     component: () => import("@/components/AppLayout.vue"),
     meta: { auth: true, household: true },
@@ -115,10 +127,14 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.household && !session.hasHousehold) {
-    return { name: "onboarding" };
+    return { name: session.hasPending ? "pending" : "onboarding" };
   }
 
   if (to.name === "onboarding" && session.hasHousehold) {
+    return { name: "dashboard" };
+  }
+
+  if (to.name === "pending" && session.hasHousehold) {
     return { name: "dashboard" };
   }
 
