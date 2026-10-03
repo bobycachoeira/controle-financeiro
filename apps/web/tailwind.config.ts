@@ -6,8 +6,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Nunito", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["Fraunces", "ui-serif", "Georgia", "serif"],
+        sans: ["Nunito Variable", "Nunito", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["Fraunces Variable", "Fraunces", "ui-serif", "Georgia", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",

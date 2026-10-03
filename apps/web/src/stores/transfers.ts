@@ -59,7 +59,7 @@ export const useTransfersStore = defineStore("transfers", () => {
         sync_id: newSyncId(),
         account: entry.account,
         credit_card: null,
-        amount_cents: Math.abs(entry.amount_cents),
+        amount_cents: entry.amount_cents,
         currency: "BRL",
         type: "transferencia",
         date: entry.date,

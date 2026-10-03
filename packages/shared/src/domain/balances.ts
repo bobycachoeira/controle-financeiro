@@ -28,7 +28,10 @@ export function computeAccountBalance(
   for (const tx of transactions) {
     if (!isActive(tx)) continue;
     if (tx.account !== account.id) continue;
-    if (tx.type === "transferencia") continue;
+    if (tx.type === "transferencia") {
+      balance += tx.amount_cents;
+      continue;
+    }
     if (tx.status !== "pago") continue;
     balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
   }

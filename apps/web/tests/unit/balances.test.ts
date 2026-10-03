@@ -32,18 +32,26 @@ const transactions: BalanceTransaction[] = [
   {
     type: "transferencia",
     status: "pago",
-    amount_cents: 3000,
+    amount_cents: -3000,
     attribution: "indefinido",
     account: "a1",
+  },
+  {
+    type: "transferencia",
+    status: "pago",
+    amount_cents: 3000,
+    attribution: "indefinido",
+    account: "a2",
   },
 ];
 
 describe("balances", () => {
-  it("computes balance from initial + paid income - paid expenses", () => {
-    expect(computeAccountBalance(accounts[0] as AccountLike, transactions)).toBe(13000);
+  it("computes balance from initial + paid income - paid expenses, applying transfers", () => {
+    expect(computeAccountBalance(accounts[0] as AccountLike, transactions)).toBe(10000);
+    expect(computeAccountBalance(accounts[1] as AccountLike, transactions)).toBe(3000);
   });
 
-  it("ignores unpaid and transfer transactions in totals", () => {
+  it("ignores unpaid transactions but keeps transfers neutral across the total", () => {
     expect(totalBalance(accounts, transactions)).toBe(13000);
   });
 

@@ -18,6 +18,8 @@ export interface CardInput {
   closing_day: number;
   due_day: number;
   account?: string;
+  color?: string | null;
+  payment_account?: string | null;
 }
 
 export const useCardsStore = defineStore("cards", () => {
@@ -62,6 +64,8 @@ export const useCardsStore = defineStore("cards", () => {
       purchase_at_posting: false,
       uses_account_balance_for_invoice: false,
       active: true,
+      color: input.color ?? null,
+      payment_account: input.payment_account ?? null,
       updated_by: session.user?.id ?? null,
       deleted_at: null,
     };
@@ -79,6 +83,8 @@ export const useCardsStore = defineStore("cards", () => {
       limit_cents: changes.limit_cents ?? existing.limit_cents,
       closing_day: changes.closing_day ?? existing.closing_day,
       due_day: changes.due_day ?? existing.due_day,
+      color: changes.color ?? existing.color,
+      payment_account: changes.payment_account ?? existing.payment_account,
     });
     await load();
   }

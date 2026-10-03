@@ -2,12 +2,14 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { BudgetUsage, BudgetPeriod } from "@cf/shared";
 import { todayISO } from "@cf/shared";
+import { Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
 import { useBudgetsStore } from "@/stores/budgets";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput, formatBRL } from "@/lib/format-input";
+import { formatCentsToInput } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -24,6 +26,7 @@ const sync = useSyncStore();
 const toast = useToast();
 
 const usage = ref<Record<string, BudgetUsage>>({});
+const editingId = ref<string | null>(null);
 const name = ref("");
 const period = ref<BudgetPeriod>("mensal");
 const total = ref("");
@@ -60,7 +63,28 @@ async function refreshUsage(): Promise<void> {
   usage.value = result;
 }
 
-async function create(): Promise<void> {
+function resetForm(): void {
+  editingId.value = null;
+  name.value = "";
+  total.value = "";
+  alertPct.value = 80;
+  referenceMonth.value = todayISO().slice(0, 7);
+  period.value = "mensal";
+  selectedCategories.value = [];
+}
+
+function openEdit(budget: (typeof store.items)[number]): void {
+  editingId.value = budget.id;
+  name.value = budget.name;
+  period.value = budget.period;
+  total.value = formatCentsToInput(budget.total_cents);
+  alertPct.value = budget.alert_pct;
+  referenceMonth.value = budget.reference_month;
+  selectedCategories.value = budget.categories.map((item) => item.category);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function submit(): Promise<void> {
   const cents = parseAmountInput(total.value);
   if (!name.value || cents === null || cents <= 0 || selectedCategories.value.length === 0) {
     toast.error("Informe nome, valor e ao menos uma categoria.");
@@ -68,21 +92,25 @@ async function create(): Promise<void> {
   }
   saving.value = true;
   try {
-    await store.create({
+    const payload = {
       name: name.value,
       period: period.value,
       total_cents: cents,
       alert_pct: Number(alertPct.value),
       reference_month: referenceMonth.value,
       categories: selectedCategories.value.map((category) => ({ category })),
-    });
-    toast.success("Orçamento criado.");
-    name.value = "";
-    total.value = "";
-    selectedCategories.value = [];
+    };
+    if (editingId.value) {
+      await store.update(editingId.value, payload);
+      toast.success("Orçamento atualizado.");
+    } else {
+      await store.create(payload);
+      toast.success("Orçamento criado.");
+    }
+    resetForm();
     await refreshUsage();
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Falha ao criar.");
+    toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
   } finally {
     saving.value = false;
   }
@@ -103,13 +131,19 @@ watch(() => sync.dataVersion, loadAll);
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="text-xl font-bold">Orçamentos</h1>
+  <div class="space-y-5">
+    <div class="flex items-end justify-between gap-3">
+      <div>
+        <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Planejamento</p>
+        <h1 class="font-display text-3xl font-black tracking-tight">Orçamentos</h1>
+      </div>
+      <Button size="sm" variant="secondary" @click="resetForm"><Plus class="h-4 w-4" /> Novo</Button>
+    </div>
 
     <Card>
-      <CardHeader><CardTitle>Novo orçamento</CardTitle></CardHeader>
+      <CardHeader><CardTitle>{{ editingId ? "Editar orçamento" : "Novo orçamento" }}</CardTitle></CardHeader>
       <CardContent>
-        <form class="space-y-4" @submit.prevent="create">
+        <form class="space-y-4" @submit.prevent="submit">
           <div class="space-y-2">
             <Label for="budget-name">Nome</Label>
             <Input id="budget-name" v-model="name" required maxlength="80" />
@@ -156,18 +190,39 @@ watch(() => sync.dataVersion, loadAll);
               </label>
             </div>
           </div>
-          <Button type="submit" :loading="saving">Criar orçamento</Button>
+          <div class="flex justify-end gap-2 pt-1">
+            <Button v-if="editingId" variant="ghost" type="button" @click="resetForm">Cancelar</Button>
+            <Button type="submit" :loading="saving">
+              {{ editingId ? "Salvar alterações" : "Criar orçamento" }}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
 
     <Card v-for="budget in store.items" :key="budget.id">
       <CardHeader>
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2">
           <CardTitle>{{ budget.name }}</CardTitle>
-          <Badge :variant="statusVariant[usage[budget.id]?.status ?? 'ok']">
-            {{ statusLabel[usage[budget.id]?.status ?? "ok"] }}
-          </Badge>
+          <span class="flex items-center gap-2">
+            <Badge :variant="statusVariant[usage[budget.id]?.status ?? 'ok']">
+              {{ statusLabel[usage[budget.id]?.status ?? "ok"] }}
+            </Badge>
+            <button
+              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+              aria-label="Editar orçamento"
+              @click="openEdit(budget)"
+            >
+              <Pencil class="h-3.5 w-3.5" />
+            </button>
+            <button
+              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+              aria-label="Excluir orçamento"
+              @click="store.remove(budget.id); refreshUsage()"
+            >
+              <Trash2 class="h-3.5 w-3.5" />
+            </button>
+          </span>
         </div>
       </CardHeader>
       <CardContent class="space-y-3">
@@ -194,9 +249,6 @@ watch(() => sync.dataVersion, loadAll);
             {{ formatBRL(row.spentCents) }}
           </li>
         </ul>
-        <Button size="sm" variant="ghost" @click="store.remove(budget.id); refreshUsage()">
-          Excluir
-        </Button>
       </CardContent>
     </Card>
   </div>
