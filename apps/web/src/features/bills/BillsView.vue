@@ -2,11 +2,15 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { BillNature, BillType } from "@cf/shared";
 import { computeBillsTotals, todayISO } from "@cf/shared";
-import { Check, Pencil, Plus, Receipt, RotateCcw } from "lucide-vue-next";
-import { db, type LocalBill } from "@/db/schema";
+import { Check, Clock, CreditCard, Pencil, Plus, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
+import { db, type LocalBill, type LocalCategory } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
+import { useRecurrencesStore } from "@/stores/recurrences";
+import { useTransactionsStore } from "@/stores/transactions";
+import { useAccountsStore } from "@/stores/accounts";
+import { useCardsStore } from "@/stores/cards";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput, formatBRL } from "@/lib/format-input";
 import { formatCentsToInput, formatDate } from "@/lib/format";
@@ -22,10 +26,23 @@ import IconChip from "@/components/ui/IconChip.vue";
 
 const session = useSessionStore();
 const sync = useSyncStore();
+const recurrencesStore = useRecurrencesStore();
+const transactionsStore = useTransactionsStore();
+const accountsStore = useAccountsStore();
+const cardsStore = useCardsStore();
 const toast = useToast();
 
 const bills = ref<LocalBill[]>([]);
-const open = ref(false);
+const categories = ref<LocalCategory[]>([]);
+const month = ref(todayISO().slice(0, 7));
+const totals = computed(() => computeBillsTotals(bills.value, month.value));
+
+const pendingConfirm = computed(() => bills.value.filter((b) => b.status === "a_confirmar"));
+const payable = computed(() => bills.value.filter((b) => b.status === "pendente"));
+const settled = computed(() => bills.value.filter((b) => b.status === "pago" || b.status === "cancelado"));
+
+// one-off bill
+const oneOpen = ref(false);
 const editingId = ref<string | null>(null);
 const title = ref("");
 const amount = ref("");
@@ -34,26 +51,64 @@ const type = ref<BillType>("fixa");
 const dueDate = ref(todayISO());
 const saving = ref(false);
 
-const month = ref(todayISO().slice(0, 7));
-const totals = computed(() => computeBillsTotals(bills.value, month.value));
+// recurring bill
+const recOpen = ref(false);
+const recName = ref("");
+const recNature = ref<BillNature>("saida");
+const recPeriodicity = ref("mensal");
+const recEmissionDay = ref(5);
+const recDueDay = ref(15);
+const recAmount = ref("");
+const recVariable = ref(true);
+const recDuration = ref("sempre");
+const recMonths = ref(12);
+const recCategory = ref("");
+const recAttribution = ref<"meu" | "dela" | "ambos">("ambos");
+const recSaving = ref(false);
+
+// confirm value
+const confirmOpen = ref(false);
+const confirming = ref<LocalBill | null>(null);
+const confirmAmount = ref("");
+
+// pay
+const payOpen = ref(false);
+const payingBill = ref<LocalBill | null>(null);
+const payMode = ref<"conta" | "cartao">("conta");
+const payAccount = ref("");
+const payCard = ref("");
+const paying = ref(false);
 
 async function load(): Promise<void> {
   if (!session.currentHouseholdId) return;
-  bills.value = (
-    await db.bills.where("household").equals(session.currentHouseholdId).toArray()
-  )
+  const h = session.currentHouseholdId;
+  bills.value = (await db.bills.where("household").equals(h).toArray())
     .filter((bill) => !bill.deleted_at)
     .sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
+  categories.value = (await db.categories.where("household").equals(h).toArray()).filter(
+    (category) => !category.deleted_at,
+  );
 }
 
-function openCreate(): void {
+function nextEmissionDate(day: number): string {
+  const today = todayISO();
+  const [year, month] = today.split("-").map(Number);
+  const clamp = (y: number, m: number, d: number) =>
+    Math.min(d, new Date(Date.UTC(y, m, 0)).getUTCDate());
+  const thisMonth = `${year}-${String(month).padStart(2, "0")}-${String(clamp(year!, month!, day)).padStart(2, "0")}`;
+  if (thisMonth >= today) return thisMonth;
+  const nm = month === 12 ? { y: year! + 1, m: 1 } : { y: year!, m: month! + 1 };
+  return `${nm.y}-${String(nm.m).padStart(2, "0")}-${String(clamp(nm.y, nm.m, day)).padStart(2, "0")}`;
+}
+
+function openOne(): void {
   editingId.value = null;
   title.value = "";
   amount.value = "";
   nature.value = "saida";
-  type.value = "fixa";
+  type.value = "variavel";
   dueDate.value = todayISO();
-  open.value = true;
+  oneOpen.value = true;
 }
 
 function openEdit(bill: LocalBill): void {
@@ -63,10 +118,10 @@ function openEdit(bill: LocalBill): void {
   nature.value = bill.nature;
   type.value = bill.type;
   dueDate.value = bill.due_date.slice(0, 10);
-  open.value = true;
+  oneOpen.value = true;
 }
 
-async function submit(): Promise<void> {
+async function submitOne(): Promise<void> {
   const cents = parseAmountInput(amount.value);
   if (!title.value || cents === null || cents <= 0) {
     toast.error("Preencha título e valor.");
@@ -107,12 +162,14 @@ async function submit(): Promise<void> {
         reminder_config: {},
         last_generation: null,
         next_generation: null,
+        emission_date: null,
+        confirmed_at: null,
         updated_by: session.user?.id ?? null,
         deleted_at: null,
       });
       toast.success("Conta adicionada.");
     }
-    open.value = false;
+    oneOpen.value = false;
     await load();
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
@@ -121,13 +178,167 @@ async function submit(): Promise<void> {
   }
 }
 
+function openRecurring(): void {
+  recName.value = "";
+  recNature.value = "saida";
+  recPeriodicity.value = "mensal";
+  recEmissionDay.value = 5;
+  recDueDay.value = 15;
+  recAmount.value = "";
+  recVariable.value = true;
+  recDuration.value = "sempre";
+  recMonths.value = 12;
+  recCategory.value = "";
+  recAttribution.value = "ambos";
+  recOpen.value = true;
+}
+
+async function submitRecurring(): Promise<void> {
+  if (!recName.value) {
+    toast.error("Informe o nome da conta recorrente.");
+    return;
+  }
+  const defaultCents = recVariable.value ? (parseAmountInput(recAmount.value) ?? 0) : parseAmountInput(recAmount.value);
+  if (!recVariable.value && (defaultCents === null || defaultCents <= 0)) {
+    toast.error("Informe o valor da conta.");
+    return;
+  }
+  recSaving.value = true;
+  try {
+    const freq: Record<string, string> = {
+      mensal: "FREQ=MONTHLY;INTERVAL=1",
+      bimestral: "FREQ=MONTHLY;INTERVAL=2",
+      trimestral: "FREQ=MONTHLY;INTERVAL=3",
+      anual: "FREQ=YEARLY;INTERVAL=1",
+    };
+    let rrule = freq[recPeriodicity.value] ?? "FREQ=MONTHLY;INTERVAL=1";
+    if (recDuration.value === "meses" && Number(recMonths.value) > 0) {
+      rrule += `;COUNT=${Number(recMonths.value)}`;
+    }
+    await recurrencesStore.create({
+      name: recName.value,
+      rrule,
+      start_date: nextEmissionDate(Number(recEmissionDay.value)),
+      target: "bill",
+      creates_status: "a_pagar",
+      template: {
+        amount_cents: defaultCents ?? 0,
+        default_amount_cents: defaultCents ?? 0,
+        confirm_required: recVariable.value,
+        type: recNature.value === "entrada" ? "receita" : "despesa",
+        nature: recNature.value,
+        category: recCategory.value || null,
+        attribution: recAttribution.value,
+        description: recName.value,
+        emission_day: Number(recEmissionDay.value),
+        due_day: Number(recDueDay.value),
+      },
+    });
+    toast.success("Conta recorrente criada. As parcelas aparecerão para confirmação.");
+    recOpen.value = false;
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao criar recorrência.");
+  } finally {
+    recSaving.value = false;
+  }
+}
+
+function openConfirm(bill: LocalBill): void {
+  confirming.value = bill;
+  confirmAmount.value = bill.amount_cents > 0 ? formatCentsToInput(bill.amount_cents) : "";
+  confirmOpen.value = true;
+}
+
+async function confirmValue(): Promise<void> {
+  const bill = confirming.value;
+  const cents = parseAmountInput(confirmAmount.value);
+  if (!bill || cents === null || cents <= 0) {
+    toast.error("Informe o valor correto.");
+    return;
+  }
+  await updateLocal("bills", {
+    ...bill,
+    amount_cents: cents,
+    status: "pendente",
+    confirmed_at: new Date().toISOString(),
+  });
+  confirmOpen.value = false;
+  await load();
+  toast.success("Valor confirmado. A conta está pronta para pagamento.");
+}
+
+function openPay(bill: LocalBill): void {
+  payingBill.value = bill;
+  payMode.value = "conta";
+  payAccount.value = accountsStore.items.find((a) => a.type !== "cartao_credito")?.id ?? "";
+  payCard.value = "";
+  payOpen.value = true;
+}
+
+async function confirmPay(): Promise<void> {
+  const bill = payingBill.value;
+  if (!bill) return;
+  paying.value = true;
+  try {
+    const isIncome = bill.nature === "entrada";
+    if (payMode.value === "cartao" && !isIncome) {
+      const card = cardsStore.cards.find((c) => c.id === payCard.value);
+      if (!card) {
+        toast.error("Escolha o cartão.");
+        return;
+      }
+      await transactionsStore.createCardPurchase({
+        account: card.account,
+        credit_card: card.id,
+        amount_cents: bill.amount_cents,
+        date: todayISO(),
+        attribution: bill.attribution === "dela" ? "dela" : bill.attribution === "meu" ? "meu" : "ambos",
+        category: bill.category ?? null,
+        description: bill.title,
+        status: "a_pagar",
+        installments: 1,
+        closing_day: card.closing_day,
+        due_day: card.due_day,
+      });
+    } else {
+      if (!payAccount.value) {
+        toast.error("Escolha a conta.");
+        return;
+      }
+      await transactionsStore.create({
+        account: payAccount.value,
+        credit_card: null,
+        amount_cents: bill.amount_cents,
+        type: isIncome ? "receita" : "despesa",
+        date: todayISO(),
+        attribution: bill.attribution,
+        category: bill.category ?? null,
+        description: bill.title,
+        status: "pago",
+      });
+    }
+    await updateLocal("bills", { ...bill, status: "pago" });
+    payOpen.value = false;
+    await load();
+    toast.success(isIncome ? "Conta recebida e lançada." : "Conta paga e lançada.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao registrar.");
+  } finally {
+    paying.value = false;
+  }
+}
+
 async function setStatus(bill: LocalBill, status: LocalBill["status"]): Promise<void> {
   await updateLocal("bills", { ...bill, status });
   await load();
 }
 
-onMounted(load);
-watch(() => sync.dataVersion, load);
+onMounted(async () => {
+  await Promise.all([accountsStore.load(), cardsStore.load(), transactionsStore.load(), load()]);
+});
+watch(() => sync.dataVersion, async () => {
+  await Promise.all([accountsStore.load(), cardsStore.load(), load()]);
+});
 </script>
 
 <template>
@@ -137,84 +348,94 @@ watch(() => sync.dataVersion, load);
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Compromissos</p>
         <h1 class="font-display text-3xl font-black tracking-tight">Contas</h1>
       </div>
-      <Button size="sm" @click="openCreate"><Plus class="h-4 w-4" /> Nova</Button>
+      <div class="flex gap-2">
+        <Button size="sm" variant="secondary" @click="openRecurring">Recorrente</Button>
+        <Button size="sm" @click="openOne"><Plus class="h-4 w-4" /> Nova</Button>
+      </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4">
-      <Card class="overflow-hidden">
-        <CardContent class="flex items-center gap-3 p-4">
-          <IconChip name="receipt" color="#E4572E" size="md" />
-          <div>
-            <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
-              A pagar
-            </p>
-            <p class="font-display text-lg font-bold">{{ formatBRL(totals.pendenteCents) }}</p>
-          </div>
+    <div class="grid grid-cols-3 gap-3">
+      <Card>
+        <CardContent class="flex flex-col items-center gap-1 p-3 text-center">
+          <IconChip name="calendar-clock" color="#F2A93B" size="sm" />
+          <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">A confirmar</p>
+          <p class="font-display text-base font-bold">{{ pendingConfirm.length }}</p>
         </CardContent>
       </Card>
-      <Card class="overflow-hidden">
-        <CardContent class="flex items-center gap-3 p-4">
-          <IconChip name="banknote" color="#3F9A6A" size="md" />
-          <div>
-            <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
-              Pago
-            </p>
-            <p class="font-display text-lg font-bold">{{ formatBRL(totals.pagoCents) }}</p>
-          </div>
+      <Card>
+        <CardContent class="flex flex-col items-center gap-1 p-3 text-center">
+          <IconChip name="receipt" color="#E4572E" size="sm" />
+          <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">A pagar</p>
+          <p class="font-display text-base font-bold">{{ formatBRL(totals.pendenteCents) }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent class="flex flex-col items-center gap-1 p-3 text-center">
+          <IconChip name="banknote" color="#3F9A6A" size="sm" />
+          <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">Pago</p>
+          <p class="font-display text-base font-bold">{{ formatBRL(totals.pagoCents) }}</p>
         </CardContent>
       </Card>
     </div>
+
+    <Card v-if="pendingConfirm.length > 0" class="border-sun/60">
+      <CardContent class="p-3">
+        <p class="flex items-center gap-2 px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-primary">
+          <Clock class="h-3.5 w-3.5" /> Confirme o valor
+        </p>
+        <ul class="stagger">
+          <li
+            v-for="bill in pendingConfirm"
+            :key="bill.id"
+            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2.5"
+          >
+            <IconChip name="calendar-clock" color="#F2A93B" size="md" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-bold">{{ bill.title }}</p>
+              <p class="text-xs font-semibold text-muted-foreground">
+                emitida {{ formatDate(bill.emission_date ?? bill.due_date) }} · vence
+                {{ formatDate(bill.due_date) }}
+              </p>
+            </div>
+            <Button size="sm" variant="sun" @click="openConfirm(bill)">Confirmar valor</Button>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
 
     <Card>
-      <CardContent class="p-2">
-        <p
-          v-if="bills.length === 0"
-          class="flex flex-col items-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground"
-        >
-          <Receipt class="h-8 w-8 text-muted-foreground/50" />
-          Nenhuma conta cadastrada.
+      <CardContent class="p-3">
+        <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          A pagar / receber
+        </p>
+        <p v-if="payable.length === 0" class="px-2 py-6 text-center text-sm text-muted-foreground">
+          Nada em aberto.
         </p>
         <ul v-else class="stagger">
           <li
-            v-for="bill in bills"
+            v-for="bill in payable"
             :key="bill.id"
-            class="group flex items-center gap-3 rounded-[1.3rem] px-2 py-3 transition hover:bg-muted/70"
+            class="group flex items-center gap-3 rounded-[1.2rem] px-2 py-2.5 transition hover:bg-muted/70"
           >
             <IconChip
               :name="bill.nature === 'entrada' ? 'hand-coins' : 'receipt'"
-              :color="bill.nature === 'entrada' ? '#3F9A6A' : (bill.status === 'pago' ? '#3F9A6A' : '#E4572E')"
+              :color="bill.nature === 'entrada' ? '#3F9A6A' : '#E4572E'"
               size="md"
             />
             <button class="min-w-0 flex-1 text-left" @click="openEdit(bill)">
               <p class="truncate font-bold">{{ bill.title }}</p>
               <p class="truncate text-xs font-semibold text-muted-foreground">
-                {{ bill.type }} · vence {{ formatDate(bill.due_date) }}
+                vence {{ formatDate(bill.due_date) }}
               </p>
             </button>
-            <div class="flex flex-col items-end gap-1">
-              <span class="font-display font-bold">{{ formatBRL(bill.amount_cents) }}</span>
-              <Badge
-                :variant="bill.status === 'pago' ? 'success' : bill.status === 'cancelado' ? 'destructive' : 'warning'"
-              >
-                {{ bill.status }}
-              </Badge>
-            </div>
+            <span class="font-display font-bold">{{ formatBRL(bill.amount_cents) }}</span>
             <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
               <button
-                v-if="bill.status === 'pendente'"
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-leaf"
-                aria-label="Marcar como pago"
-                @click="setStatus(bill, 'pago')"
+                aria-label="Pagar conta"
+                @click="openPay(bill)"
               >
                 <Check class="h-4 w-4" />
-              </button>
-              <button
-                v-else
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
-                aria-label="Reabrir conta"
-                @click="setStatus(bill, 'pendente')"
-              >
-                <RotateCcw class="h-3.5 w-3.5" />
               </button>
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
@@ -223,14 +444,47 @@ watch(() => sync.dataVersion, load);
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                aria-label="Excluir conta"
+                @click="setStatus(bill, 'cancelado')"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
             </div>
           </li>
         </ul>
       </CardContent>
     </Card>
 
-    <Modal v-model="open" :title="editingId ? 'Editar conta' : 'Nova conta'">
-      <form class="space-y-4" @submit.prevent="submit">
+    <Card v-if="settled.length > 0">
+      <CardContent class="p-3">
+        <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Pagas / canceladas
+        </p>
+        <ul>
+          <li
+            v-for="bill in settled"
+            :key="bill.id"
+            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2 text-sm"
+          >
+            <span class="min-w-0 flex-1 truncate">{{ bill.title }}</span>
+            <Badge :variant="bill.status === 'pago' ? 'success' : 'destructive'">{{ bill.status }}</Badge>
+            <button
+              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              aria-label="Reabrir"
+              @click="setStatus(bill, 'pendente')"
+            >
+              <RotateCcw class="h-3.5 w-3.5" />
+            </button>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
+
+    <!-- Nova/editar conta avulsa -->
+    <Modal v-model="oneOpen" :title="editingId ? 'Editar conta' : 'Nova conta'">
+      <form class="space-y-4" @submit.prevent="submitOne">
         <div class="space-y-2">
           <Label for="bill-title">Título</Label>
           <Input id="bill-title" v-model="title" required maxlength="120" />
@@ -254,7 +508,7 @@ watch(() => sync.dataVersion, load);
             </Select>
           </div>
           <div class="space-y-2">
-            <Label for="bill-type">Recorrência</Label>
+            <Label for="bill-type">Variação</Label>
             <Select id="bill-type" v-model="type">
               <option value="fixa">Fixa</option>
               <option value="variavel">Variável</option>
@@ -262,8 +516,171 @@ watch(() => sync.dataVersion, load);
           </div>
         </div>
         <div class="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" type="button" @click="open = false">Cancelar</Button>
+          <Button variant="ghost" type="button" @click="oneOpen = false">Cancelar</Button>
           <Button type="submit" :loading="saving">Salvar</Button>
+        </div>
+      </form>
+    </Modal>
+
+    <!-- Nova conta recorrente -->
+    <Modal
+      v-model="recOpen"
+      title="Conta recorrente"
+      description="Emite todo mês num dia e você confirma o valor."
+    >
+      <form class="space-y-4" @submit.prevent="submitRecurring">
+        <div class="space-y-2">
+          <Label for="rec-name">Nome</Label>
+          <Input id="rec-name" v-model="recName" required placeholder="Ex.: Água" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Label for="rec-nature">Tipo</Label>
+            <Select id="rec-nature" v-model="recNature">
+              <option value="saida">A pagar</option>
+              <option value="entrada">A receber</option>
+            </Select>
+          </div>
+          <div class="space-y-2">
+            <Label for="rec-period">Periodicidade</Label>
+            <Select id="rec-period" v-model="recPeriodicity">
+              <option value="mensal">Mensal</option>
+              <option value="bimestral">Bimestral</option>
+              <option value="trimestral">Trimestral</option>
+              <option value="anual">Anual</option>
+            </Select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Label for="rec-emission">Dia de emissão</Label>
+            <Input id="rec-emission" v-model.number="recEmissionDay" type="number" min="1" max="31" />
+          </div>
+          <div class="space-y-2">
+            <Label for="rec-due">Dia de vencimento</Label>
+            <Input id="rec-due" v-model.number="recDueDay" type="number" min="1" max="31" />
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-sm font-bold">
+          <input v-model="recVariable" type="checkbox" class="h-4 w-4" />
+          Valor variável (confirmo depois de emitida)
+        </label>
+        <div class="space-y-2">
+          <Label for="rec-amount">
+            {{ recVariable ? "Valor de referência (opcional)" : "Valor" }}
+          </Label>
+          <Input id="rec-amount" v-model="recAmount" inputmode="decimal" placeholder="0,00" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Label for="rec-category">Categoria</Label>
+            <Select id="rec-category" v-model="recCategory">
+              <option value="">Sem categoria</option>
+              <option v-for="item in categories" :key="item.id" :value="item.id">{{ item.name }}</option>
+            </Select>
+          </div>
+          <div class="space-y-2">
+            <Label for="rec-attr">Atribuição</Label>
+            <Select id="rec-attr" v-model="recAttribution">
+              <option value="meu">Eu</option>
+              <option value="dela">Ela</option>
+              <option value="ambos">Ambos</option>
+            </Select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Label for="rec-duration">Duração</Label>
+            <Select id="rec-duration" v-model="recDuration">
+              <option value="sempre">Para sempre (até excluir)</option>
+              <option value="meses">Por X meses</option>
+            </Select>
+          </div>
+          <div v-if="recDuration === 'meses'" class="space-y-2">
+            <Label for="rec-months">Meses</Label>
+            <Input id="rec-months" v-model.number="recMonths" type="number" min="1" max="120" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" type="button" @click="recOpen = false">Cancelar</Button>
+          <Button type="submit" :loading="recSaving">Criar recorrente</Button>
+        </div>
+      </form>
+    </Modal>
+
+    <!-- Confirmar valor -->
+    <Modal v-model="confirmOpen" title="Confirmar valor" description="Informe o valor correto desta emissão.">
+      <form class="space-y-4" @submit.prevent="confirmValue">
+        <p class="text-sm font-bold">{{ confirming?.title }}</p>
+        <div class="space-y-2">
+          <Label for="confirm-amount">Valor (R$)</Label>
+          <Input id="confirm-amount" v-model="confirmAmount" inputmode="decimal" placeholder="0,00" autofocus />
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" type="button" @click="confirmOpen = false">Cancelar</Button>
+          <Button type="submit">Confirmar</Button>
+        </div>
+      </form>
+    </Modal>
+
+    <!-- Pagar -->
+    <Modal
+      v-model="payOpen"
+      :title="payingBill?.nature === 'entrada' ? 'Receber conta' : 'Pagar conta'"
+      description="Escolha por onde o valor entra ou sai."
+    >
+      <form class="space-y-4" @submit.prevent="confirmPay">
+        <div class="flex items-center justify-between rounded-2xl bg-muted p-3">
+          <span class="text-sm font-bold">{{ payingBill?.title }}</span>
+          <span class="font-display text-lg font-bold">
+            {{ payingBill ? formatBRL(payingBill.amount_cents) : "" }}
+          </span>
+        </div>
+        <div v-if="payingBill?.nature !== 'entrada'" class="grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
+          <button
+            type="button"
+            class="flex items-center justify-center gap-1 rounded-full py-2 text-sm font-extrabold transition"
+            :class="payMode === 'conta' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
+            @click="payMode = 'conta'"
+          >
+            <Wallet class="h-4 w-4" /> Conta
+          </button>
+          <button
+            type="button"
+            class="flex items-center justify-center gap-1 rounded-full py-2 text-sm font-extrabold transition"
+            :class="payMode === 'cartao' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
+            @click="payMode = 'cartao'"
+          >
+            <CreditCard class="h-4 w-4" /> Cartão
+          </button>
+        </div>
+        <div v-if="payMode === 'conta' || payingBill?.nature === 'entrada'" class="space-y-2">
+          <Label for="pay-account">Conta</Label>
+          <Select id="pay-account" v-model="payAccount" required>
+            <option value="">Selecione</option>
+            <option
+              v-for="item in accountsStore.items.filter((a) => a.type !== 'cartao_credito')"
+              :key="item.id"
+              :value="item.id"
+            >
+              {{ item.name }}
+            </option>
+          </Select>
+        </div>
+        <div v-else class="space-y-2">
+          <Label for="pay-card">Cartão</Label>
+          <Select id="pay-card" v-model="payCard" required>
+            <option value="">Selecione</option>
+            <option v-for="item in cardsStore.cards" :key="item.id" :value="item.id">
+              {{ item.bank || "Cartão" }} •••• {{ item.closing_day }}/{{ item.due_day }}
+            </option>
+          </Select>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" type="button" @click="payOpen = false">Cancelar</Button>
+          <Button type="submit" :loading="paying">
+            {{ payingBill?.nature === "entrada" ? "Receber" : "Pagar" }}
+          </Button>
         </div>
       </form>
     </Modal>

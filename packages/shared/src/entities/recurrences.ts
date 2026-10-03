@@ -6,7 +6,7 @@ export const RECURRENCE_TARGETS = ["transaction", "bill"] as const;
 export const BUDGET_PERIODS = ["mensal", "trimestral", "anual"] as const;
 
 export const recurrenceTemplateSchema = z.object({
-  amount_cents: cents.positive(),
+  amount_cents: z.number().int().min(0),
   type: transactionTypeSchema,
   account: z.string().nullable().optional(),
   credit_card: z.string().nullable().optional(),
@@ -15,6 +15,10 @@ export const recurrenceTemplateSchema = z.object({
   nature: z.enum(["entrada", "saida"]).nullable().optional(),
   description: z.string().max(200).default(""),
   payer_user: z.string().nullable().optional(),
+  emission_day: z.number().int().min(1).max(31).nullable().optional(),
+  due_day: z.number().int().min(1).max(31).nullable().optional(),
+  default_amount_cents: z.number().int().min(0).nullable().optional(),
+  confirm_required: z.boolean().optional(),
 });
 
 export const recurrenceSchema = syncBaseSchema
@@ -40,6 +44,12 @@ export const recurrenceSchema = syncBaseSchema
     }
     if (value.target === "transaction" && !value.template.account) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Lançamento recorrente exige conta" });
+    }
+    if (value.target === "transaction" && value.template.amount_cents <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valor deve ser maior que zero" });
+    }
+    if (value.target === "bill" && !value.template.confirm_required && value.template.amount_cents <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valor deve ser maior que zero" });
     }
   });
 

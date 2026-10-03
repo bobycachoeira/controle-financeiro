@@ -73,7 +73,7 @@ export const transferSchema = syncBaseSchema.extend({
 
 export const billSchema = syncBaseSchema.extend({
   title: z.string().min(1).max(120),
-  amount_cents: cents.positive(),
+  amount_cents: cents.min(0),
   currency: z.string().default("BRL"),
   type: billTypeSchema,
   nature: billNatureSchema,
@@ -87,6 +87,8 @@ export const billSchema = syncBaseSchema.extend({
   reminder_config: z.record(z.unknown()).default({}),
   last_generation: isoDate.nullable().optional(),
   next_generation: isoDate.nullable().optional(),
+  emission_date: isoDate.nullable().optional(),
+  confirmed_at: isoDateTime.nullable().optional(),
 });
 
 export type Transaction = z.infer<typeof transactionSchema>;

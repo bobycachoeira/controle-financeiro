@@ -52,16 +52,22 @@ function buildTransaction(recurrence, occurrence) {
 function buildBill(recurrence, occurrence) {
   const template = templateOf(recurrence);
   const parsed = shared.parseRRule(recurrence.getString("rrule"));
+  const dueDay = template.due_day || Number(occurrence.slice(8, 10));
+  const amount =
+    template.default_amount_cents !== undefined && template.default_amount_cents !== null
+      ? template.default_amount_cents
+      : template.amount_cents || 0;
   const record = new Record($app.findCollectionByNameOrId("bills"));
   record.set("household", recurrence.getString("household"));
   record.set("title", recurrence.getString("name"));
-  record.set("amount_cents", template.amount_cents);
+  record.set("amount_cents", amount);
   record.set("currency", "BRL");
-  record.set("type", parsed && parsed.freq === "MONTHLY" ? "fixa" : "variavel");
+  record.set("type", template.confirm_required ? "variavel" : parsed && parsed.freq === "MONTHLY" ? "fixa" : "variavel");
   record.set("nature", template.nature || "saida");
-  record.set("due_date", occurrence);
+  record.set("emission_date", occurrence);
+  record.set("due_date", shared.billDueDate(occurrence, dueDay));
   record.set("periodicity", parsed && parsed.freq === "MONTHLY" ? "mensal" : "personalizada");
-  record.set("status", "pendente");
+  record.set("status", template.confirm_required ? "a_confirmar" : "pendente");
   record.set("attribution", template.attribution || "ambos");
   record.set("responsible_user", template.payer_user || null);
   record.set("category", template.category || null);
@@ -82,7 +88,7 @@ function generateForRecurrence(recurrence, today) {
   const occurrences = shared.occurrencesBetween(rrule, dtstart, after, until);
   const target = recurrence.getString("target") || "transaction";
   const entity = target === "bill" ? "bills" : "transactions";
-  const dateField = target === "bill" ? "due_date" : "date";
+  const dateField = target === "bill" ? "emission_date" : "date";
 
   let created = 0;
   let lastProcessed = lastRun;

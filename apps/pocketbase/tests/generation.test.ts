@@ -106,4 +106,96 @@ describe("recurrence generation", () => {
     );
     expect(pull.data.changes.filter((change) => change.entity === "bills").length).toBe(2);
   });
+
+  it("generates variable bills awaiting confirmation with due date from the template", async () => {
+    const id = crypto.randomUUID();
+    const syncId = crypto.randomUUID();
+    const createResult = await push(harness, family.token, family.householdId, [
+      operation(
+        syncId,
+        "recurrences",
+        "create",
+        {
+          id,
+          household: "",
+          sync_id: syncId,
+          name: "Água",
+          rrule: "FREQ=MONTHLY;INTERVAL=1",
+          start_date: "2024-02-12",
+          active: true,
+          target: "bill",
+          creates_status: "a_pagar",
+          template: {
+            amount_cents: 0,
+            default_amount_cents: 0,
+            confirm_required: true,
+            type: "despesa",
+            nature: "saida",
+            due_day: 20,
+            attribution: "ambos",
+          },
+        },
+        id,
+      ),
+    ]);
+    expect(createResult.data.results[0]?.status, JSON.stringify(createResult.data.results[0])).toBe(
+      "applied",
+    );
+
+    await runGeneration("2024-03-31");
+
+    const pull = await api<{
+      changes: Array<{ entity: string; record?: Record<string, unknown> }>;
+    }>(harness, `/api/sync/pull?since=0&limit=1000&household=${family.householdId}`, {
+      token: family.token,
+    });
+    const waterBills = pull.data.changes
+      .filter((change) => change.entity === "bills")
+      .map((change) => change.record)
+      .filter((record) => record?.title === "Água");
+    expect(waterBills).toHaveLength(2);
+    expect(waterBills.every((record) => record?.status === "a_confirmar")).toBe(true);
+    expect(waterBills.map((record) => String(record?.due_date).slice(0, 10)).sort()).toEqual([
+      "2024-02-20",
+      "2024-03-20",
+    ]);
+  });
+
+  it("stops generating after the recurrence count limit", async () => {
+    const id = crypto.randomUUID();
+    const syncId = crypto.randomUUID();
+    await push(harness, family.token, family.householdId, [
+      operation(
+        syncId,
+        "recurrences",
+        "create",
+        {
+          id,
+          household: "",
+          sync_id: syncId,
+          name: "Curso",
+          rrule: "FREQ=MONTHLY;INTERVAL=1;COUNT=2",
+          start_date: "2024-01-12",
+          active: true,
+          target: "transaction",
+          creates_status: "pago",
+          template: { amount_cents: 5000, type: "despesa", account: accountId, attribution: "ambos" },
+        },
+        id,
+      ),
+    ]);
+
+    await runGeneration("2024-06-30");
+
+    const pull = await api<{
+      changes: Array<{ entity: string; record?: Record<string, unknown> }>;
+    }>(harness, `/api/sync/pull?since=0&limit=1000&household=${family.householdId}`, {
+      token: family.token,
+    });
+    const courseTransactions = pull.data.changes
+      .filter((change) => change.entity === "transactions")
+      .map((change) => change.record)
+      .filter((record) => record?.description === "Curso");
+    expect(courseTransactions).toHaveLength(2);
+  });
 });

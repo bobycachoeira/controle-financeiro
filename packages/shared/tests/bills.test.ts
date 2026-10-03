@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { billsByAttribution, canTransitionBill, computeBillsTotals } from "../src/domain/bills";
+import {
+  billDueDate,
+  billsByAttribution,
+  canTransitionBill,
+  computeBillsTotals,
+} from "../src/domain/bills";
 import type { BillLike } from "../src/domain/bills";
 
 const bills: BillLike[] = [
@@ -70,9 +75,36 @@ describe("bill totals", () => {
   });
 
   it("enforces allowed status transitions", () => {
+    expect(canTransitionBill("a_confirmar", "pendente")).toBe(true);
     expect(canTransitionBill("pendente", "pago")).toBe(true);
     expect(canTransitionBill("pendente", "cancelado")).toBe(true);
     expect(canTransitionBill("pago", "pendente")).toBe(true);
     expect(canTransitionBill("cancelado", "pago")).toBe(false);
+  });
+
+  it("computes the due date from the emission date with clamp and month roll", () => {
+    expect(billDueDate("2024-03-12", 20)).toBe("2024-03-20");
+    expect(billDueDate("2024-03-25", 5)).toBe("2024-04-05");
+    expect(billDueDate("2024-03-12", 31)).toBe("2024-03-31");
+    expect(billDueDate("2024-02-12", 31)).toBe("2024-02-29");
+  });
+
+  it("separates bills awaiting confirmation in the totals", () => {
+    const totals = computeBillsTotals(
+      [
+        {
+          id: "1",
+          type: "variavel",
+          nature: "saida",
+          status: "a_confirmar",
+          attribution: "ambos",
+          amount_cents: 0,
+          due_date: "2024-03-20",
+        },
+      ],
+      "2024-03",
+    );
+    expect(totals.countAConfirmar).toBe(1);
+    expect(totals.countPendente).toBe(0);
   });
 });

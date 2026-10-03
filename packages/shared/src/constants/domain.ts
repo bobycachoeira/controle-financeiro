@@ -39,7 +39,7 @@ export const BILL_PERIODICITIES = [
 ] as const;
 export type BillPeriodicity = (typeof BILL_PERIODICITIES)[number];
 
-export const BILL_STATUS = ["pendente", "pago", "cancelado"] as const;
+export const BILL_STATUS = ["a_confirmar", "pendente", "pago", "cancelado"] as const;
 export type BillStatus = (typeof BILL_STATUS)[number];
 
 export const CATEGORY_KINDS = ["entrada", "saida"] as const;
