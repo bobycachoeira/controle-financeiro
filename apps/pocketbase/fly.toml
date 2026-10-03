@@ -1,0 +1,31 @@
+# Deploy do PocketBase no Fly.io (sem VPS).
+# Uso (na raiz do repo):
+#   fly launch --no-deploy --config apps/pocketbase/fly.toml
+#   fly volumes create pb_data --size 1 --region gru --config apps/pocketbase/fly.toml
+#   fly secrets set --config apps/pocketbase/fly.toml \
+#     CF_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+#     CF_APP_URL="https://app.seudominio.com" \
+#     CF_MAIL_HOST="..." CF_MAIL_PORT="587" CF_MAIL_USER="..." CF_MAIL_PASSWORD="..." CF_MAIL_FROM="..."
+#   fly deploy --config apps/pocketbase/fly.toml
+# Depois: fly ssh console --config apps/pocketbase/fly.toml -C \
+#   "/pb/pocketbase superuser upsert admin@seudominio.com <senha> --dir=/pb/pb_data"
+app = "cf-pocketbase"
+primary_region = "gru"
+
+[build]
+  dockerfile = "../../docker/Dockerfile.pocketbase"
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[mounts]]
+  source = "pb_data"
+  destination = "/pb/pb_data"
+
+[env]
+  CF_TIMEZONE = "America/Sao_Paulo"
+  CF_STEPUP_TTL = "10m"

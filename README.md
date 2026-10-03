@@ -141,7 +141,36 @@ Pós-deploy no backend (uma vez):
    **Mais → Família e convites**.
 3. **Mais → Pessoas**: ajuste os nomes/atribuições (titular de contas e cartões).
 
-### E) Notas de produção
+### E) Deploy SEM VPS (só PocketBase + Vercel)
+
+A Vercel hospeda apenas o front (estático). O PocketBase é **stateful** (SQLite + disco),
+então precisa de um host com **volume persistente** — mas **não precisa ser VPS**. Opções:
+
+1. **Fly.io** (mais próximo de "só PocketBase + Vercel"): roda o container com volume
+   gerenciado e HTTPS. Config pronta em `apps/pocketbase/fly.toml`. Passos:
+   ```bash
+   fly launch --no-deploy --config apps/pocketbase/fly.toml
+   fly volumes create pb_data --size 1 --region gru --config apps/pocketbase/fly.toml
+   fly secrets set --config apps/pocketbase/fly.toml \
+     CF_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+     CF_APP_URL="https://app.seudominio.com" \
+     CF_MAIL_HOST="..." CF_MAIL_PORT=587 CF_MAIL_USER="..." CF_MAIL_PASSWORD="..." CF_MAIL_FROM="..."
+   fly deploy --config apps/pocketbase/fly.toml
+   fly ssh console --config apps/pocketbase/fly.toml -C \
+     "/pb/pocketbase superuser upsert admin@seudominio.com <senha> --dir=/pb/pb_data"
+   ```
+   URL do backend: `https://cf-pocketbase.fly.dev` → `VITE_API_URL=https://cf-pocketbase.fly.dev/api`.
+2. **Railway / Render**: mesma ideia (container + disco persistente).
+3. **PocketBase gerenciado**: PocketBase Cloud / PocketHost (hospedagem gerenciada; sem
+   infra). Rode `pnpm build:hooks` e envie `pb_hooks` + `pb_migrations`.
+4. **Em casa, sem abrir portas**: rode o PocketBase numa máquina local (ou Raspberry Pi) e
+   exponha com **Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:8090`) —
+   HTTPS grátis, sem VPS e sem IP público.
+
+> O **notifier** (push) é opcional: sem ele o app funciona normalmente, só não envia
+> notificações. Para a primeira versão, pode ficar de fora.
+
+### F) Notas de produção
 
 - **Backups**: faça backup do volume `pb_data` (ex.: `docker run --rm -v cf_pb_data:/data
   -v $PWD:/backup alpine tar czf /backup/pb-$(date +%F).tgz -C /data .`).
