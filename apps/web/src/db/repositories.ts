@@ -42,6 +42,19 @@ export function nowISO(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Converte objetos reativos do Vue (Proxy) em valores simples, que o
+ * IndexedDB consegue clonar. Sem isso, gravações com proxies falham com
+ * DataCloneError.
+ */
+export function toPlain<T>(value: T): T {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T;
+  } catch {
+    return value;
+  }
+}
+
 export function newSyncId(): string {
   return crypto.randomUUID();
 }
@@ -60,7 +73,7 @@ export async function upsertLocal<T extends SyncableRecord>(
   entity: SyncEntityName,
   record: T,
 ): Promise<void> {
-  await ENTITY_TABLES[entity].put(record);
+  await ENTITY_TABLES[entity].put(toPlain(record));
 }
 
 export async function applyRemote<T extends SyncableRecord>(
@@ -75,7 +88,7 @@ export async function applyRemote<T extends SyncableRecord>(
   if (existing?._pendingOutboxId) {
     payload._pendingOutboxId = existing._pendingOutboxId;
   }
-  await table.put(payload);
+  await table.put(toPlain(payload));
 }
 
 export async function removeLocal(entity: SyncEntityName, id: string): Promise<void> {
@@ -97,18 +110,18 @@ export async function enqueue(input: EnqueueInput): Promise<number> {
     entity: input.entity,
     operation: input.operation,
     entity_id: input.record.id,
-    payload: input.payload,
+    payload: toPlain(input.payload),
     client_ts: nowISO(),
     status: "pending",
     attempts: 0,
     last_error: null,
     created: nowISO(),
   };
-  const id = await db.outbox.add(item);
+  const id = await db.outbox.add(toPlain(item));
   const table = ENTITY_TABLES[input.entity];
   const existing = await table.get(input.record.id);
   if (existing) {
-    await table.put({ ...existing, _dirty: true, _pendingOutboxId: id });
+    await table.put(toPlain({ ...existing, _dirty: true, _pendingOutboxId: id }));
   }
   return id;
 }
@@ -118,7 +131,7 @@ export async function createLocal<T extends SyncableRecord>(
   record: T,
 ): Promise<T> {
   const dirty: T = { ...record, _dirty: true, deleted_at: null, updated: nowISO() };
-  await ENTITY_TABLES[entity].put(dirty);
+  await ENTITY_TABLES[entity].put(toPlain(dirty));
   const outboxId = await enqueue({
     entity,
     operation: "create",
@@ -134,7 +147,7 @@ export async function updateLocal<T extends SyncableRecord>(
   record: T,
 ): Promise<T> {
   const dirty: T = { ...record, _dirty: true, updated: nowISO() };
-  await ENTITY_TABLES[entity].put(dirty);
+  await ENTITY_TABLES[entity].put(toPlain(dirty));
   const outboxId = await enqueue({
     entity,
     operation: "update",
@@ -153,7 +166,7 @@ export async function softDeleteLocal(
   const existing = await table.get(id);
   if (!existing) return;
   const tombstone: SyncableRecord = { ...existing, deleted_at: nowISO(), updated: nowISO() };
-  await table.put(tombstone);
+  await table.put(toPlain(tombstone));
   await enqueue({
     entity,
     operation: "delete",

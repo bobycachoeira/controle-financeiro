@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
-import { CreditCard, LayoutDashboard, Menu, Receipt, Wallet } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Menu, Receipt, Wallet } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import SyncStatus from "@/features/sync/SyncStatus.vue";
@@ -11,11 +11,11 @@ const sync = useSyncStore();
 const route = useRoute();
 
 const navItems = [
-  { name: "dashboard", label: "Início", icon: LayoutDashboard },
-  { name: "transactions", label: "Lançar", icon: Receipt },
-  { name: "accounts", label: "Contas", icon: Wallet },
-  { name: "cards", label: "Cartões", icon: CreditCard },
-  { name: "more", label: "Mais", icon: Menu },
+  { name: "dashboard", label: "Início", icon: LayoutDashboard, matches: ["dashboard"] },
+  { name: "transactions", label: "Lançamentos", icon: Receipt, matches: ["transactions", "transaction-new", "transaction-edit"] },
+  { name: "bills", label: "Contas", icon: ClipboardList, matches: ["bills"] },
+  { name: "wallet", label: "Carteira", icon: Wallet, matches: ["wallet", "accounts", "cards"] },
+  { name: "more", label: "Mais", icon: Menu, matches: ["more"] },
 ];
 
 const householdName = computed(
@@ -23,9 +23,9 @@ const householdName = computed(
 );
 const initial = computed(() => (householdName.value.trim()[0] ?? "F").toUpperCase());
 
-function isActive(name: string): boolean {
+function isActive(item: { name: string; matches: string[] }): boolean {
   const current = String(route.name ?? "");
-  return current === name || current.startsWith(name);
+  return item.matches.some((match) => current === match || current.startsWith(match));
 }
 
 onMounted(async () => {
@@ -83,7 +83,7 @@ onMounted(async () => {
         :to="{ name: item.name }"
         class="flex flex-1 flex-col items-center gap-0.5 rounded-[1.2rem] px-1 py-1.5 text-[0.66rem] font-extrabold uppercase tracking-wide transition-all duration-200"
         :class="
-          isActive(item.name)
+          isActive(item)
             ? 'bg-primary text-primary-foreground shadow-lift'
             : 'text-muted-foreground hover:bg-muted'
         "
