@@ -176,6 +176,18 @@ export async function softDeleteLocal(
   });
 }
 
+export async function clearPendingFlag(
+  entity: SyncEntityName,
+  id: string,
+): Promise<void> {
+  const table = ENTITY_TABLES[entity];
+  const existing = await table.get(id);
+  if (!existing) return;
+  const clean: SyncableRecord = { ...existing, _dirty: false };
+  delete clean._pendingOutboxId;
+  await table.put(toPlain(clean));
+}
+
 export function toPayload(record: SyncableRecord): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {

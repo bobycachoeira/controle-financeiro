@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { CloudOff, RefreshCw, TriangleAlert } from "lucide-vue-next";
 import { useSyncStore } from "@/stores/sync";
+import { describeSyncError } from "@/sync/errors";
+import SyncDetailsModal from "./SyncDetailsModal.vue";
 
 const sync = useSyncStore();
+const open = ref(false);
 
 const label = computed(() => {
   if (!sync.online) return "Offline";
@@ -12,26 +15,36 @@ const label = computed(() => {
   if (sync.pending > 0) return `${sync.pending} pendente(s)`;
   return "Sincronizado";
 });
+
+const tooltip = computed(() =>
+  sync.failed > 0 ? describeSyncError(sync.lastError) : `Status de sincronização: ${label.value}`,
+);
+
+onMounted(() => {
+  void sync.refreshStatus();
+});
 </script>
 
 <template>
   <button
     type="button"
-    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold"
+    :title="tooltip"
     :class="
       !sync.online
-        ? 'border-amber-300 bg-amber-50 text-amber-800'
+        ? 'border-sun/50 bg-sun/20 text-accent-foreground'
         : sync.failed > 0
-          ? 'border-red-300 bg-red-50 text-red-800'
-          : 'border-slate-200 bg-slate-50 text-slate-700'
+          ? 'border-destructive/40 bg-destructive/10 text-destructive'
+          : 'border-border bg-card text-muted-foreground'
     "
-    :aria-label="`Status de sincronização: ${label}`"
-    :disabled="sync.syncing || !sync.online"
-    @click="sync.syncNow()"
+    :aria-label="`Status de sincronização: ${label}. Toque para ver detalhes`"
+    @click="open = true"
   >
     <CloudOff v-if="!sync.online" class="h-4 w-4" aria-hidden="true" />
     <RefreshCw v-else-if="sync.syncing" class="h-4 w-4 animate-spin" aria-hidden="true" />
     <TriangleAlert v-else-if="sync.failed > 0" class="h-4 w-4" aria-hidden="true" />
     <span>{{ label }}</span>
   </button>
+
+  <SyncDetailsModal v-model="open" />
 </template>

@@ -1,7 +1,16 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ConflictEntry } from "../sync/conflict";
-import { countFailed, countPending, lastError as readLastError } from "../sync/outbox";
+import {
+  countFailed,
+  countPending,
+  discard as discardOutbox,
+  lastError as readLastError,
+  listFailed,
+  resetToPending,
+} from "../sync/outbox";
+import { db, type OutboxItem } from "../db/schema";
+import { clearPendingFlag } from "../db/repositories";
 import { getCursor, pullChanges, resetCursor } from "../sync/puller";
 import { pushOutbox } from "../sync/pusher";
 import { useSessionStore } from "./session";
@@ -14,6 +23,7 @@ export const useSyncStore = defineStore("sync", () => {
   const failed = ref(0);
   const lastError = ref<string | null>(null);
   const conflicts = ref<ConflictEntry[]>([]);
+  const failedItems = ref<OutboxItem[]>([]);
   const cursor = ref(0);
   const dataVersion = ref(0);
   let bound = false;
@@ -34,10 +44,34 @@ export const useSyncStore = defineStore("sync", () => {
     pending.value = await countPending();
     failed.value = await countFailed();
     lastError.value = await readLastError();
+    failedItems.value = await listFailed();
     const session = useSessionStore();
     if (session.currentHouseholdId) {
       cursor.value = await getCursor(session.currentHouseholdId);
     }
+  }
+
+  async function retryItem(id?: number): Promise<void> {
+    if (id === undefined) return;
+    await resetToPending(id);
+    await syncNow();
+  }
+
+  async function retryAll(): Promise<void> {
+    for (const item of await listFailed()) {
+      if (item.id) await resetToPending(item.id);
+    }
+    await syncNow();
+  }
+
+  async function discardItem(id?: number): Promise<void> {
+    if (id === undefined) return;
+    const item = await db.outbox.get(id);
+    if (item?.entity_id) {
+      await clearPendingFlag(item.entity, item.entity_id);
+    }
+    await discardOutbox(id);
+    await refreshStatus();
   }
 
   async function syncNow(): Promise<void> {
@@ -87,11 +121,15 @@ export const useSyncStore = defineStore("sync", () => {
     failed,
     lastError,
     conflicts,
+    failedItems,
     cursor,
     dataVersion,
     bind,
     refreshStatus,
     syncNow,
+    retryItem,
+    retryAll,
+    discardItem,
     acknowledgeConflict,
     clearConflicts,
     fullResync,

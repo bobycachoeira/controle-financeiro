@@ -8,8 +8,17 @@ export async function listPending(): Promise<OutboxItem[]> {
   return items.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
 }
 
+export async function listFailed(): Promise<OutboxItem[]> {
+  const items = await db.outbox.where("status").equals("failed").toArray();
+  return items.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+}
+
 export async function countPending(): Promise<number> {
   return db.outbox.where("status").anyOf("pending", "failed").count();
+}
+
+export async function discard(id: number): Promise<void> {
+  await db.outbox.delete(id);
 }
 
 export async function countFailed(): Promise<number> {
