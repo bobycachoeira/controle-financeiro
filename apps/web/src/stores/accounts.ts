@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { AccountType, Attribution } from "@cf/shared";
+import type { AccountType } from "@cf/shared";
 import { db, type LocalAccount } from "../db/schema";
 import {
   createLocal,
@@ -19,7 +19,7 @@ export interface AccountInput {
   include_in_total?: boolean;
   color?: string | null;
   icon?: string | null;
-  owner?: Attribution;
+  owner?: string;
 }
 
 export const useAccountsStore = defineStore("accounts", () => {

@@ -51,7 +51,7 @@ export function selectBalancesByAccount(
 
 export function selectSpendingByAttribution(
   transactions: LocalTransaction[],
-): { meu: number; dela: number; ambos: number; indefinido: number } {
+): Record<string, number> {
   return totalsByAttribution(transactions as unknown as BalanceTransaction[]);
 }
 

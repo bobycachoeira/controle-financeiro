@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { Attribution, TransactionStatus, TransactionType } from "@cf/shared";
+import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { closingDateForMonth, dueDateForMonth, generateInstallments } from "@cf/shared";
 import { db, type LocalInstallment, type LocalInvoice, type LocalTransaction } from "../db/schema";
 import { createLocal, newSyncId, softDeleteLocal, updateLocal, newLocalId } from "../db/repositories";
@@ -10,7 +10,7 @@ export interface TransactionFilters {
   month?: string;
   account?: string;
   category?: string;
-  attribution?: Attribution;
+  attribution?: string;
   status?: TransactionStatus;
   creditCard?: string;
 }
@@ -21,7 +21,7 @@ export interface TransactionInput {
   amount_cents: number;
   type: TransactionType;
   date: string;
-  attribution: Attribution;
+  attribution: string;
   category?: string | null;
   description?: string;
   status: TransactionStatus;

@@ -1,10 +1,8 @@
-import type { Attribution } from "../constants/domain";
-
 export interface BalanceTransaction {
   type: "receita" | "despesa" | "transferencia";
   status: "pago" | "a_pagar";
   amount_cents: number;
-  attribution: Attribution;
+  attribution: string;
   account: string;
   deleted_at?: string | null;
 }
@@ -47,28 +45,21 @@ export function totalBalance(
     .reduce((total, account) => total + computeAccountBalance(account, transactions), 0);
 }
 
-export interface AttributionTotals {
-  meu: number;
-  dela: number;
-  ambos: number;
-  indefinido: number;
-}
-
 export function totalsByAttribution(
   transactions: readonly BalanceTransaction[],
-): AttributionTotals {
-  const totals: AttributionTotals = { meu: 0, dela: 0, ambos: 0, indefinido: 0 };
+): Record<string, number> {
+  const totals: Record<string, number> = {};
   for (const tx of transactions) {
     if (!isActive(tx)) continue;
     if (tx.type !== "despesa") continue;
-    totals[tx.attribution] += tx.amount_cents;
+    totals[tx.attribution] = (totals[tx.attribution] ?? 0) + tx.amount_cents;
   }
   return totals;
 }
 
 export function totalNetForAttribution(
   transactions: readonly BalanceTransaction[],
-  attribution: Attribution,
+  attribution: string,
 ): number {
   let net = 0;
   for (const tx of transactions) {

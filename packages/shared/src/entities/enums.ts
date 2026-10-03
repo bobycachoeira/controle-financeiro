@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   ACCOUNT_TYPES,
-  ATTRIBUTIONS,
   BILL_NATURES,
   BILL_PERIODICITIES,
   BILL_STATUS,
@@ -18,7 +17,9 @@ export const roleSchema = z.enum(ROLES);
 export const accountTypeSchema = z.enum(ACCOUNT_TYPES);
 export const transactionTypeSchema = z.enum(TRANSACTION_TYPES);
 export const transactionStatusSchema = z.enum(TRANSACTION_STATUS);
-export const attributionSchema = z.enum(ATTRIBUTIONS);
+// Atribuição livre: pode ser a chave de uma pessoa configurada, "ambos"
+// (compartilhado) ou "indefinido".
+export const attributionSchema = z.string().min(1).max(60).default("indefinido");
 export const billTypeSchema = z.enum(BILL_TYPES);
 export const billNatureSchema = z.enum(BILL_NATURES);
 export const billPeriodicitySchema = z.enum(BILL_PERIODICITIES);

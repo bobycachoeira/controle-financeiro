@@ -11,6 +11,7 @@ import { useSyncStore } from "@/stores/sync";
 import { useRecurrencesStore } from "@/stores/recurrences";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
+import { usePeopleStore } from "@/stores/people";
 import { useCardsStore } from "@/stores/cards";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput, formatBRL } from "@/lib/format-input";
@@ -30,6 +31,7 @@ const sync = useSyncStore();
 const recurrencesStore = useRecurrencesStore();
 const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
+const people = usePeopleStore();
 const cardsStore = useCardsStore();
 const toast = useToast();
 
@@ -72,7 +74,7 @@ const recVariable = ref(true);
 const recDuration = ref("sempre");
 const recMonths = ref(12);
 const recCategory = ref("");
-const recAttribution = ref<"meu" | "dela" | "ambos">("ambos");
+const recAttribution = ref("ambos");
 const recSaving = ref(false);
 
 // confirm value
@@ -106,7 +108,7 @@ const upcoming = computed(() => {
     confirmRequired: boolean;
     recurrenceId: string;
     category: string | null;
-    attribution: "meu" | "dela" | "ambos";
+    attribution: string;
     periodicity: string;
     overdue: boolean;
   }[] = [];
@@ -115,8 +117,7 @@ const upcoming = computed(() => {
     const template = rec.template;
     const start = rec.start_date.slice(0, 10);
     const dueDay = template.due_day ?? Number(start.slice(8, 10));
-    const attribution =
-      template.attribution === "meu" || template.attribution === "dela" ? template.attribution : "ambos";
+    const attribution = template.attribution ?? "ambos";
     const occurrences = occurrencesBetween(rec.rrule, start, from, to);
     for (const emission of occurrences) {
       if (generatedKeys.has(`${rec.id}|${emission}`)) continue;
@@ -320,10 +321,7 @@ function openEditRecurring(recurrence: (typeof recurrencesStore.items)[number]):
   recDuration.value = countMatch ? "meses" : "sempre";
   recMonths.value = countMatch ? Number(countMatch[1]) : 12;
   recCategory.value = recurrence.template.category ?? "";
-  recAttribution.value =
-    recurrence.template.attribution === "meu" || recurrence.template.attribution === "dela"
-      ? recurrence.template.attribution
-      : "ambos";
+  recAttribution.value = recurrence.template.attribution ?? "ambos";
   recOpen.value = true;
 }
 
@@ -515,6 +513,7 @@ onMounted(async () => {
     cardsStore.load(),
     transactionsStore.load(),
     recurrencesStore.load(),
+    people.load(),
     load(),
   ]);
   void generateNow();
@@ -925,9 +924,9 @@ watch(() => sync.dataVersion, async () => {
           <div class="space-y-2">
             <Label for="rec-attr">Atribuição</Label>
             <Select id="rec-attr" v-model="recAttribution">
-              <option value="meu">Eu</option>
-              <option value="dela">Ela</option>
-              <option value="ambos">Ambos</option>
+              <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
             </Select>
           </div>
         </div>

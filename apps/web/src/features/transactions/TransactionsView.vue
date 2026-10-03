@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import type { Attribution, TransactionStatus } from "@cf/shared";
+import type { TransactionStatus } from "@cf/shared";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Receipt, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSessionStore } from "@/stores/session";
+import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -23,12 +24,13 @@ import IconChip from "@/components/ui/IconChip.vue";
 const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
 const session = useSessionStore();
+const people = usePeopleStore();
 const sync = useSyncStore();
 const toast = useToast();
 
 const month = ref(todayISO().slice(0, 7));
 const account = ref("");
-const attribution = ref<"" | Attribution>("");
+const attribution = ref("");
 const status = ref<"" | TransactionStatus>("");
 const categories = ref<LocalCategory[]>([]);
 
@@ -52,7 +54,7 @@ async function reload(): Promise<void> {
 }
 
 async function loadAll(): Promise<void> {
-  await Promise.all([accountsStore.load(), loadCategories(), reload()]);
+  await Promise.all([accountsStore.load(), loadCategories(), people.load(), reload()]);
 }
 
 async function removeTransaction(id: string): Promise<void> {
@@ -64,9 +66,9 @@ function accountName(id: string): string {
   return accountById.value.get(id)?.name ?? "";
 }
 
-function attributionLabel(attribution: Attribution): string {
-  const labels: Record<string, string> = { meu: "Eu", dela: "Ela", ambos: "Ambos" };
-  return labels[attribution] ?? "";
+function attributionLabel(attribution: string): string {
+  if (attribution === "indefinido") return "";
+  return people.label(attribution);
 }
 
 onMounted(loadAll);
@@ -105,10 +107,9 @@ watch(() => sync.dataVersion, loadAll);
           <Label for="filter-attribution">Atribuição</Label>
           <Select id="filter-attribution" v-model="attribution">
             <option value="">Todas</option>
-            <option value="meu">Eu</option>
-            <option value="dela">Ela</option>
-            <option value="ambos">Ambos</option>
-            <option value="indefinido">Indefinido</option>
+            <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
           </Select>
         </div>
         <div class="space-y-1">

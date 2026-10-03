@@ -9,6 +9,7 @@ import { useAccountsStore } from "@/stores/accounts";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useCardsStore } from "@/stores/cards";
 import { useRatesStore } from "@/stores/rates";
+import { usePeopleStore } from "@/stores/people";
 import { formatBRL, formatDate } from "@/lib/format";
 import { accountIconName } from "@/lib/icons";
 import {
@@ -36,6 +37,7 @@ const accountsStore = useAccountsStore();
 const transactionsStore = useTransactionsStore();
 const cardsStore = useCardsStore();
 const ratesStore = useRatesStore();
+const people = usePeopleStore();
 
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
@@ -72,6 +74,10 @@ const hasForeignCurrency = computed(() =>
 );
 const byAccount = computed(() => selectBalancesByAccount(accountsStore.items, transactionsStore.items));
 const spending = computed(() => selectSpendingByAttribution(transactionsStore.items));
+const spendingColumns = computed(() => [
+  ...people.options.map((option) => ({ key: option.key, label: option.label })),
+  { key: "ambos", label: "Ambos" },
+]);
 const upcoming = computed(() => selectUpcomingBills(bills.value, today));
 const openInvoices = computed(() => selectOpenInvoices(invoices.value));
 const recent = computed(() => selectRecentTransactions(transactionsStore.items));
@@ -95,6 +101,7 @@ async function loadAll(): Promise<void> {
     transactionsStore.load(),
     cardsStore.load(),
     ratesStore.load(),
+    people.load(),
     loadExtras(),
   ]);
 }
@@ -168,18 +175,16 @@ watch(() => sync.dataVersion, loadAll);
           <IconChip name="hand-coins" color="#E4572E" size="sm" />
           <h2 class="font-display text-lg font-bold">Gastos do mês</h2>
         </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="rounded-2xl bg-muted px-2 py-3">
-            <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">Eu</p>
-            <p class="font-display font-bold">{{ formatBRL(spending.meu) }}</p>
-          </div>
-          <div class="rounded-2xl bg-muted px-2 py-3">
-            <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">Ela</p>
-            <p class="font-display font-bold">{{ formatBRL(spending.dela) }}</p>
-          </div>
-          <div class="rounded-2xl bg-muted px-2 py-3">
-            <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">Ambos</p>
-            <p class="font-display font-bold">{{ formatBRL(spending.ambos) }}</p>
+        <div class="flex flex-wrap gap-3 text-center">
+          <div
+            v-for="column in spendingColumns"
+            :key="column.key"
+            class="min-w-[6.5rem] flex-1 rounded-2xl bg-muted px-2 py-3"
+          >
+            <p class="truncate text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
+              {{ column.label }}
+            </p>
+            <p class="font-display font-bold">{{ formatBRL(spending[column.key] ?? 0) }}</p>
           </div>
         </div>
       </CardContent>

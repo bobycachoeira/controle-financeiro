@@ -73,6 +73,7 @@ const routes: RouteRecordRaw[] = [
         name: "categories",
         component: () => import("@/features/categories/CategoriesView.vue"),
       },
+      { path: "people", name: "people", component: () => import("@/features/settings/PeopleView.vue") },
       { path: "invites", name: "invites", component: () => import("@/features/household/InvitesView.vue") },
       { path: "devices", name: "devices", component: () => import("@/features/auth/DevicesView.vue") },
       {

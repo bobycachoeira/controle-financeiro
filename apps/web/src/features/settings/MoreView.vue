@@ -23,6 +23,7 @@ const links = [
   { name: "import", label: "Importar extrato" },
   { name: "currencies", label: "Moedas e cotações" },
   { name: "integrations", label: "Integrações" },
+  { name: "people", label: "Pessoas" },
   { name: "categories", label: "Categorias" },
   { name: "invites", label: "Família e convites" },
   { name: "notifications", label: "Notificações" },

@@ -5,7 +5,7 @@ export interface BillLike {
   type: "fixa" | "variavel";
   nature: "entrada" | "saida";
   status: "a_confirmar" | "pendente" | "pago" | "cancelado";
-  attribution: "meu" | "dela" | "ambos";
+  attribution: string;
   amount_cents: number;
   due_date: string;
   deleted_at?: string | null;
@@ -60,13 +60,13 @@ export function computeBillsTotals(bills: readonly BillLike[], monthISO?: string
 export function billsByAttribution(
   bills: readonly BillLike[],
   monthISO?: string,
-): Record<"meu" | "dela" | "ambos", number> {
-  const result = { meu: 0, dela: 0, ambos: 0 };
+): Record<string, number> {
+  const result: Record<string, number> = {};
   for (const bill of bills) {
     if (bill.deleted_at) continue;
     if (monthISO && monthOf(bill.due_date) !== monthISO) continue;
     if (bill.status === "cancelado") continue;
-    result[bill.attribution] += bill.amount_cents;
+    result[bill.attribution] = (result[bill.attribution] ?? 0) + bill.amount_cents;
   }
   return result;
 }

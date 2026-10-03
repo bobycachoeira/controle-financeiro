@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import type { AccountType, Attribution } from "@cf/shared";
+import type { AccountType } from "@cf/shared";
 import { ACCOUNT_TYPES, computeAccountBalance } from "@cf/shared";
 import { Pencil, Plus, Trash2, Wallet } from "lucide-vue-next";
 import { useAccountsStore } from "@/stores/accounts";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useSyncStore } from "@/stores/sync";
+import { usePeopleStore } from "@/stores/people";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, parseAmountInput } from "@/lib/format-input";
 import { formatCentsToInput } from "@/lib/format";
@@ -24,6 +25,7 @@ import type { LocalAccount } from "@/db/schema";
 const accountsStore = useAccountsStore();
 const transactionsStore = useTransactionsStore();
 const sync = useSyncStore();
+const people = usePeopleStore();
 const toast = useToast();
 
 const open = ref(false);
@@ -33,15 +35,8 @@ const type = ref<AccountType>("corrente");
 const initial = ref("");
 const icon = ref<string | null>(null);
 const color = ref<string | null>(null);
-const owner = ref<Attribution>("indefinido");
+const owner = ref("indefinido");
 const saving = ref(false);
-
-const ownerLabels: Record<Attribution, string> = {
-  meu: "Eu",
-  dela: "Ela",
-  ambos: "Ambos",
-  indefinido: "Não definido",
-};
 
 const typeLabels: Record<AccountType, string> = {
   corrente: "Conta corrente",
@@ -60,7 +55,7 @@ const balances = computed(() =>
 );
 
 async function loadAll(): Promise<void> {
-  await Promise.all([accountsStore.load(), transactionsStore.load()]);
+  await Promise.all([accountsStore.load(), transactionsStore.load(), people.load()]);
 }
 
 function openCreate(): void {
@@ -160,7 +155,7 @@ watch(() => sync.dataVersion, loadAll);
               <p class="truncate text-xs font-semibold text-muted-foreground">
                 {{ typeLabels[row.account.type] }}
                 <template v-if="row.account.owner && row.account.owner !== 'indefinido'">
-                  · {{ ownerLabels[row.account.owner] }}
+                  · {{ people.label(row.account.owner) }}
                 </template>
               </p>
             </button>
@@ -212,10 +207,9 @@ watch(() => sync.dataVersion, loadAll);
         <div class="space-y-2">
           <Label for="account-owner">Titular (quem paga/recebe)</Label>
           <Select id="account-owner" v-model="owner">
-            <option value="meu">Eu</option>
-            <option value="dela">Ela</option>
-            <option value="ambos">Ambos (conta conjunta)</option>
-            <option value="indefinido">Não definido</option>
+            <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
           </Select>
         </div>
         <div class="space-y-2">

@@ -80,7 +80,7 @@ export const billSchema = syncBaseSchema.extend({
   due_date: isoDate,
   periodicity: billPeriodicitySchema.default("unica"),
   status: billStatusSchema.default("pendente"),
-  attribution: z.enum(["meu", "dela", "ambos"]).default("ambos"),
+  attribution: attributionSchema.default("ambos"),
   responsible_user: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
   recurrence: z.string().nullable().optional(),

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { Attribution } from "@cf/shared";
 import { todayISO } from "@cf/shared";
 import { ArrowLeft, CreditCard } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
@@ -9,6 +8,7 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useCardsStore } from "@/stores/cards";
 import { useSessionStore } from "@/stores/session";
+import { usePeopleStore } from "@/stores/people";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput } from "@/lib/format-input";
 import { formatBRL, formatCentsToInput } from "@/lib/format";
@@ -23,6 +23,7 @@ const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
 const cardsStore = useCardsStore();
 const session = useSessionStore();
+const people = usePeopleStore();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
@@ -34,7 +35,7 @@ const description = ref("");
 const date = ref(todayISO());
 const account = ref("");
 const creditCard = ref("");
-const attribution = ref<Attribution>("indefinido");
+const attribution = ref("indefinido");
 const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
 const installments = ref(1);
@@ -50,7 +51,7 @@ const filteredCategories = computed(() =>
   ),
 );
 
-const accountOwner = computed<Attribution>(() => {
+const accountOwner = computed<string>(() => {
   const accountId = isCard.value && card.value ? card.value.account : account.value;
   return accountsStore.items.find((item) => item.id === accountId)?.owner ?? "indefinido";
 });
@@ -130,7 +131,7 @@ async function submit(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([accountsStore.load(), cardsStore.load(), loadCategories()]);
+  await Promise.all([accountsStore.load(), cardsStore.load(), loadCategories(), people.load()]);
   account.value = accountsStore.items.find((item) => item.type !== "cartao_credito")?.id ?? "";
   if (isEdit.value) {
     const tx = await db.transactions.get(String(route.params.id));
@@ -266,10 +267,9 @@ onMounted(async () => {
           <div class="space-y-2">
             <Label for="attribution">Atribuição</Label>
             <Select id="attribution" v-model="attribution">
-              <option value="meu">Eu</option>
-              <option value="dela">Ela</option>
-              <option value="ambos">Ambos</option>
-              <option value="indefinido">Indefinido</option>
+              <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
             </Select>
           </div>
           <div v-if="!isCard" class="space-y-2">
