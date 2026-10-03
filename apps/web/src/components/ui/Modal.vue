@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { X } from "lucide-vue-next";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -39,26 +40,43 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      role="presentation"
-      @click.self="close"
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="opacity-0"
     >
       <div
-        ref="panel"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="title"
-        tabindex="-1"
-        class="w-full max-w-md rounded-t-xl bg-background p-5 shadow-lg outline-none sm:rounded-xl"
+        v-if="modelValue"
+        class="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+        role="presentation"
+        @click.self="close"
       >
-        <h2 class="text-lg font-semibold">{{ title }}</h2>
-        <p v-if="description" class="mt-1 text-sm text-muted-foreground">{{ description }}</p>
-        <div class="mt-4">
+        <div
+          ref="panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title"
+          tabindex="-1"
+          class="max-h-[92dvh] w-full max-w-md animate-pop overflow-y-auto rounded-t-[2rem] bg-card p-6 shadow-lift outline-none sm:rounded-[2rem]"
+        >
+          <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 class="font-display text-xl font-bold tracking-tight">{{ title }}</h2>
+              <p v-if="description" class="mt-1 text-sm text-muted-foreground">{{ description }}</p>
+            </div>
+            <button
+              type="button"
+              class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+              aria-label="Fechar"
+              @click="close"
+            >
+              <X class="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
           <slot />
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>

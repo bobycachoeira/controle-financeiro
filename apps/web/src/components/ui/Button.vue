@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "secondary" | "outline" | "ghost" | "destructive";
+type Variant = "default" | "secondary" | "outline" | "ghost" | "destructive" | "sun";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const props = withDefaults(
@@ -18,23 +18,25 @@ const props = withDefaults(
 );
 
 const variants: Record<Variant, string> = {
-  default: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-  outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-  ghost: "hover:bg-accent hover:text-accent-foreground",
-  destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+  default:
+    "bg-primary text-primary-foreground shadow-lift hover:brightness-105 active:brightness-95",
+  secondary: "bg-secondary text-secondary-foreground hover:brightness-105",
+  outline: "border-2 border-border bg-card text-foreground hover:bg-muted",
+  ghost: "text-foreground/80 hover:bg-muted hover:text-foreground",
+  destructive: "bg-destructive text-destructive-foreground hover:brightness-105",
+  sun: "bg-sun text-accent-foreground shadow-lift hover:brightness-105",
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm",
-  md: "h-10 px-4 text-sm",
-  lg: "h-11 px-6 text-base",
-  icon: "h-10 w-10",
+  sm: "h-9 px-4 text-sm",
+  md: "h-11 px-5 text-[0.95rem]",
+  lg: "h-12 px-7 text-base",
+  icon: "h-11 w-11",
 };
 
 const classes = computed(() =>
   cn(
-    "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex select-none items-center justify-center gap-2 rounded-full font-extrabold tracking-tight transition-all duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
     variants[props.variant],
     sizes[props.size],
     props.class,

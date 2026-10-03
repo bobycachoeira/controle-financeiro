@@ -1,7 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { db, type LocalCreditCard, type LocalInvoice } from "../db/schema";
-import { createLocal, newSyncId, newLocalId } from "../db/repositories";
+import {
+  createLocal,
+  newSyncId,
+  newLocalId,
+  softDeleteLocal,
+  updateLocal,
+} from "../db/repositories";
 import { useSessionStore } from "./session";
 import { useAccountsStore } from "./accounts";
 
@@ -64,9 +70,27 @@ export const useCardsStore = defineStore("cards", () => {
     return card;
   }
 
+  async function update(id: string, changes: Partial<CardInput>): Promise<void> {
+    const existing = await db.credit_cards.get(id);
+    if (!existing) return;
+    await updateLocal("credit_cards", {
+      ...existing,
+      bank: changes.bank ?? existing.bank,
+      limit_cents: changes.limit_cents ?? existing.limit_cents,
+      closing_day: changes.closing_day ?? existing.closing_day,
+      due_day: changes.due_day ?? existing.due_day,
+    });
+    await load();
+  }
+
+  async function remove(id: string): Promise<void> {
+    await softDeleteLocal("credit_cards", id);
+    await load();
+  }
+
   function invoicesFor(cardId: string): LocalInvoice[] {
     return invoices.value.filter((invoice) => invoice.credit_card === cardId);
   }
 
-  return { cards, invoices, load, create, invoicesFor };
+  return { cards, invoices, load, create, update, remove, invoicesFor };
 });

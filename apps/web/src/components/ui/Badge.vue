@@ -9,12 +9,12 @@ const props = withDefaults(defineProps<{ variant?: Variant; class?: string }>(),
 });
 
 const variants: Record<Variant, string> = {
-  default: "bg-primary text-primary-foreground",
+  default: "bg-primary/12 text-primary",
   secondary: "bg-secondary text-secondary-foreground",
-  success: "bg-emerald-100 text-emerald-800",
-  warning: "bg-amber-100 text-amber-800",
-  destructive: "bg-red-100 text-red-800",
-  outline: "border border-input text-foreground",
+  success: "bg-leaf/15 text-leaf",
+  warning: "bg-sun/25 text-accent-foreground",
+  destructive: "bg-destructive/12 text-destructive",
+  outline: "border-2 border-border text-muted-foreground",
 };
 </script>
 
@@ -22,7 +22,7 @@ const variants: Record<Variant, string> = {
   <span
     :class="
       cn(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.68rem] font-extrabold uppercase tracking-wide',
         variants[props.variant],
         props.class,
       )

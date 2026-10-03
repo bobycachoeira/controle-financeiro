@@ -40,7 +40,7 @@ function onInput(event: Event): void {
     :aria-label="ariaLabel"
     :class="
       cn(
-        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-11 w-full rounded-2xl border-2 border-input bg-card px-4 py-2 text-[0.95rem] font-semibold text-foreground shadow-inset transition-colors placeholder:font-medium placeholder:text-muted-foreground/70 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50',
         props.class,
       )
     "
