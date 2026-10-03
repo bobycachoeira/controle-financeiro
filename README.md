@@ -84,6 +84,15 @@ Preferências e inscrições são gerenciadas em `Configurações → Notificaç
 respeita horário preferido, quiet hours, dias antes por tipo e evita duplicidade por
 `(usuário, tipo, item, dia)`.
 
+## Recorrências e Orçamentos (Fase 6)
+
+- Recorrências usam RRULE (RFC 5545) e geram lançamentos ou contas automaticamente. A
+  geração roda em rotina diária no backend (`cronAdd`) e é idempotente por
+  `(recorrência, data)`. Para acionar manualmente (admin):
+  `POST /api/recurrences/run` com `{ "today": "YYYY-MM-DD" }` (opcional).
+- Orçamentos por categoria são calculados no cliente a partir dos lançamentos locais, com
+  alertas de aproximação e estouro (`alerta_pct`).
+
 ## Conformidade com a constituição
 
 - **I. Segurança/Privacidade**: collections fechadas por padrão (sem acesso direto do

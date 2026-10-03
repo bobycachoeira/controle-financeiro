@@ -69,6 +69,14 @@ routerAdd("GET", "/api/notifications/deliveries", (c) =>
   require(`${__hooks}/lib/handlers/notifications.js`).listDeliveries(c),
 );
 
+routerAdd("POST", "/api/recurrences/run", (c) =>
+  require(`${__hooks}/lib/handlers/recurrences.js`).runHandler(c),
+);
+
+cronAdd("recurrences", "0 3 * * *", () => {
+  require(`${__hooks}/lib/handlers/recurrences.js`).run();
+});
+
 onBootstrap((e) => {
   e.next();
 });

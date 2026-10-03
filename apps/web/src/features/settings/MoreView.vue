@@ -15,6 +15,8 @@ const toast = useToast();
 const links = [
   { name: "transfers", label: "Transferências" },
   { name: "bills", label: "Contas a pagar/receber" },
+  { name: "recurrences", label: "Recorrências" },
+  { name: "budgets", label: "Orçamentos" },
   { name: "categories", label: "Categorias" },
   { name: "invites", label: "Família e convites" },
   { name: "notifications", label: "Notificações" },

@@ -42,6 +42,16 @@ const routes: RouteRecordRaw[] = [
       { path: "transfers", name: "transfers", component: () => import("@/features/transfers/TransferView.vue") },
       { path: "bills", name: "bills", component: () => import("@/features/bills/BillsView.vue") },
       {
+        path: "recurrences",
+        name: "recurrences",
+        component: () => import("@/features/recurrences/RecurrencesView.vue"),
+      },
+      {
+        path: "budgets",
+        name: "budgets",
+        component: () => import("@/features/budgets/BudgetsView.vue"),
+      },
+      {
         path: "categories",
         name: "categories",
         component: () => import("@/features/categories/CategoriesView.vue"),

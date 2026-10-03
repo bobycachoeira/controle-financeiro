@@ -2,12 +2,14 @@ import Dexie, { type Table } from "dexie";
 import type {
   Account,
   Bill,
+  Budget,
   Category,
   CreditCard,
   Household,
   HouseholdMember,
   Installment,
   Invoice,
+  Recurrence,
   SyncEntityName,
   SyncOperationType,
   Transaction,
@@ -30,6 +32,8 @@ export type LocalTransfer = Transfer & LocalMeta;
 export type LocalBill = Bill & LocalMeta;
 export type LocalHousehold = Household & LocalMeta;
 export type LocalHouseholdMember = HouseholdMember & LocalMeta;
+export type LocalRecurrence = Recurrence & LocalMeta;
+export type LocalBudget = Budget & LocalMeta;
 
 export interface OutboxItem {
   id?: number;
@@ -62,6 +66,8 @@ export class CfDatabase extends Dexie {
   invoices!: Table<LocalInvoice, string>;
   transfers!: Table<LocalTransfer, string>;
   bills!: Table<LocalBill, string>;
+  recurrences!: Table<LocalRecurrence, string>;
+  budgets!: Table<LocalBudget, string>;
   outbox!: Table<OutboxItem, number>;
   meta!: Table<MetaRow, string>;
 
@@ -81,6 +87,10 @@ export class CfDatabase extends Dexie {
       bills: "id, household, type, nature, status, due_date, sync_id, updated, deleted_at",
       outbox: "++id, sync_id, household, entity, status, created",
       meta: "key",
+    });
+    this.version(2).stores({
+      recurrences: "id, household, active, target, sync_id, updated, deleted_at",
+      budgets: "id, household, period, active, sync_id, updated, deleted_at",
     });
   }
 }

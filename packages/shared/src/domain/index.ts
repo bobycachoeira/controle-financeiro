@@ -7,3 +7,5 @@ export * from "./bills";
 export * from "./invoice";
 export * from "./installments";
 export * from "./notifications";
+export * from "./recurrence";
+export * from "./budget";

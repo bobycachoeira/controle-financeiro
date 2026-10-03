@@ -11,7 +11,7 @@ const transferDomain = require(`${__hooks}/lib/domain/transfer.js`);
 
 const SYSTEM_FIELDS = ["id", "created", "updated", "collectionId", "collectionName"];
 const PROTECTED = ["household", "sync_id", "updated_by", "deleted_at"];
-const FINANCE_MANAGE = ["accounts", "credit_cards", "categories"];
+const FINANCE_MANAGE = ["accounts", "credit_cards", "categories", "recurrences", "budgets"];
 const MOVEMENTS = ["transactions", "installments", "invoices", "transfers", "bills"];
 
 function findExisting(entity, id) {
@@ -80,6 +80,8 @@ function validatePayload(entity, payload) {
     invoices: shared.invoiceSchema,
     transfers: shared.transferSchema,
     bills: shared.billSchema,
+    recurrences: shared.recurrenceSchema,
+    budgets: shared.budgetSchema,
     households: shared.householdSchema,
     household_members: shared.householdMemberSchema,
   };
@@ -323,6 +325,8 @@ const SYNC_ENTITIES = [
   "invoices",
   "transfers",
   "bills",
+  "recurrences",
+  "budgets",
 ];
 
 function pull(c) {
