@@ -61,29 +61,17 @@ sudo usermod -aG docker "$USER"    # reabra a sessão SSH depois
 
 git clone <repo> && cd controle-financeiro
 
-cat > docker/.env <<'EOF'
-CF_DOMAIN=minhafamilia.duckdns.org        # ou app.seudominio.com (ou 1.2.3.4.nip.io)
-CF_APP_URL=https://minhafamilia.duckdns.org
-CF_ENCRYPTION_KEY=COLE_AQUI_openssl_rand_-base64_32
-CF_STEPUP_TTL=10m
-CF_TIMEZONE=America/Sao_Paulo
-CF_MAIL_HOST=smtp.seudominio.com
-CF_MAIL_PORT=587
-CF_MAIL_USER=no-reply@seudominio.com
-CF_MAIL_PASSWORD=senha
-CF_MAIL_FROM=no-reply@seudominio.com
-# opcional (push):
-# CF_VAPID_PUBLIC_KEY=  CF_VAPID_PRIVATE_KEY=  CF_VAPID_SUBJECT=mailto:voce@seudominio.com
-# CF_POCKETBASE_ADMIN_EMAIL=  CF_POCKETBASE_ADMIN_PASSWORD=
-EOF
+cp docker/.env.example docker/.env
+# Edite docker/.env. Mínimo: CF_DOMAIN, CF_APP_URL, CF_ENCRYPTION_KEY, CF_MAIL_*
+#   Chave de criptografia:  openssl rand -base64 32
 
-CF_DOMAIN=minhafamilia.duckdns.org docker compose \
-  --env-file docker/.env -f docker/docker-compose.prod.yml up -d --build
+./deploy.sh
 ```
 
-Gere a chave com: `openssl rand -base64 32`.
+O `deploy.sh` faz o `up -d --build` e **cria o superusuário** (se
+`CF_POCKETBASE_ADMIN_EMAIL`/`PASSWORD` estiverem no `.env`).
 
-### 5. Criar o superusuário (uma vez)
+### 5. Superusuário (manual, se preferir)
 ```bash
 docker compose -f docker/docker-compose.prod.yml exec pocketbase \
   /pb/pocketbase superuser upsert admin@seudominio.com <senha> --dir=/pb/pb_data
@@ -115,8 +103,50 @@ git pull && docker compose --env-file docker/.env -f docker/docker-compose.prod.
 | Firewall do SO (iptables) | liberar 80, 443 e persistir |
 | DuckDNS (ou DNS do domínio) | hostname → **IP da VM** |
 | `docker/.env` | `CF_DOMAIN`, `CF_APP_URL`, `CF_ENCRYPTION_KEY`, `CF_MAIL_*` |
-| Painel `/​_/` | criar o 1º usuário |
+| Painel `/_/` | criar o 1º usuário |
 | App | criar família, convidar, ajustar Pessoas |
+
+---
+
+## Testar com DNS gratuito (DuckDNS / nip.io)
+
+Como o PWA exige **HTTPS** e o Caddy **não emite certificado para IP**, use um hostname
+gratuito apontando para o IP da VM. Você testa de verdade sem comprar domínio.
+
+**DuckDNS** (grátis, com conta):
+1. Crie `minhafamilia.duckdns.org` apontando para o **IP da VM**.
+2. Use `CF_DOMAIN=minhafamilia.duckdns.org` e `CF_APP_URL=https://minhafamilia.duckdns.org`.
+3. `./deploy.sh` — o Caddy emite o certificado sozinho.
+
+**nip.io** (sem cadastro):
+- O hostname é o **IP com pontos**: ex. `201.10.20.30.nip.io` resolve para esse IP.
+- `CF_DOMAIN=201.10.20.30.nip.io` e `CF_APP_URL=https://201.10.20.30.nip.io`.
+
+> Ao trocar para o domínio comprado depois, é só alterar `CF_DOMAIN`/`CF_APP_URL` e subir —
+> **os dados permanecem**.
+
+### Riscos de usar DNS gratuito
+
+- **Você não controla o provedor.** Se o DuckDNS/nip.io ficar fora do ar ou (no DuckDNS) a
+  conta expirar por inatividade, o hostname para de resolver e o app sai do ar até você
+  atualizar o DNS. Não é bom para produção de longo prazo.
+- **Segurança/privacidade**: `nip.io`/`sslip.io` são **wildcards públicos** — qualquer um
+  consegue resolver/montar o nome do seu IP. Port scanners e bots vão encontrar o serviço.
+  Use **senha forte** no admin do PocketBase, mantenha o PB atualizado e, se puder,
+  restrinja o SSH (porta/IP). O app em si continua protegido por Magic Link + 2FA.
+- **HTTPS/rate limit**: Let's Encrypt tem limite (ex.: ~5 certificados por domínio/semana).
+  Para um host não é problema; se recriar muitos certificados em pouco tempo, pode bater o
+  limite e esperar. `nip.io` é tratado como sufixo público, então não compartilha limite.
+- **Busca/indexação**: o hostname pode aparecer em agregadores de DNS. Não exponha nada
+  sensível extra além do app.
+- **E-mail**: o `CF_MAIL_FROM` deve ser do seu provedor SMTP (não desse hostname); o hostname
+  grátis é só o endereço web. Sem SPF/DKIM no domínio grátis, evite enviar e-mail "desse"
+  domínio.
+- **É temporário**: trate como ambiente de teste. Para valer, compre um domínio e siga a
+  seção de troca abaixo (2 variáveis + DNS).
+
+**Mitigações rápidas:** senha admin forte, SSH por chave (sem senha), `unattended-upgrades`
+no Ubuntu, e backup do `pb_data`.
 
 ---
 
