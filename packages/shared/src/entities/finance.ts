@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { syncBaseSchema, cents } from "../api/base";
-import { accountTypeSchema, categoryKindSchema } from "./enums";
+import { accountTypeSchema, attributionSchema, categoryKindSchema } from "./enums";
 
 export const accountSchema = syncBaseSchema.extend({
   name: z.string().min(1).max(80),
@@ -12,6 +12,7 @@ export const accountSchema = syncBaseSchema.extend({
   order: z.number().int().default(0),
   color: z.string().nullable().optional(),
   icon: z.string().nullable().optional(),
+  owner: attributionSchema.default("indefinido"),
 });
 
 export const creditCardSchema = syncBaseSchema.extend({

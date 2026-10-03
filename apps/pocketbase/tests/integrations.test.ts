@@ -53,7 +53,7 @@ describe("integrations and multicurrency", () => {
         accountSync,
         "accounts",
         "create",
-        { id: accountId, household: "", sync_id: accountSync, name: "Import", type: "corrente" },
+        { id: accountId, household: "", sync_id: accountSync, name: "Import", type: "corrente", owner: "dela" },
         accountId,
       ),
     ]);

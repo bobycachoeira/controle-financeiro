@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { Attribution } from "@cf/shared";
 import { todayISO } from "@cf/shared";
@@ -49,6 +49,17 @@ const filteredCategories = computed(() =>
     (item) => item.kind === (type.value === "receita" ? "entrada" : "saida") || item.kind === "ambos",
   ),
 );
+
+const accountOwner = computed<Attribution>(() => {
+  const accountId = isCard.value && card.value ? card.value.account : account.value;
+  return accountsStore.items.find((item) => item.id === accountId)?.owner ?? "indefinido";
+});
+
+watch([account, creditCard], () => {
+  if (!isEdit.value && accountOwner.value && accountOwner.value !== "indefinido") {
+    attribution.value = accountOwner.value;
+  }
+});
 
 async function loadCategories(): Promise<void> {
   if (!session.currentHouseholdId) return;

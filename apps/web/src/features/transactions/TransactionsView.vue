@@ -64,6 +64,11 @@ function accountName(id: string): string {
   return accountById.value.get(id)?.name ?? "";
 }
 
+function attributionLabel(attribution: Attribution): string {
+  const labels: Record<string, string> = { meu: "Eu", dela: "Ela", ambos: "Ambos" };
+  return labels[attribution] ?? "";
+}
+
 onMounted(loadAll);
 watch([month, account, attribution, status], reload);
 watch(() => sync.dataVersion, loadAll);
@@ -144,6 +149,9 @@ watch(() => sync.dataVersion, loadAll);
                 <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
                 <template v-if="categoryById.get(tx.category ?? '')">
                   · {{ categoryById.get(tx.category ?? '')?.name }}</template
+                >
+                <template v-if="attributionLabel(tx.attribution)">
+                  · {{ attributionLabel(tx.attribution) }}</template
                 >
               </p>
             </div>

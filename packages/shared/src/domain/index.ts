@@ -11,3 +11,4 @@ export * from "./recurrence";
 export * from "./budget";
 export * from "./import";
 export * from "./currency";
+export * from "./analytics";

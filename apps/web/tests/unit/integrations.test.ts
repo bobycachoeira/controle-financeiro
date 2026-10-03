@@ -65,7 +65,7 @@ describe("consolidated balance", () => {
       deleted_at: null,
     });
     const result = selectConsolidatedBalance(
-      [{ id: "a1", household: "h1", sync_id: "s", name: "USD", type: "corrente", currency: "USD", initial_balance_cents: 1000, include_in_total: true, active: true, order: 0, deleted_at: null }],
+      [{ id: "a1", household: "h1", sync_id: "s", name: "USD", type: "corrente", currency: "USD", initial_balance_cents: 1000, include_in_total: true, active: true, order: 0, owner: "indefinido", deleted_at: null }],
       [],
       [{ currency: "USD", date: "2024-03-01", rate_micros: 5_200_000 }],
       "2024-03-10",

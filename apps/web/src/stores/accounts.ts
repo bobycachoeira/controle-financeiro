@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { AccountType } from "@cf/shared";
+import type { AccountType, Attribution } from "@cf/shared";
 import { db, type LocalAccount } from "../db/schema";
 import {
   createLocal,
@@ -19,6 +19,7 @@ export interface AccountInput {
   include_in_total?: boolean;
   color?: string | null;
   icon?: string | null;
+  owner?: Attribution;
 }
 
 export const useAccountsStore = defineStore("accounts", () => {
@@ -49,6 +50,7 @@ export const useAccountsStore = defineStore("accounts", () => {
       order: items.value.length,
       color: input.color ?? null,
       icon: input.icon ?? null,
+      owner: input.owner ?? "indefinido",
       updated_by: session.user?.id ?? null,
       deleted_at: null,
     };

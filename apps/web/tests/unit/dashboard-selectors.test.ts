@@ -21,6 +21,7 @@ function account(partial: Partial<LocalAccount> & { id: string }): LocalAccount 
     include_in_total: true,
     active: true,
     order: 0,
+    owner: "indefinido",
     updated_by: null,
     deleted_at: null,
     ...partial,

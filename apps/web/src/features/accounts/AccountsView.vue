@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import type { AccountType } from "@cf/shared";
+import type { AccountType, Attribution } from "@cf/shared";
 import { ACCOUNT_TYPES, computeAccountBalance } from "@cf/shared";
 import { Pencil, Plus, Trash2, Wallet } from "lucide-vue-next";
 import { useAccountsStore } from "@/stores/accounts";
@@ -33,7 +33,15 @@ const type = ref<AccountType>("corrente");
 const initial = ref("");
 const icon = ref<string | null>(null);
 const color = ref<string | null>(null);
+const owner = ref<Attribution>("indefinido");
 const saving = ref(false);
+
+const ownerLabels: Record<Attribution, string> = {
+  meu: "Eu",
+  dela: "Ela",
+  ambos: "Ambos",
+  indefinido: "Não definido",
+};
 
 const typeLabels: Record<AccountType, string> = {
   corrente: "Conta corrente",
@@ -62,6 +70,7 @@ function openCreate(): void {
   initial.value = "";
   icon.value = null;
   color.value = null;
+  owner.value = "indefinido";
   open.value = true;
 }
 
@@ -72,6 +81,7 @@ function openEdit(account: LocalAccount): void {
   initial.value = formatCentsToInput(account.initial_balance_cents);
   icon.value = account.icon ?? accountIconName(account.type);
   color.value = account.color ?? null;
+  owner.value = account.owner ?? "indefinido";
   open.value = true;
 }
 
@@ -89,6 +99,7 @@ async function submit(): Promise<void> {
       initial_balance_cents: cents,
       icon: icon.value,
       color: color.value,
+      owner: owner.value,
     };
     if (editingId.value) {
       await accountsStore.update(editingId.value, payload);
@@ -148,6 +159,9 @@ watch(() => sync.dataVersion, loadAll);
               <p class="truncate font-bold">{{ row.account.name }}</p>
               <p class="truncate text-xs font-semibold text-muted-foreground">
                 {{ typeLabels[row.account.type] }}
+                <template v-if="row.account.owner && row.account.owner !== 'indefinido'">
+                  · {{ ownerLabels[row.account.owner] }}
+                </template>
               </p>
             </button>
             <span
@@ -194,6 +208,15 @@ watch(() => sync.dataVersion, loadAll);
         <div class="space-y-2">
           <Label for="account-initial">Saldo inicial (R$)</Label>
           <Input id="account-initial" v-model="initial" inputmode="decimal" placeholder="0,00" />
+        </div>
+        <div class="space-y-2">
+          <Label for="account-owner">Titular (quem paga/recebe)</Label>
+          <Select id="account-owner" v-model="owner">
+            <option value="meu">Eu</option>
+            <option value="dela">Ela</option>
+            <option value="ambos">Ambos (conta conjunta)</option>
+            <option value="indefinido">Não definido</option>
+          </Select>
         </div>
         <div class="space-y-2">
           <Label>Ícone e cor</Label>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { todayISO } from "@cf/shared";
+import { balanceEvolution, monthlyCashflow, spendingByCategory, todayISO } from "@cf/shared";
 import { Sparkles } from "lucide-vue-next";
-import { db, type LocalBill, type LocalInvoice } from "@/db/schema";
+import { db, type LocalBill, type LocalCategory, type LocalInvoice } from "@/db/schema";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useAccountsStore } from "@/stores/accounts";
@@ -22,6 +22,9 @@ import {
   selectUpcomingBills,
 } from "./selectors";
 import ConflictPanel from "@/features/sync/ConflictPanel.vue";
+import AreaChart from "@/components/charts/AreaChart.vue";
+import BarsChart from "@/components/charts/BarsChart.vue";
+import CategoryBars from "@/components/charts/CategoryBars.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -36,7 +39,28 @@ const ratesStore = useRatesStore();
 
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
+const categories = ref<LocalCategory[]>([]);
 const today = todayISO();
+const currentMonth = today.slice(0, 7);
+
+const cashflow = computed(() => monthlyCashflow(transactionsStore.items, currentMonth, 6));
+const balancePoints = computed(() =>
+  balanceEvolution(accountsStore.items, transactionsStore.items, currentMonth, 6).map((point) => ({
+    label: point.label,
+    value: point.balanceCents,
+  })),
+);
+const cashflowLabels = computed(() => cashflow.value.map((point) => point.label));
+const cashflowSeries = computed(() => [
+  { label: "Receitas", color: "#3F9A6A", values: cashflow.value.map((point) => point.receitasCents) },
+  { label: "Despesas", color: "#E4572E", values: cashflow.value.map((point) => point.despesasCents) },
+]);
+const hasCashflow = computed(() =>
+  cashflow.value.some((point) => point.receitasCents > 0 || point.despesasCents > 0),
+);
+const topCategories = computed(() =>
+  spendingByCategory(transactionsStore.items, categories.value, currentMonth, 5),
+);
 
 const firstName = computed(() => (session.user?.name ?? "").split(" ")[0] || "olá");
 const balance = computed(() => selectTotalBalance(accountsStore.items, transactionsStore.items));
@@ -59,6 +83,9 @@ async function loadExtras(): Promise<void> {
   bills.value = (await db.bills.where("household").equals(h).toArray()).filter((b) => !b.deleted_at);
   invoices.value = (await db.invoices.where("household").equals(h).toArray()).filter(
     (invoice) => !invoice.deleted_at,
+  );
+  categories.value = (await db.categories.where("household").equals(h).toArray()).filter(
+    (category) => !category.deleted_at,
   );
 }
 
@@ -154,6 +181,34 @@ watch(() => sync.dataVersion, loadAll);
             <p class="text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">Ambos</p>
             <p class="font-display font-bold">{{ formatBRL(spending.ambos) }}</p>
           </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <Card v-if="hasCashflow || balancePoints.length > 0">
+      <CardContent class="space-y-5 p-4">
+        <div>
+          <div class="mb-2 flex items-center gap-2">
+            <IconChip name="coins" color="#3F9A6A" size="sm" />
+            <h2 class="font-display text-lg font-bold">Evolução do saldo</h2>
+          </div>
+          <AreaChart :points="balancePoints" color="#3F9A6A" />
+        </div>
+
+        <div v-if="hasCashflow" class="border-t border-border/60 pt-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconChip name="receipt" color="#E4572E" size="sm" />
+            <h2 class="font-display text-lg font-bold">Receitas x despesas</h2>
+          </div>
+          <BarsChart :categories="cashflowLabels" :series="cashflowSeries" />
+        </div>
+
+        <div v-if="topCategories.length > 0" class="border-t border-border/60 pt-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconChip name="tag" color="#B0477E" size="sm" />
+            <h2 class="font-display text-lg font-bold">Gastos por categoria</h2>
+          </div>
+          <CategoryBars :items="topCategories" />
         </div>
       </CardContent>
     </Card>
