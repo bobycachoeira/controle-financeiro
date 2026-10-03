@@ -167,6 +167,9 @@ então precisa de um host com **volume persistente** — mas **não precisa ser 
    exponha com **Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:8090`) —
    HTTPS grátis, sem VPS e sem IP público.
 
+> **Oracle Cloud Always Free** (VM ARM Ampere + Docker, **sempre grátis**): passo a passo
+> completo em [`docs/DEPLOY-ORACLE-ALWAYS-FREE.md`](docs/DEPLOY-ORACLE-ALWAYS-FREE.md).
+>
 > O **notifier** (push) é opcional: sem ele o app funciona normalmente, só não envia
 > notificações. Para a primeira versão, pode ficar de fora.
 
