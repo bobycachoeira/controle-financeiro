@@ -274,8 +274,7 @@ function openEditRecurring(recurrence: (typeof recurrencesStore.items)[number]):
 function anchorDate(originalStart: string, emissionDay: number): string {
   const [year, month] = originalStart.split("-").map(Number);
   const clamp = Math.min(emissionDay, new Date(Date.UTC(year!, month!, 0)).getUTCDate());
-  const candidate = `${year}-${String(month).padStart(2, "0")}-${String(clamp).padStart(2, "0")}`;
-  return candidate < originalStart ? originalStart : candidate;
+  return `${year}-${String(month).padStart(2, "0")}-${String(clamp).padStart(2, "0")}`;
 }
 
 async function submitRecurring(): Promise<void> {
