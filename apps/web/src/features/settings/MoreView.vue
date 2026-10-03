@@ -17,6 +17,7 @@ const links = [
   { name: "bills", label: "Contas a pagar/receber" },
   { name: "categories", label: "Categorias" },
   { name: "invites", label: "Família e convites" },
+  { name: "notifications", label: "Notificações" },
   { name: "devices", label: "Segurança e dispositivos" },
   { name: "app-lock", label: "App Lock" },
 ];

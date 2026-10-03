@@ -63,6 +63,27 @@ Obs.: sem SMTP configurado, o Magic Link é impresso no log do PocketBase (modo 
 - Backend: Docker/VPS com `docker/docker-compose.yml`, volume `pb_data` persistente e
   as variáveis de ambiente acima.
 
+## Notificações push (Fase 5)
+
+O envio de Web Push roda em um worker dedicado (`apps/notifier`) porque o runtime JS dos
+hooks do PocketBase não expõe a criptografia necessária.
+
+```bash
+# 1) Gerar chaves VAPID (uma vez) e copiar para os .env
+pnpm --filter @cf/notifier vapid:generate
+
+# 2) Configurar conexão do notifier com o PocketBase
+cp apps/notifier/.env.example apps/notifier/.env
+
+# 3) Executar
+pnpm --filter @cf/notifier start        # agendador (CF_NOTIFIER_CRON)
+pnpm --filter @cf/notifier run-once     # processa uma vez (útil em teste)
+```
+
+Preferências e inscrições são gerenciadas em `Configurações → Notificações`. A rotina
+respeita horário preferido, quiet hours, dias antes por tipo e evita duplicidade por
+`(usuário, tipo, item, dia)`.
+
 ## Conformidade com a constituição
 
 - **I. Segurança/Privacidade**: collections fechadas por padrão (sem acesso direto do

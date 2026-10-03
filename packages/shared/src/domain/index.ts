@@ -6,3 +6,4 @@ export * from "./transfer";
 export * from "./bills";
 export * from "./invoice";
 export * from "./installments";
+export * from "./notifications";

@@ -38,6 +38,9 @@ jobs:
       - name: Web tests
         run: pnpm test:web
 
+      - name: Notifier tests
+        run: pnpm test:notifier
+
       - name: Download PocketBase
         run: |
           curl -sL -o /tmp/pb.zip https://github.com/pocketbase/pocketbase/releases/download/v0.23.7/pocketbase_0.23.7_linux_amd64.zip

@@ -16,5 +16,22 @@ services:
     volumes:
       - pb_data:/pb/pb_data
 
+  notifier:
+    build:
+      context: ..
+      dockerfile: apps/notifier/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - pocketbase
+    environment:
+      CF_POCKETBASE_URL: http://pocketbase:8090
+      CF_POCKETBASE_ADMIN_EMAIL: ${CF_POCKETBASE_ADMIN_EMAIL:-admin@example.com}
+      CF_POCKETBASE_ADMIN_PASSWORD: ${CF_POCKETBASE_ADMIN_PASSWORD:-change-me}
+      CF_VAPID_PUBLIC_KEY: ${CF_VAPID_PUBLIC_KEY:-}
+      CF_VAPID_PRIVATE_KEY: ${CF_VAPID_PRIVATE_KEY:-}
+      CF_VAPID_SUBJECT: ${CF_VAPID_SUBJECT:-mailto:admin@controle-financeiro.local}
+      CF_NOTIFIER_CRON: ${CF_NOTIFIER_CRON:-0 * * * *}
+      CF_TIMEZONE: ${CF_TIMEZONE:-America/Sao_Paulo}
+
 volumes:
   pb_data:

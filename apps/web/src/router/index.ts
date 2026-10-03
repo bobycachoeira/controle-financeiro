@@ -48,6 +48,11 @@ const routes: RouteRecordRaw[] = [
       },
       { path: "invites", name: "invites", component: () => import("@/features/household/InvitesView.vue") },
       { path: "devices", name: "devices", component: () => import("@/features/auth/DevicesView.vue") },
+      {
+        path: "notifications",
+        name: "notifications",
+        component: () => import("@/features/settings/NotificationsView.vue"),
+      },
       { path: "app-lock", name: "app-lock", component: () => import("@/features/settings/AppLockView.vue") },
       { path: "more", name: "more", component: () => import("@/features/settings/MoreView.vue") },
     ],
@@ -86,6 +91,10 @@ router.beforeEach(async (to) => {
 
   if (to.name === "onboarding" && session.hasHousehold) {
     return { name: "dashboard" };
+  }
+
+  if (to.name === "dashboard" && to.query.new === "1" && session.hasHousehold) {
+    return { name: "transaction-new" };
   }
 
   return true;

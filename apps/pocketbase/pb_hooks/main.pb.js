@@ -47,6 +47,28 @@ routerAdd("POST", "/api/invites/{token}/accept", (c) =>
 routerAdd("POST", "/api/sync/push", (c) => require(`${__hooks}/lib/handlers/sync.js`).push(c));
 routerAdd("GET", "/api/sync/pull", (c) => require(`${__hooks}/lib/handlers/sync.js`).pull(c));
 
+routerAdd("GET", "/api/notifications/vapid-public-key", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).vapidPublicKey(c),
+);
+routerAdd("GET", "/api/notifications/preferences", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).getPreferences(c),
+);
+routerAdd("PUT", "/api/notifications/preferences", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).updatePreferences(c),
+);
+routerAdd("POST", "/api/notifications/subscriptions", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).createSubscription(c),
+);
+routerAdd("DELETE", "/api/notifications/subscriptions/{id}", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).deleteSubscription(c),
+);
+routerAdd("POST", "/api/notifications/test", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).testNotification(c),
+);
+routerAdd("GET", "/api/notifications/deliveries", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).listDeliveries(c),
+);
+
 onBootstrap((e) => {
   e.next();
 });

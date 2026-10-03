@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
 import Toaster from "@/components/ui/Toaster.vue";
+import PwaUpdatePrompt from "@/components/PwaUpdatePrompt.vue";
 </script>
 
 <template>
@@ -10,6 +11,7 @@ import Toaster from "@/components/ui/Toaster.vue";
   >
     Pular para o conteúdo
   </a>
+  <PwaUpdatePrompt />
   <RouterView />
   <Toaster />
 </template>

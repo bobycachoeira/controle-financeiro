@@ -1,0 +1,27 @@
+{
+  "name": "@cf/notifier",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/index.ts",
+    "run-once": "node --import tsx src/index.ts --once",
+    "vapid:generate": "node --import tsx scripts/generate-vapid.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cf/shared": "workspace:*",
+    "node-cron": "^3.0.3",
+    "web-push": "^3.6.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.2"
+  }
+}

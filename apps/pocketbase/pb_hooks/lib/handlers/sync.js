@@ -22,6 +22,23 @@ function findExisting(entity, id) {
   }
 }
 
+function discardPendingDeliveries(entity, entityId) {
+  try {
+    const records = $app.findAllRecords(
+      $app.findCollectionByNameOrId("notification_deliveries"),
+      $dbx.hashExp({ entity: entity, entity_id: entityId }),
+    );
+    for (let index = 0; index < records.length; index += 1) {
+      if (records[index].getString("status") === "pendente") {
+        records[index].set("status", "descartado");
+        $app.save(records[index]);
+      }
+    }
+  } catch (err) {
+    // coleção pode não existir em ambientes antigos
+  }
+}
+
 function existingEvent(household, entity, syncId) {
   try {
     return $app.findFirstRecordByFilter(
@@ -202,6 +219,12 @@ function applyOperation(household, userId, role, operation) {
       if (entity === "transactions" && record.get("invoice")) {
         invoiceDomain.recalcInvoice($app, record.getString("invoice"));
       }
+      if (
+        (entity === "bills" || entity === "invoices") &&
+        (payload.status === "pago" || payload.status === "cancelado" || payload.status === "paga")
+      ) {
+        discardPendingDeliveries(entity, record.id);
+      }
     } else {
       result.status = "conflict";
       result.conflict = true;
@@ -230,6 +253,9 @@ function applyOperation(household, userId, role, operation) {
     result.remote_id = record.id;
     if (entity === "transactions" && record.get("invoice")) {
       invoiceDomain.recalcInvoice($app, record.getString("invoice"));
+    }
+    if (entity === "bills" || entity === "invoices") {
+      discardPendingDeliveries(entity, record.id);
     }
   }
 

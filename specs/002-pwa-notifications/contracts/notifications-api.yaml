@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: Controle Financeiro Familiar — Notifications API
+  version: 1.0.0
+  description: >
+    Preferências de lembrete, inscrições de Web Push por dispositivo e notificação de
+    teste. Todas as rotas autenticadas são isoladas por `household`. Schemas canônicos em
+    packages/shared/src/domain/notifications.ts (Zod).
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+tags:
+  - name: Notifications
+
+paths:
+  /notifications/vapid-public-key:
+    get:
+      tags: [Notifications]
+      summary: Chave pública VAPID para inscrição no navegador
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [public_key]
+                properties:
+                  public_key: { type: string }
+
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Preferências de notificação do usuário
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferencesResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Notifications]
+      summary: Atualiza as preferências (tipos, dias antes, horário, quiet hours)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Preferences' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferencesResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /notifications/subscriptions:
+    post:
+      tags: [Notifications]
+      summary: Registra a inscrição de push do dispositivo atual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string }
+                label: { type: string, maxLength: 80 }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription: { $ref: '#/components/schemas/Subscription' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /notifications/subscriptions/{id}:
+    delete:
+      tags: [Notifications]
+      summary: Remove (revoga) uma inscrição de push
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Removida }
+        '403':
+          description: Inscrição de outro usuário
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /notifications/test:
+    post:
+      tags: [Notifications]
+      summary: Envia uma notificação de teste ao usuário atual
+      responses:
+        '202': { description: Enfileirada/enviada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Sem inscrição válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /notifications/deliveries:
+    get:
+      tags: [Notifications]
+      summary: Histórico de entregas (owner/partner)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Delivery' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Validação falhou
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Não autenticado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Sem permissão
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+
+    ReminderType:
+      type: object
+      required: [habilitado, dias_antes]
+      properties:
+        habilitado: { type: boolean }
+        dias_antes:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 30 }
+
+    Preferences:
+      type: object
+      properties:
+        contas_a_pagar: { $ref: '#/components/schemas/ReminderType' }
+        contas_a_receber: { $ref: '#/components/schemas/ReminderType' }
+        fatura_cartao: { $ref: '#/components/schemas/ReminderType' }
+        fixas_recorrentes: { $ref: '#/components/schemas/ReminderType' }
+        horario_envio: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        quiet_hours:
+          type: object
+          properties:
+            ativar: { type: boolean }
+            inicio: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+            fim: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+
+    PreferencesResponse:
+      type: object
+      required: [push_enabled, preferences]
+      properties:
+        push_enabled: { type: boolean }
+        preferences: { $ref: '#/components/schemas/Preferences' }
+
+    Subscription:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        last_seen_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+
+    Delivery:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [contas_a_pagar, contas_a_receber, fatura_cartao, fixas_recorrentes] }
+        entity: { type: string }
+        entity_id: { type: string }
+        scheduled_date: { type: string, format: date }
+        status: { type: string, enum: [pendente, enviado, falho, descartado] }
+        sent_at: { type: string, format: date-time, nullable: true }
