@@ -57,7 +57,22 @@ Obs.: sem SMTP configurado, o Magic Link é impresso no log do PocketBase (modo 
 | `pnpm test:pb` | Integração PocketBase efêmero: isolamento, RBAC, sync, faturas |
 | `pnpm test:e2e` | Playwright (requer o app rodando) |
 
-## Deploy em produção (PocketBase + Vercel)
+## Deploy em produção
+
+**Recomendado: tudo em uma VM (Oracle Cloud Always Free), um domínio só** — front (PWA) +
+PocketBase + notifier via Docker/Caddy. Passo a passo em
+[`docs/DEPLOY-ORACLE-ALWAYS-FREE.md`](docs/DEPLOY-ORACLE-ALWAYS-FREE.md).
+
+```bash
+CF_DOMAIN=app.seudominio.com docker compose \
+  --env-file docker/.env -f docker/docker-compose.prod.yml up -d --build
+```
+
+As seções A–F abaixo cobrem também a variante com **Vercel** (front) + backend em VPS/Fly.
+
+---
+
+### Variante: PocketBase + Vercel
 
 Arquitetura: **front na Vercel** (estático) + **PocketBase + notifier num VPS** (com TLS via
 Caddy) + **domínio próprio**. A Vercel não roda o PocketBase (stateful) nem o cron do

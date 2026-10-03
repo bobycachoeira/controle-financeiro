@@ -71,6 +71,16 @@ routerAdd("GET", "/api/notifications/deliveries", (c) =>
 
 routerAdd("GET", "/api/settings/features", (c) => require(`${__hooks}/lib/handlers/features.js`).features(c));
 
+routerAdd("GET", "/api/auth/passkeys", (c) =>
+  require(`${__hooks}/lib/handlers/passkeys.js`).list(c),
+);
+routerAdd("POST", "/api/auth/passkeys", (c) =>
+  require(`${__hooks}/lib/handlers/passkeys.js`).register(c),
+);
+routerAdd("DELETE", "/api/auth/passkeys/{id}", (c) =>
+  require(`${__hooks}/lib/handlers/passkeys.js`).remove(c),
+);
+
 routerAdd("POST", "/api/recurrences/run", (c) =>
   require(`${__hooks}/lib/handlers/recurrences.js`).runHandler(c),
 );

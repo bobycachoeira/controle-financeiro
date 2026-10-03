@@ -17,7 +17,17 @@ export interface TrustedDevice {
   revoked_at: string | null;
 }
 
+export interface PasskeyRecord {
+  id: string;
+  label: string;
+  created_at: string | null;
+}
+
 export const authApi = {
+  listPasskeys: () => apiClient.get<{ items: PasskeyRecord[] }>("/auth/passkeys"),
+  registerPasskey: (input: { id: string; label: string; public_key?: string }) =>
+    apiClient.post<PasskeyRecord>("/auth/passkeys", input),
+  revokePasskey: (id: string) => apiClient.del<void>(`/auth/passkeys/${id}`),
   setup2fa: () => apiClient.post<TwoFactorSetup>("/auth/2fa/setup", {}, { stepUp: true }),
   confirm2fa: (code: string) =>
     apiClient.post<ConfirmTwoFactorResult>("/auth/2fa/confirm", { code }, { stepUp: true }),

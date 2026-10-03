@@ -28,6 +28,7 @@ const links = [
   { name: "invites", label: "Família e convites" },
   { name: "notifications", label: "Notificações" },
   { name: "devices", label: "Segurança e dispositivos" },
+  { name: "passkeys", label: "Passkeys" },
   { name: "app-lock", label: "App Lock" },
 ];
 

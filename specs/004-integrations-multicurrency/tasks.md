@@ -42,7 +42,7 @@ description: "Task list for Integrações, Multimoeda e Passkeys (Fase 7)"
 
 ## Phase 5: US3/US4 - Passkeys e Open Finance (P3)
 
-- [ ] T021 [US3] Cadastro/listagem/revogação de passkey (cliente) em `apps/web/src/features/auth/PasskeysView.vue`
+- [x] T021 [US3] Cadastro/listagem/revogação de passkey (cliente) em `apps/web/src/features/settings/PasskeysView.vue`
 - [ ] T022 [US3] Preparar verificação server-side de passkey no step-up (adiado)
 - [x] T023 [US4] Feature-flag de Open Finance na UI e rota de flags
 - [ ] T024 [US4] Conexão Open Finance real (provedor) — adiado

@@ -1,7 +1,10 @@
-# Produção: Caddy (TLS automático) + PocketBase + notifier.
-# Uso:
-#   CF_API_DOMAIN=api.seudominio.com docker compose -f docker/docker-compose.prod.yml up -d --build
-# O front vai para a Vercel (apps/web). Este compose só roda o backend.
+# Produção "tudo na Oracle" (um servidor, um domínio): Caddy (TLS) + web (PWA) +
+# PocketBase + notifier.
+#
+#   CF_DOMAIN=app.seudominio.com docker compose \
+#     --env-file docker/.env -f docker/docker-compose.prod.yml up -d --build
+#
+# O front e a API ficam no MESMO domínio: o app chama /api (mesma origem).
 services:
   caddy:
     image: caddy:2-alpine
@@ -10,13 +13,24 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      CF_API_DOMAIN: ${CF_API_DOMAIN:-api.example.com}
+      CF_DOMAIN: ${CF_DOMAIN:-app.example.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
+      - web
       - pocketbase
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    expose:
+      - "80"
 
   pocketbase:
     build:

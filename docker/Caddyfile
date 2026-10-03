@@ -1,4 +1,19 @@
-{$CF_API_DOMAIN} {
+# Tudo em um domínio: front (web) + API e painel (PocketBase).
+# - /api/*  -> PocketBase (API)
+# - /_/*    -> PocketBase (painel admin)
+# - demais  -> app estático (PWA)
+{$CF_DOMAIN} {
 	encode gzip
-	reverse_proxy pocketbase:8090
+
+	handle /api/* {
+		reverse_proxy pocketbase:8090
+	}
+
+	handle /_/* {
+		reverse_proxy pocketbase:8090
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
 }
