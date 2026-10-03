@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
@@ -26,8 +26,19 @@ const session = useSessionStore();
 const sync = useSyncStore();
 const toast = useToast();
 
+const FREQ_PRESETS = [
+  { key: "diaria", label: "Diária", rrule: "FREQ=DAILY;INTERVAL=1" },
+  { key: "semanal", label: "Semanal", rrule: "FREQ=WEEKLY;INTERVAL=1" },
+  { key: "quinzenal", label: "Quinzenal", rrule: "FREQ=WEEKLY;INTERVAL=2" },
+  { key: "mensal", label: "Mensal", rrule: "FREQ=MONTHLY;INTERVAL=1" },
+  { key: "trimestral", label: "Trimestral", rrule: "FREQ=MONTHLY;INTERVAL=3" },
+  { key: "semestral", label: "Semestral", rrule: "FREQ=MONTHLY;INTERVAL=6" },
+  { key: "anual", label: "Anual", rrule: "FREQ=YEARLY;INTERVAL=1" },
+] as const;
+
 const editingId = ref<string | null>(null);
 const name = ref("");
+const frequency = ref("mensal");
 const rrule = ref("FREQ=MONTHLY;INTERVAL=1");
 const startDate = ref(todayISO());
 const target = ref<"transaction" | "bill">("transaction");
@@ -38,6 +49,26 @@ const category = ref("");
 const nature = ref<"entrada" | "saida">("saida");
 const saving = ref(false);
 const categories = ref<LocalCategory[]>([]);
+
+const isCustomFreq = computed(() => frequency.value === "custom");
+const effectiveRrule = computed(() => {
+  if (isCustomFreq.value) return rrule.value;
+  return FREQ_PRESETS.find((preset) => preset.key === frequency.value)?.rrule ?? "FREQ=MONTHLY;INTERVAL=1";
+});
+
+function detectFrequency(value: string): string {
+  const found = FREQ_PRESETS.find(
+    (preset) => preset.rrule.toUpperCase() === value.trim().toUpperCase(),
+  );
+  return found ? found.key : "custom";
+}
+
+function frequencyLabel(value: string): string {
+  const found = FREQ_PRESETS.find(
+    (preset) => preset.rrule.toUpperCase() === value.trim().toUpperCase(),
+  );
+  return found ? found.label : value;
+}
 
 async function loadCategories(): Promise<void> {
   if (!session.currentHouseholdId) return;
@@ -50,6 +81,7 @@ function resetForm(): void {
   editingId.value = null;
   name.value = "";
   amount.value = "";
+  frequency.value = "mensal";
   rrule.value = "FREQ=MONTHLY;INTERVAL=1";
   startDate.value = todayISO();
   target.value = "transaction";
@@ -62,6 +94,7 @@ function resetForm(): void {
 function openEdit(item: (typeof store.items)[number]): void {
   editingId.value = item.id;
   name.value = item.name;
+  frequency.value = detectFrequency(item.rrule);
   rrule.value = item.rrule;
   startDate.value = item.start_date.slice(0, 10);
   target.value = item.target;
@@ -83,7 +116,7 @@ async function submit(): Promise<void> {
   try {
     const payload = {
       name: name.value,
-      rrule: rrule.value,
+      rrule: effectiveRrule.value,
       start_date: startDate.value,
       target: target.value,
       creates_status: createsStatus.value,
@@ -146,10 +179,19 @@ watch(() => sync.dataVersion, () => store.load());
             <Input id="rec-name" v-model="name" required maxlength="80" />
           </div>
           <div class="space-y-2">
-            <Label for="rec-rrule">Regra (RRULE)</Label>
-            <Input id="rec-rrule" v-model="rrule" required />
+            <Label for="rec-freq">Frequência</Label>
+            <Select id="rec-freq" v-model="frequency">
+              <option v-for="preset in FREQ_PRESETS" :key="preset.key" :value="preset.key">
+                {{ preset.label }}
+              </option>
+              <option value="custom">Personalizado…</option>
+            </Select>
+          </div>
+          <div v-if="isCustomFreq" class="space-y-2">
+            <Label for="rec-rrule">Regra personalizada (RRULE)</Label>
+            <Input id="rec-rrule" v-model="rrule" placeholder="FREQ=MONTHLY;INTERVAL=1" />
             <p class="text-xs text-muted-foreground">
-              Ex.: FREQ=MONTHLY;INTERVAL=1 · FREQ=WEEKLY;BYDAY=MO · FREQ=YEARLY;COUNT=3
+              Padrão RRULE (RFC 5545). Ex.: FREQ=WEEKLY;BYDAY=MO · FREQ=YEARLY;COUNT=3
             </p>
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -230,7 +272,7 @@ watch(() => sync.dataVersion, () => store.load());
             <div>
               <p class="font-medium">{{ item.name }}</p>
               <p class="text-xs text-muted-foreground">
-                {{ item.rrule }} · {{ formatBRL(item.template.amount_cents) }}
+                {{ frequencyLabel(item.rrule) }} · {{ formatBRL(item.template.amount_cents) }}
               </p>
             </div>
             <div class="flex items-center gap-2">
