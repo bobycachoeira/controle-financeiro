@@ -75,6 +75,10 @@ routerAdd("POST", "/api/recurrences/run", (c) =>
   require(`${__hooks}/lib/handlers/recurrences.js`).runHandler(c),
 );
 
+routerAdd("POST", "/api/bills/generate", (c) =>
+  require(`${__hooks}/lib/handlers/recurrences.js`).runHouseholdHandler(c),
+);
+
 cronAdd("recurrences", "0 3 * * *", () => {
   require(`${__hooks}/lib/handlers/recurrences.js`).run();
 });

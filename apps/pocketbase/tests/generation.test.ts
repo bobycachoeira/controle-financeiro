@@ -161,6 +161,46 @@ describe("recurrence generation", () => {
     ]);
   });
 
+  it("generates emissions via the household-scoped endpoint", async () => {
+    const fam = await setupFamily(harness, "gen2@example.com", "Gen2");
+    const syncId = crypto.randomUUID();
+    await push(harness, fam.token, fam.householdId, [
+      operation(
+        syncId,
+        "recurrences",
+        "create",
+        {
+          id: crypto.randomUUID(),
+          household: "",
+          sync_id: syncId,
+          name: "Luz",
+          rrule: "FREQ=MONTHLY;INTERVAL=1",
+          start_date: "2024-02-12",
+          active: true,
+          target: "bill",
+          creates_status: "a_pagar",
+          template: {
+            amount_cents: 0,
+            default_amount_cents: 0,
+            confirm_required: true,
+            type: "despesa",
+            nature: "saida",
+            due_day: 20,
+            attribution: "ambos",
+          },
+        },
+        crypto.randomUUID(),
+      ),
+    ]);
+
+    const result = await api<{ created: number }>(harness, "/api/bills/generate", {
+      token: fam.token,
+      body: { today: "2024-03-31" },
+    });
+    expect(result.status).toBe(200);
+    expect(result.data.created).toBe(2);
+  });
+
   it("stops generating after the recurrence count limit", async () => {
     const id = crypto.randomUUID();
     const syncId = crypto.randomUUID();

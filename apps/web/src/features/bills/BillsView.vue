@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { BillNature, BillType } from "@cf/shared";
 import { addDays, billDueDate, computeBillsTotals, nextOccurrence, todayISO } from "@cf/shared";
-import { Check, Clock, CreditCard, Pause, Pencil, Play, Plus, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
+import { Check, Clock, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
+import { apiClient } from "@/api/client";
 import { db, type LocalBill, type LocalCategory } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
 import { useSessionStore } from "@/stores/session";
@@ -437,6 +438,21 @@ async function setStatus(bill: LocalBill, status: LocalBill["status"]): Promise<
   await load();
 }
 
+const generating = ref(false);
+
+async function generateNow(): Promise<void> {
+  generating.value = true;
+  try {
+    if (sync.online) await sync.syncNow();
+    await apiClient.post("/bills/generate", {});
+    await load();
+  } catch {
+    // offline ou sem sessão: as emissões serão geradas na próxima verificação
+  } finally {
+    generating.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     accountsStore.load(),
@@ -445,6 +461,7 @@ onMounted(async () => {
     recurrencesStore.load(),
     load(),
   ]);
+  void generateNow();
 });
 watch(() => sync.dataVersion, async () => {
   await Promise.all([accountsStore.load(), cardsStore.load(), recurrencesStore.load(), load()]);
@@ -458,7 +475,18 @@ watch(() => sync.dataVersion, async () => {
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Compromissos</p>
         <h1 class="font-display text-3xl font-black tracking-tight">Contas</h1>
       </div>
-      <Button size="sm" @click="chooserOpen = true"><Plus class="h-4 w-4" /> Nova</Button>
+      <div class="flex gap-2">
+        <Button
+          size="icon"
+          variant="outline"
+          :loading="generating"
+          aria-label="Verificar emissões"
+          @click="generateNow"
+        >
+          <RefreshCw class="h-4 w-4" />
+        </Button>
+        <Button size="sm" @click="chooserOpen = true"><Plus class="h-4 w-4" /> Nova</Button>
+      </div>
     </div>
 
     <div class="grid grid-cols-3 gap-3">
@@ -594,6 +622,9 @@ watch(() => sync.dataVersion, async () => {
       <CardContent class="p-3">
         <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
           Contas recorrentes
+        </p>
+        <p class="px-1 pb-2 text-xs text-muted-foreground">
+          As parcelas emitidas aparecem em “A confirmar”. Toque em ⟳ para verificar as emissões agora.
         </p>
         <ul class="stagger">
           <li

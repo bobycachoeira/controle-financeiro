@@ -113,9 +113,12 @@ function generateForRecurrence(recurrence, today) {
   return created;
 }
 
-function run(todayIso) {
+function run(todayIso, householdId) {
   const today = todayIso || new Date().toISOString().slice(0, 10);
-  const recurrences = $app.findAllRecords($app.findCollectionByNameOrId("recurrences"));
+  const all = $app.findAllRecords($app.findCollectionByNameOrId("recurrences"));
+  const recurrences = householdId
+    ? all.filter((recurrence) => !http.isDeleted(recurrence) && recurrence.getString("household") === householdId)
+    : all;
   let created = 0;
   for (let index = 0; index < recurrences.length; index += 1) {
     try {
@@ -130,6 +133,24 @@ function run(todayIso) {
   return created;
 }
 
+function runHouseholdHandler(c) {
+  const user = http.authRecord(c);
+  if (!user) return http.fail(c, 401, "unauthorized", "Autenticação necessária");
+  let household = "";
+  try {
+    const member = $app.findFirstRecordByFilter("household_members", "user = {:user}", {
+      user: user.id,
+    });
+    if (member && !http.isDeleted(member)) household = member.getString("household");
+  } catch (err) {
+    household = "";
+  }
+  if (!household) return http.fail(c, 403, "no_household", "Sem household");
+  const body = http.requestBody(c);
+  const created = run(typeof body.today === "string" ? body.today : undefined, household);
+  return http.ok(c, { created: created });
+}
+
 function runHandler(c) {
   if (!c.hasSuperuserAuth()) {
     return http.fail(c, 403, "forbidden", "Apenas administradores");
@@ -139,4 +160,4 @@ function runHandler(c) {
   return http.ok(c, { created: created });
 }
 
-module.exports = { run, runHandler, generateForRecurrence };
+module.exports = { run, runHandler, runHouseholdHandler, generateForRecurrence };
