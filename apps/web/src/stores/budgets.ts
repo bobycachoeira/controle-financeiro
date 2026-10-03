@@ -35,7 +35,13 @@ export const useBudgetsStore = defineStore("budgets", () => {
   }
 
   async function usageFor(budget: LocalBudget): Promise<BudgetUsage> {
-    return computeBudgetUsage(budget, await transactions());
+    const session = useSessionStore();
+    const bills = session.currentHouseholdId
+      ? (await db.bills.where("household").equals(session.currentHouseholdId).toArray()).filter(
+          (bill) => !bill.deleted_at,
+        )
+      : [];
+    return computeBudgetUsage(budget, await transactions(), bills);
   }
 
   async function create(input: BudgetInput): Promise<LocalBudget> {

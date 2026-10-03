@@ -148,6 +148,38 @@ describe("reminder scheduling", () => {
     expect(jobs.some((job) => job.kind === "fixas_recorrentes")).toBe(true);
   });
 
+  it("reminds to confirm the value of an emitted variable bill", () => {
+    const jobs = buildReminderJobs(
+      baseInput({
+        bills: [
+          {
+            ...baseInput().bills[0]!,
+            status: "a_confirmar",
+            type: "variavel",
+            emissionDate: "2024-03-10",
+          },
+        ],
+      }),
+    );
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.title).toContain("Confirme o valor");
+  });
+
+  it("does not remind before the emission date", () => {
+    const jobs = buildReminderJobs(
+      baseInput({
+        bills: [
+          {
+            ...baseInput().bills[0]!,
+            status: "a_confirmar",
+            emissionDate: "2024-03-20",
+          },
+        ],
+      }),
+    );
+    expect(jobs).toHaveLength(0);
+  });
+
   it("does not notify households without subscription", () => {
     const jobs = buildReminderJobs(
       baseInput({

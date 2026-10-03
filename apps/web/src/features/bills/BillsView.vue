@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { BillNature, BillType } from "@cf/shared";
-import { computeBillsTotals, todayISO } from "@cf/shared";
+import { addDays, billDueDate, computeBillsTotals, nextOccurrence, todayISO } from "@cf/shared";
 import { Check, Clock, CreditCard, Pencil, Plus, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
 import { db, type LocalBill, type LocalCategory } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
@@ -77,7 +77,44 @@ const payingBill = ref<LocalBill | null>(null);
 const payMode = ref<"conta" | "cartao">("conta");
 const payAccount = ref("");
 const payCard = ref("");
+const payDate = ref(todayISO());
 const paying = ref(false);
+
+const upcoming = computed(() => {
+  const today = todayISO();
+  const limit = addDays(today, 60);
+  const list: {
+    key: string;
+    name: string;
+    emission: string;
+    due: string;
+    amountCents: number;
+    nature: string;
+    confirmRequired: boolean;
+  }[] = [];
+  for (const rec of recurrencesStore.items) {
+    if (rec.target !== "bill" || !rec.active || rec.deleted_at) continue;
+    const template = rec.template;
+    const start = rec.start_date.slice(0, 10);
+    const dueDay = template.due_day ?? Number(start.slice(8, 10));
+    let cursor = today;
+    for (let index = 0; index < 6; index += 1) {
+      const next = nextOccurrence(rec.rrule, start, cursor);
+      if (!next || next > limit) break;
+      list.push({
+        key: `${rec.id}-${next}`,
+        name: rec.name,
+        emission: next,
+        due: billDueDate(next, dueDay),
+        amountCents: template.default_amount_cents ?? template.amount_cents ?? 0,
+        nature: template.nature ?? "saida",
+        confirmRequired: Boolean(template.confirm_required),
+      });
+      cursor = next;
+    }
+  }
+  return list.sort((a, b) => (a.emission < b.emission ? -1 : 1)).slice(0, 8);
+});
 
 async function load(): Promise<void> {
   if (!session.currentHouseholdId) return;
@@ -272,6 +309,7 @@ function openPay(bill: LocalBill): void {
   payMode.value = "conta";
   payAccount.value = accountsStore.items.find((a) => a.type !== "cartao_credito")?.id ?? "";
   payCard.value = "";
+  payDate.value = todayISO();
   payOpen.value = true;
 }
 
@@ -291,7 +329,7 @@ async function confirmPay(): Promise<void> {
         account: card.account,
         credit_card: card.id,
         amount_cents: bill.amount_cents,
-        date: todayISO(),
+        date: payDate.value,
         attribution: bill.attribution === "dela" ? "dela" : bill.attribution === "meu" ? "meu" : "ambos",
         category: bill.category ?? null,
         description: bill.title,
@@ -310,7 +348,7 @@ async function confirmPay(): Promise<void> {
         credit_card: null,
         amount_cents: bill.amount_cents,
         type: isIncome ? "receita" : "despesa",
-        date: todayISO(),
+        date: payDate.value,
         attribution: bill.attribution,
         category: bill.category ?? null,
         description: bill.title,
@@ -334,10 +372,16 @@ async function setStatus(bill: LocalBill, status: LocalBill["status"]): Promise<
 }
 
 onMounted(async () => {
-  await Promise.all([accountsStore.load(), cardsStore.load(), transactionsStore.load(), load()]);
+  await Promise.all([
+    accountsStore.load(),
+    cardsStore.load(),
+    transactionsStore.load(),
+    recurrencesStore.load(),
+    load(),
+  ]);
 });
 watch(() => sync.dataVersion, async () => {
-  await Promise.all([accountsStore.load(), cardsStore.load(), load()]);
+  await Promise.all([accountsStore.load(), cardsStore.load(), recurrencesStore.load(), load()]);
 });
 </script>
 
@@ -398,6 +442,32 @@ watch(() => sync.dataVersion, async () => {
               </p>
             </div>
             <Button size="sm" variant="sun" @click="openConfirm(bill)">Confirmar valor</Button>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
+
+    <Card v-if="upcoming.length > 0" class="border-dashed">
+      <CardContent class="p-3">
+        <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Próximas emissões (previsto)
+        </p>
+        <ul class="stagger">
+          <li
+            v-for="item in upcoming"
+            :key="item.key"
+            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2 text-sm"
+          >
+            <IconChip name="calendar-clock" color="#8A6FD1" size="sm" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-bold">{{ item.name }}</p>
+              <p class="text-xs font-semibold text-muted-foreground">
+                emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
+              </p>
+            </div>
+            <span class="text-xs font-bold text-muted-foreground">
+              {{ item.confirmRequired ? "valor a confirmar" : formatBRL(item.amountCents) }}
+            </span>
           </li>
         </ul>
       </CardContent>
@@ -653,6 +723,10 @@ watch(() => sync.dataVersion, async () => {
           >
             <CreditCard class="h-4 w-4" /> Cartão
           </button>
+        </div>
+        <div class="space-y-2">
+          <Label for="pay-date">Data do lançamento</Label>
+          <Input id="pay-date" v-model="payDate" type="date" />
         </div>
         <div v-if="payMode === 'conta' || payingBill?.nature === 'entrada'" class="space-y-2">
           <Label for="pay-account">Conta</Label>

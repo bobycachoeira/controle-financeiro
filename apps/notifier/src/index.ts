@@ -36,6 +36,7 @@ interface BillRecord {
   title: string;
   amount_cents: number;
   due_date: string;
+  emission_date?: string;
   nature: "entrada" | "saida";
   type: "fixa" | "variavel";
   periodicity: string;
@@ -140,7 +141,10 @@ export class Notifier {
     const { date, time } = nowInTz(this.timezone);
     const prefRecords = await this.client.listAll<PrefRecord>("notification_preferences");
     const subscriptions = await this.client.listAll<SubRecord>("push_subscriptions");
-    const bills = await this.client.listAll<BillRecord>("bills", 'status="pendente"');
+    const bills = await this.client.listAll<BillRecord>(
+      "bills",
+      '(status="pendente" || status="a_confirmar")',
+    );
     const invoices = await this.client.listAll<InvoiceRecord>(
       "invoices",
       '(status="aberta" || status="fechada")',
@@ -233,6 +237,7 @@ function toBillItem(record: BillRecord): BillItem {
     title: record.title,
     amountCents: record.amount_cents,
     dueDate: record.due_date.slice(0, 10),
+    emissionDate: record.emission_date ? record.emission_date.slice(0, 10) : undefined,
     nature: record.nature,
     type: record.type,
     periodicity: record.periodicity,

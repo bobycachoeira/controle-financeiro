@@ -26,6 +26,15 @@ export interface BudgetTransaction {
   deleted_at?: string | null;
 }
 
+export interface BudgetBill {
+  nature: "entrada" | "saida";
+  status: "a_confirmar" | "pendente" | "pago" | "cancelado";
+  amount_cents: number;
+  category?: string | null;
+  due_date: string;
+  deleted_at?: string | null;
+}
+
 export interface BudgetUsage {
   start: string;
   end: string;
@@ -53,6 +62,7 @@ export function budgetPeriodRange(
 export function computeBudgetUsage(
   budget: BudgetLike,
   transactions: readonly BudgetTransaction[],
+  bills: readonly BudgetBill[] = [],
 ): BudgetUsage {
   const range = budgetPeriodRange(budget.period, budget.reference_month);
   const categoryIds = new Set(budget.categories.map((item) => item.category));
@@ -66,6 +76,17 @@ export function computeBudgetUsage(
     if (!tx.category || !categoryIds.has(tx.category)) continue;
     spent += tx.amount_cents;
     perCategoryMap.set(tx.category, (perCategoryMap.get(tx.category) ?? 0) + tx.amount_cents);
+  }
+
+  // Contas já confirmadas (pendentes) do período contam como gasto previsto;
+  // quando pagas viram lançamento, então não entram aqui para não duplicar.
+  for (const bill of bills) {
+    if (bill.deleted_at) continue;
+    if (bill.nature !== "saida" || bill.status !== "pendente") continue;
+    if (bill.due_date < range.start || bill.due_date > range.end) continue;
+    if (!bill.category || !categoryIds.has(bill.category)) continue;
+    spent += bill.amount_cents;
+    perCategoryMap.set(bill.category, (perCategoryMap.get(bill.category) ?? 0) + bill.amount_cents);
   }
 
   const percent = budget.total_cents > 0 ? (spent / budget.total_cents) * 100 : 0;

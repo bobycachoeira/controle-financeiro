@@ -19,6 +19,7 @@ export interface BillItem {
   type: "fixa" | "variavel";
   periodicity: string;
   status: string;
+  emissionDate?: string;
 }
 
 export interface InvoiceItem {
@@ -110,6 +111,26 @@ export function buildReminderJobs(input: BuildInput): ReminderJob[] {
     const scheduledDate = window.date;
 
     for (const bill of billsByHousehold.get(entry.household) ?? []) {
+      if (bill.status === "a_confirmar") {
+        const kind: ReminderType = bill.nature === "entrada" ? "contas_a_receber" : "contas_a_pagar";
+        const config = entry.preferences[kind];
+        if (!config?.habilitado) continue;
+        const emission = bill.emissionDate ?? bill.dueDate;
+        if (emission > window.date) continue;
+        const job: ReminderJob = {
+          user: entry.userId,
+          household: entry.household,
+          kind,
+          entity: "bills",
+          entityId: bill.id,
+          dueDate: bill.dueDate,
+          title: `Confirme o valor: ${bill.title}`,
+          amountCents: 0,
+          scheduledDate,
+        };
+        if (!alreadyExists(input.existing, job)) jobs.push(job);
+        continue;
+      }
       if (bill.status !== "pendente") continue;
       const kind = billKind(bill);
       const config = entry.preferences[kind];

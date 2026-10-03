@@ -41,6 +41,30 @@ describe("budget", () => {
     expect(computeBudgetUsage(budget, [expense("food", 120000)]).status).toBe("estouro");
   });
 
+  it("includes confirmed pending bills without double counting paid ones", () => {
+    const usage = computeBudgetUsage(
+      budget,
+      [expense("food", 40000)],
+      [
+        {
+          nature: "saida",
+          status: "pendente",
+          amount_cents: 20000,
+          category: "food",
+          due_date: "2024-03-20",
+        },
+        {
+          nature: "saida",
+          status: "pago",
+          amount_cents: 99900,
+          category: "food",
+          due_date: "2024-03-21",
+        },
+      ],
+    );
+    expect(usage.spentCents).toBe(60000);
+  });
+
   it("computes per-category breakdown", () => {
     const usage = computeBudgetUsage(budget, [expense("food", 40000), expense("fun", 10000)]);
     expect(usage.perCategory.find((c) => c.category === "food")?.spentCents).toBe(40000);
