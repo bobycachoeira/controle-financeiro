@@ -6,6 +6,9 @@ export function describeSyncError(error?: string | null): string {
   if (/rate_limited|429|many requests/i.test(error)) {
     return "Muitas sincronizações — aguarde um instante";
   }
+  if (/payload inv[áa]lido/i.test(error)) {
+    return error;
+  }
   if (/validation_error|invalid/i.test(error)) {
     return "Um item foi rejeitado por dados inválidos";
   }

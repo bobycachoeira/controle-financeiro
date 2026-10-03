@@ -603,41 +603,43 @@ watch(() => sync.dataVersion, async () => {
           <li
             v-for="item in upcoming"
             :key="item.key"
-            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2 text-sm"
+            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-3 text-sm"
           >
             <IconChip
               name="calendar-clock"
               :color="item.overdue ? '#E4572E' : '#8A6FD1'"
-              size="sm"
+              size="md"
             />
             <div class="min-w-0 flex-1">
               <p class="truncate font-bold">{{ item.name }}</p>
-              <p class="text-xs font-semibold text-muted-foreground">
+              <p class="truncate text-xs font-semibold text-muted-foreground">
                 emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
               </p>
+              <p class="mt-0.5 text-xs font-extrabold">
+                {{ item.confirmRequired ? "valor a confirmar" : formatBRL(item.amountCents) }}
+              </p>
             </div>
-            <Badge :variant="item.overdue ? 'warning' : 'secondary'">
-              {{ item.overdue ? "atrasada" : "prevista" }}
-            </Badge>
-            <span class="text-xs font-bold text-muted-foreground">
-              {{ item.confirmRequired ? "a confirmar" : formatBRL(item.amountCents) }}
-            </span>
-            <Button
-              v-if="item.confirmRequired"
-              size="sm"
-              variant="sun"
-              @click="confirmUpcoming(item)"
-            >
-              Confirmar
-            </Button>
-            <Button
-              v-else-if="item.overdue"
-              size="sm"
-              variant="secondary"
-              @click="confirmUpcoming(item)"
-            >
-              Lançar
-            </Button>
+            <div class="flex shrink-0 flex-col items-end gap-1.5">
+              <Badge :variant="item.overdue ? 'warning' : 'secondary'">
+                {{ item.overdue ? "atrasada" : "prevista" }}
+              </Badge>
+              <Button
+                v-if="item.confirmRequired"
+                size="sm"
+                variant="sun"
+                @click="confirmUpcoming(item)"
+              >
+                Confirmar
+              </Button>
+              <Button
+                v-else-if="item.overdue"
+                size="sm"
+                variant="secondary"
+                @click="confirmUpcoming(item)"
+              >
+                Lançar
+              </Button>
+            </div>
           </li>
         </ul>
       </CardContent>

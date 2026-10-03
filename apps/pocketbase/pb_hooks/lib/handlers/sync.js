@@ -127,14 +127,20 @@ function applyOperation(household, userId, role, operation) {
     Object.assign({}, payload, { household: household, sync_id: payload.sync_id || operation.sync_id }),
   );
   if (!validation.ok && operation.operation !== "delete") {
+    const issues = validation.issues || [];
+    const first = issues[0];
+    const field = first && first.path && first.path.length ? first.path.join(".") : "";
+    const message = first
+      ? `Payload inválido${field ? " em " + field : ""}: ${first.message}`
+      : "Payload inválido";
     return {
       sync_id: operation.sync_id,
       entity: entity,
       status: "error",
       conflict: false,
       code: "validation_error",
-      message: "Payload inválido",
-      details: validation.issues,
+      message: message,
+      details: issues,
     };
   }
 

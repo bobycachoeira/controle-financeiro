@@ -28,6 +28,8 @@
     --leaf: 152 46% 42%;
     --sky: 196 64% 52%;
     --plum: 328 44% 46%;
+
+    color-scheme: light;
   }
 
   .dark {
@@ -54,6 +56,15 @@
     --leaf: 150 52% 58%;
     --sky: 196 66% 62%;
     --plum: 328 52% 64%;
+
+    color-scheme: dark;
+  }
+
+  /* garante contraste dos itens nativos do select em ambos os temas */
+  option,
+  optgroup {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
   }
 
   * {
