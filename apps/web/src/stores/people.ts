@@ -11,7 +11,7 @@ import { toPlain, updateLocal } from "../db/repositories";
 import { useSessionStore } from "./session";
 
 export const usePeopleStore = defineStore("people", () => {
-  const options = ref<AttributionOption[]>(DEFAULT_ATTRIBUTION_OPTIONS);
+  const options = ref<AttributionOption[]>([]);
   const loading = ref(false);
 
   async function load(): Promise<void> {
@@ -20,7 +20,20 @@ export const usePeopleStore = defineStore("people", () => {
     loading.value = true;
     try {
       const household = await db.households.get(session.currentHouseholdId);
-      options.value = attributionOptions(household?.settings);
+      const settings = (household?.settings ?? {}) as { attribution_options?: unknown };
+      if (Array.isArray(settings.attribution_options) && settings.attribution_options.length > 0) {
+        options.value = attributionOptions(household?.settings);
+      } else if (session.members.length > 0) {
+        options.value = session.members
+          .filter((member) => member.role !== "viewer")
+          .map((member) => ({
+            key: member.user,
+            label: member.user_name || member.user,
+            userId: member.user,
+          }));
+      } else {
+        options.value = DEFAULT_ATTRIBUTION_OPTIONS;
+      }
     } finally {
       loading.value = false;
     }
@@ -29,6 +42,17 @@ export const usePeopleStore = defineStore("people", () => {
   function label(key: string): string {
     return attributionLabel(key, options.value);
   }
+
+  const currentKey = computed(() => {
+    const session = useSessionStore();
+    return options.value.find((option) => option.userId === session.user?.id)?.key ?? "indefinido";
+  });
+
+  const selectable = computed(() => [
+    ...options.value.map((option) => ({ value: option.key, label: option.label })),
+    { value: "ambos", label: "Ambos" },
+    { value: "indefinido", label: "Não definido" },
+  ]);
 
   async function save(next: AttributionOption[]): Promise<void> {
     const session = useSessionStore();
@@ -43,11 +67,5 @@ export const usePeopleStore = defineStore("people", () => {
     options.value = next;
   }
 
-  const selectable = computed(() => [
-    ...options.value.map((option) => ({ value: option.key, label: option.label })),
-    { value: "ambos", label: "Ambos" },
-    { value: "indefinido", label: "Não definido" },
-  ]);
-
-  return { options, loading, label, load, save, selectable };
+  return { options, loading, label, load, save, selectable, currentKey };
 });

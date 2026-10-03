@@ -15,15 +15,27 @@ export interface Membership {
   id: string;
   household: string;
   user: string;
+  user_name?: string;
   role: Role;
   invite_status: "pending" | "accepted";
   permissions: Record<string, unknown>;
   household_name?: string;
 }
 
+export interface MemberSummary {
+  id: string;
+  household: string;
+  user: string;
+  user_name?: string;
+  role: Role;
+  invite_status: "pending" | "accepted";
+  permissions: Record<string, unknown>;
+}
+
 export interface MeResponse {
   user: MeUser;
   memberships: Membership[];
+  members?: MemberSummary[];
   twofa_enabled: boolean;
 }
 
@@ -39,6 +51,7 @@ export const useSessionStore = defineStore("session", () => {
   const initialized = ref(false);
   const user = ref<MeUser | null>(null);
   const memberships = ref<Membership[]>([]);
+  const members = ref<MemberSummary[]>([]);
   const twofaEnabled = ref(false);
   const currentHouseholdId = ref<string | null>(null);
   const stepUpRequired = ref(false);
@@ -101,6 +114,7 @@ export const useSessionStore = defineStore("session", () => {
       const me = await apiClient.get<MeResponse>("/auth/me");
       user.value = me.user;
       memberships.value = me.memberships;
+      members.value = me.members ?? [];
       twofaEnabled.value = me.twofa_enabled;
       if (!currentHouseholdId.value && me.memberships[0]) {
         currentHouseholdId.value = me.memberships[0].household;
@@ -138,6 +152,7 @@ export const useSessionStore = defineStore("session", () => {
     initialized,
     user,
     memberships,
+    members,
     twofaEnabled,
     currentHouseholdId,
     stepUpRequired,

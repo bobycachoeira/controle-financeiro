@@ -4,6 +4,7 @@ import { Banknote, Check, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-ne
 import { todayISO } from "@cf/shared";
 import { updateLocal } from "@/db/repositories";
 import { useCardsStore } from "@/stores/cards";
+import { usePeopleStore } from "@/stores/people";
 import { useAccountsStore } from "@/stores/accounts";
 import { useTransfersStore } from "@/stores/transfers";
 import { useSyncStore } from "@/stores/sync";
@@ -22,6 +23,7 @@ import Modal from "@/components/ui/Modal.vue";
 import type { LocalCreditCard, LocalInvoice } from "@/db/schema";
 
 const cardsStore = useCardsStore();
+const people = usePeopleStore();
 const accountsStore = useAccountsStore();
 const transfersStore = useTransfersStore();
 const sync = useSyncStore();
@@ -49,6 +51,7 @@ const closingDay = ref(15);
 const dueDay = ref(25);
 const color = ref<string>("#1B1B1F");
 const paymentAccount = ref("");
+const owner = ref("indefinido");
 const saving = ref(false);
 
 const payOpen = ref(false);
@@ -83,6 +86,7 @@ function openCreate(): void {
   dueDay.value = 25;
   color.value = CARD_COLORS[0]!;
   paymentAccount.value = "";
+  owner.value = "indefinido";
   open.value = true;
 }
 
@@ -94,6 +98,7 @@ function openEdit(card: LocalCreditCard): void {
   dueDay.value = card.due_day;
   color.value = card.color || colorForKey(card.bank || card.id);
   paymentAccount.value = card.payment_account ?? "";
+  owner.value = card.owner ?? "indefinido";
   open.value = true;
 }
 
@@ -113,6 +118,7 @@ async function submit(): Promise<void> {
         due_day: Number(dueDay.value),
         color: color.value,
         payment_account: paymentAccount.value || null,
+        owner: owner.value,
       });
       toast.success("Cartão atualizado.");
     } else {
@@ -124,6 +130,7 @@ async function submit(): Promise<void> {
         due_day: Number(dueDay.value),
         color: color.value,
         payment_account: paymentAccount.value || null,
+        owner: owner.value,
       });
       toast.success("Cartão criado.");
     }
@@ -175,7 +182,7 @@ async function confirmPay(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([cardsStore.load(), accountsStore.load(), transfersStore.load()]);
+  await Promise.all([cardsStore.load(), accountsStore.load(), transfersStore.load(), people.load()]);
   if (!editingId.value) color.value = CARD_COLORS[0]!;
 });
 watch(() => sync.dataVersion, () => cardsStore.load());
@@ -211,6 +218,9 @@ watch(() => sync.dataVersion, () => cardsStore.load());
             </p>
             <p class="mt-1 font-display text-2xl font-black">•••• {{ card.closing_day }}/{{ card.due_day }}</p>
             <p class="mt-2 text-xs font-semibold opacity-90">Limite {{ formatBRL(card.limit_cents) }}</p>
+            <p v-if="card.owner && card.owner !== 'indefinido'" class="mt-0.5 text-[0.68rem] font-semibold opacity-80">
+              Titular: {{ people.label(card.owner) }}
+            </p>
             <p v-if="paymentAccountName(card)" class="mt-0.5 text-[0.68rem] font-semibold opacity-80">
               Fatura paga por {{ paymentAccountName(card) }}
             </p>
@@ -290,6 +300,14 @@ watch(() => sync.dataVersion, () => cardsStore.load());
             <Label for="card-due">Vencimento</Label>
             <Input id="card-due" v-model.number="dueDay" type="number" min="1" max="31" />
           </div>
+        </div>
+        <div class="space-y-2">
+          <Label for="card-owner">Titular do cartão</Label>
+          <Select id="card-owner" v-model="owner">
+            <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </Select>
         </div>
         <div class="space-y-2">
           <Label for="card-payment">Conta que paga a fatura</Label>

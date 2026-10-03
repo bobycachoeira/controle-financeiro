@@ -52,14 +52,17 @@ const filteredCategories = computed(() =>
 );
 
 const accountOwner = computed<string>(() => {
-  const accountId = isCard.value && card.value ? card.value.account : account.value;
-  return accountsStore.items.find((item) => item.id === accountId)?.owner ?? "indefinido";
+  if (isCard.value && card.value) {
+    if (card.value.owner && card.value.owner !== "indefinido") return card.value.owner;
+    return accountsStore.items.find((item) => item.id === card.value?.account)?.owner ?? "indefinido";
+  }
+  return accountsStore.items.find((item) => item.id === account.value)?.owner ?? "indefinido";
 });
 
 watch([account, creditCard], () => {
-  if (!isEdit.value && accountOwner.value && accountOwner.value !== "indefinido") {
-    attribution.value = accountOwner.value;
-  }
+  if (isEdit.value) return;
+  const owner = accountOwner.value !== "indefinido" ? accountOwner.value : people.currentKey;
+  if (owner && owner !== "indefinido") attribution.value = owner;
 });
 
 async function loadCategories(): Promise<void> {

@@ -21,6 +21,14 @@ function seedCategories(householdId) {
   });
 }
 
+function userName(userId) {
+  try {
+    return $app.findRecordById("users", userId).getString("name");
+  } catch (err) {
+    return "";
+  }
+}
+
 function adultCount(householdId) {
   return $app
     .findAllRecords(
@@ -103,6 +111,7 @@ function listMembers(c) {
       id: member.id,
       household: member.getString("household"),
       user: member.getString("user"),
+      user_name: userName(member.getString("user")),
       role: member.getString("role"),
       invite_status: member.getString("invite_status") || "accepted",
       permissions: member.get("permissions") || {},

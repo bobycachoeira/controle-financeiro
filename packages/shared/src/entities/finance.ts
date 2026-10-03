@@ -27,6 +27,7 @@ export const creditCardSchema = syncBaseSchema.extend({
   active: z.boolean().default(true),
   color: z.string().nullable().optional(),
   payment_account: z.string().nullable().optional(),
+  owner: attributionSchema.default("indefinido"),
 });
 
 export const categorySchema = syncBaseSchema.extend({

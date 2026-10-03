@@ -1,6 +1,8 @@
 export interface AttributionOption {
   key: string;
   label: string;
+  /** Usuário (membro) vinculado, quando houver. */
+  userId?: string;
 }
 
 export const DEFAULT_ATTRIBUTION_OPTIONS: AttributionOption[] = [
@@ -24,7 +26,12 @@ export function attributionOptions(settings: unknown): AttributionOption[] {
       .filter((item): item is AttributionOption => {
         return Boolean(item && typeof item === "object" && "key" in item && "label" in item);
       })
-      .map((item) => ({ key: String(item.key), label: String(item.label) }))
+      .map((item) => {
+        const option: AttributionOption = { key: String(item.key), label: String(item.label) };
+        const userId = (item as { userId?: unknown }).userId;
+        if (typeof userId === "string" && userId) option.userId = userId;
+        return option;
+      })
       .filter((item) => item.key && item.label);
     if (options.length > 0) return options;
   }

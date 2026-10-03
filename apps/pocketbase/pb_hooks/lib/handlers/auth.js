@@ -10,6 +10,34 @@ const audit = require(`${__hooks}/lib/audit.js`);
 const ratelimit = require(`${__hooks}/lib/ratelimit.js`);
 const security = require(`${__hooks}/lib/security-response.js`);
 
+function userName(userId) {
+  try {
+    return $app.findRecordById("users", userId).getString("name");
+  } catch (err) {
+    return "";
+  }
+}
+
+function householdName(householdId) {
+  try {
+    return $app.findRecordById("households", householdId).getString("name");
+  } catch (err) {
+    return "";
+  }
+}
+
+function memberSummary(member) {
+  return {
+    id: member.id,
+    household: member.getString("household"),
+    user: member.getString("user"),
+    user_name: userName(member.getString("user")),
+    role: member.getString("role"),
+    invite_status: member.getString("invite_status") || "accepted",
+    permissions: member.get("permissions") || {},
+  };
+}
+
 function buildAuthResult(user, options) {
   const opts = options || {};
   const authToken = user.newAuthToken();
@@ -104,6 +132,9 @@ function me(c) {
       $dbx.hashExp({ user: user.id }),
     )
     .filter((member) => !http.isDeleted(member));
+  const allMembers = $app
+    .findAllRecords($app.findCollectionByNameOrId("household_members"))
+    .filter((member) => !http.isDeleted(member));
   return http.ok(c, {
     user: { id: user.id, email: user.email(), name: user.getString("name"), active: user.getBool("active") },
     memberships: memberships.map((member) => ({
@@ -113,7 +144,11 @@ function me(c) {
       role: member.getString("role"),
       invite_status: member.getString("invite_status") || "accepted",
       permissions: member.get("permissions") || {},
+      household_name: householdName(member.getString("household")),
     })),
+    members: allMembers
+      .filter((member) => member.getString("household") === (memberships[0]?.getString("household") ?? ""))
+      .map((member) => memberSummary(member)),
     twofa_enabled: user.getBool("twofa_enabled"),
   });
 }

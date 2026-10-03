@@ -20,6 +20,7 @@ export interface CardInput {
   account?: string;
   color?: string | null;
   payment_account?: string | null;
+  owner?: string;
 }
 
 export const useCardsStore = defineStore("cards", () => {
@@ -66,6 +67,7 @@ export const useCardsStore = defineStore("cards", () => {
       active: true,
       color: input.color ?? null,
       payment_account: input.payment_account ?? null,
+      owner: input.owner ?? "indefinido",
       updated_by: session.user?.id ?? null,
       deleted_at: null,
     };
@@ -85,6 +87,7 @@ export const useCardsStore = defineStore("cards", () => {
       due_day: changes.due_day ?? existing.due_day,
       color: changes.color ?? existing.color,
       payment_account: changes.payment_account ?? existing.payment_account,
+      owner: changes.owner ?? existing.owner,
     });
     await load();
   }
