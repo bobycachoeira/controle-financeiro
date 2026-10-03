@@ -22,7 +22,7 @@ const variants: Record<Variant, string> = {
   <span
     :class="
       cn(
-        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.68rem] font-extrabold uppercase tracking-wide',
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide',
         variants[props.variant],
         props.class,
       )

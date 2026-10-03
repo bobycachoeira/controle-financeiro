@@ -569,7 +569,7 @@ watch(() => sync.dataVersion, async () => {
       </Card>
     </div>
 
-    <Card v-if="pendingConfirm.length > 0" class="border-sun/60">
+    <Card v-if="pendingConfirm.length > 0" class="border-sun/50">
       <CardContent class="p-3">
         <p class="flex items-center gap-2 px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-primary">
           <Clock class="h-3.5 w-3.5" /> Confirme o valor
@@ -578,17 +578,19 @@ watch(() => sync.dataVersion, async () => {
           <li
             v-for="bill in pendingConfirm"
             :key="bill.id"
-            class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2.5"
+            class="flex items-center gap-3 rounded-2xl px-2 py-2.5"
           >
-            <IconChip name="calendar-clock" color="#F2A93B" size="md" />
+            <IconChip name="calendar-clock" color="#F2A93B" size="sm" />
             <div class="min-w-0 flex-1">
-              <p class="truncate font-bold">{{ bill.title }}</p>
-              <p class="text-xs font-semibold text-muted-foreground">
+              <p class="truncate text-[0.9rem] font-bold">{{ bill.title }}</p>
+              <p class="truncate text-xs text-muted-foreground">
                 emitida {{ formatDate(bill.emission_date ?? bill.due_date) }} · vence
                 {{ formatDate(bill.due_date) }}
               </p>
             </div>
-            <Button size="sm" variant="sun" @click="openConfirm(bill)">Confirmar valor</Button>
+            <Button size="sm" variant="sun" class="h-8 shrink-0 px-3 text-xs" @click="openConfirm(bill)">
+              Confirmar
+            </Button>
           </li>
         </ul>
       </CardContent>
@@ -603,51 +605,55 @@ watch(() => sync.dataVersion, async () => {
           <li
             v-for="item in upcoming"
             :key="item.key"
-            class="flex items-center gap-3 rounded-[1.2rem] px-3 py-3 text-sm"
+            class="flex items-center gap-3 rounded-2xl px-2 py-2.5"
           >
             <IconChip
               name="calendar-clock"
               :color="item.overdue ? '#E4572E' : '#8A6FD1'"
-              size="md"
+              size="sm"
             />
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <p class="truncate font-bold">{{ item.name }}</p>
-                <Badge
-                  class="shrink-0"
+                <span class="truncate text-[0.9rem] font-bold">{{ item.name }}</span>
+                <span
+                  class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider"
                   :class="
-                    item.overdue
-                      ? 'bg-destructive/15 text-destructive ring-1 ring-inset ring-destructive/30'
-                      : 'bg-sky/20 text-sky ring-1 ring-inset ring-sky/40'
+                    item.overdue ? 'bg-destructive/15 text-destructive' : 'bg-sky/15 text-sky'
                   "
                 >
+                  <span
+                    class="h-1 w-1 rounded-full"
+                    :class="item.overdue ? 'bg-destructive' : 'bg-sky'"
+                  />
                   {{ item.overdue ? "atrasada" : "prevista" }}
-                </Badge>
+                </span>
               </div>
-              <p class="truncate text-xs font-semibold text-muted-foreground">
+              <p class="truncate text-xs text-muted-foreground">
                 emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
               </p>
-              <p class="mt-0.5 text-xs font-extrabold">
-                {{ item.confirmRequired ? "valor a confirmar" : formatBRL(item.amountCents) }}
-              </p>
             </div>
-            <Button
-              v-if="item.confirmRequired"
-              size="sm"
-              class="shrink-0"
-              @click="confirmUpcoming(item)"
-            >
-              <Check class="h-3.5 w-3.5" /> Confirmar
-            </Button>
-            <Button
-              v-else-if="item.overdue"
-              size="sm"
-              variant="outline"
-              class="shrink-0"
-              @click="confirmUpcoming(item)"
-            >
-              <Plus class="h-3.5 w-3.5" /> Lançar
-            </Button>
+            <div class="shrink-0 text-right">
+              <p class="text-[0.8rem] font-bold">
+                {{ item.confirmRequired ? "a confirmar" : formatBRL(item.amountCents) }}
+              </p>
+              <Button
+                v-if="item.confirmRequired"
+                size="sm"
+                class="mt-1 h-8 px-3 text-xs"
+                @click="confirmUpcoming(item)"
+              >
+                Confirmar
+              </Button>
+              <Button
+                v-else-if="item.overdue"
+                size="sm"
+                variant="outline"
+                class="mt-1 h-8 px-3 text-xs"
+                @click="confirmUpcoming(item)"
+              >
+                Lançar
+              </Button>
+            </div>
           </li>
         </ul>
       </CardContent>
