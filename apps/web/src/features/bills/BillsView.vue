@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { BillNature, BillType } from "@cf/shared";
-import { addDays, billDueDate, computeBillsTotals, nextOccurrence, todayISO } from "@cf/shared";
+import { addDays, billDueDate, computeBillsTotals, occurrencesBetween, todayISO } from "@cf/shared";
 import { Check, Clock, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
 import { apiClient } from "@/api/client";
 import { db, type LocalBill, type LocalCategory } from "@/db/schema";
@@ -91,39 +91,95 @@ const paying = ref(false);
 
 const upcoming = computed(() => {
   const today = todayISO();
-  const limit = addDays(today, 60);
+  const from = addDays(today, -120);
+  const to = addDays(today, 60);
+  const generatedKeys = new Set(
+    bills.value.map((bill) => `${bill.recurrence}|${(bill.emission_date ?? "").slice(0, 10)}`),
+  );
   const list: {
     key: string;
     name: string;
     emission: string;
     due: string;
     amountCents: number;
-    nature: string;
+    nature: BillNature;
     confirmRequired: boolean;
+    recurrenceId: string;
+    category: string | null;
+    attribution: "meu" | "dela" | "ambos";
+    periodicity: string;
+    overdue: boolean;
   }[] = [];
   for (const rec of recurrencesStore.items) {
     if (rec.target !== "bill" || !rec.active || rec.deleted_at) continue;
     const template = rec.template;
     const start = rec.start_date.slice(0, 10);
     const dueDay = template.due_day ?? Number(start.slice(8, 10));
-    let cursor = today;
-    for (let index = 0; index < 6; index += 1) {
-      const next = nextOccurrence(rec.rrule, start, cursor);
-      if (!next || next > limit) break;
+    const attribution =
+      template.attribution === "meu" || template.attribution === "dela" ? template.attribution : "ambos";
+    const occurrences = occurrencesBetween(rec.rrule, start, from, to);
+    for (const emission of occurrences) {
+      if (generatedKeys.has(`${rec.id}|${emission}`)) continue;
       list.push({
-        key: `${rec.id}-${next}`,
+        key: `${rec.id}-${emission}`,
         name: rec.name,
-        emission: next,
-        due: billDueDate(next, dueDay),
+        emission,
+        due: billDueDate(emission, dueDay),
         amountCents: template.default_amount_cents ?? template.amount_cents ?? 0,
         nature: template.nature ?? "saida",
         confirmRequired: Boolean(template.confirm_required),
+        recurrenceId: rec.id,
+        category: template.category ?? null,
+        attribution,
+        periodicity: periodicityFromRrule(rec.rrule),
+        overdue: emission < today,
       });
-      cursor = next;
     }
   }
-  return list.sort((a, b) => (a.emission < b.emission ? -1 : 1)).slice(0, 8);
+  return list.sort((a, b) => (a.emission < b.emission ? -1 : 1)).slice(0, 12);
 });
+
+const confirmEarly = ref(false);
+
+async function confirmUpcoming(item: (typeof upcoming.value)[number]): Promise<void> {
+  const existing = bills.value.find(
+    (bill) => bill.recurrence === item.recurrenceId && (bill.emission_date ?? "").slice(0, 10) === item.emission,
+  );
+  if (existing) {
+    openConfirm(existing);
+    return;
+  }
+  const created = (await createLocal("bills", {
+    id: newLocalId(),
+    household: session.currentHouseholdId ?? "",
+    sync_id: newSyncId(),
+    title: item.name,
+    amount_cents: item.amountCents,
+    currency: "BRL",
+    type: item.confirmRequired ? "variavel" : "fixa",
+    nature: item.nature,
+    due_date: item.due,
+    periodicity: item.periodicity,
+    status: item.confirmRequired ? "a_confirmar" : "pendente",
+    attribution: item.attribution,
+    responsible_user: null,
+    category: item.category,
+    recurrence: item.recurrenceId,
+    reminder_config: {},
+    last_generation: null,
+    next_generation: null,
+    emission_date: item.emission,
+    confirmed_at: item.confirmRequired ? null : new Date().toISOString(),
+    updated_by: session.user?.id ?? null,
+    deleted_at: null,
+  })) as unknown as LocalBill;
+  await load();
+  if (item.confirmRequired) {
+    openConfirm(created);
+  } else {
+    toast.success("Emissão lançada.");
+  }
+}
 
 async function load(): Promise<void> {
   if (!session.currentHouseholdId) return;
@@ -348,6 +404,7 @@ async function removeRecurring(id: string): Promise<void> {
 
 function openConfirm(bill: LocalBill): void {
   confirming.value = bill;
+  confirmEarly.value = (bill.emission_date ?? "").slice(0, 10) > todayISO();
   confirmAmount.value = bill.amount_cents > 0 ? formatCentsToInput(bill.amount_cents) : "";
   confirmOpen.value = true;
 }
@@ -540,7 +597,7 @@ watch(() => sync.dataVersion, async () => {
     <Card v-if="upcoming.length > 0" class="border-dashed">
       <CardContent class="p-3">
         <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-          Próximas emissões (previsto)
+          Emissões para confirmar
         </p>
         <ul class="stagger">
           <li
@@ -548,16 +605,39 @@ watch(() => sync.dataVersion, async () => {
             :key="item.key"
             class="flex items-center gap-3 rounded-[1.2rem] px-2 py-2 text-sm"
           >
-            <IconChip name="calendar-clock" color="#8A6FD1" size="sm" />
+            <IconChip
+              name="calendar-clock"
+              :color="item.overdue ? '#E4572E' : '#8A6FD1'"
+              size="sm"
+            />
             <div class="min-w-0 flex-1">
               <p class="truncate font-bold">{{ item.name }}</p>
               <p class="text-xs font-semibold text-muted-foreground">
                 emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
               </p>
             </div>
+            <Badge :variant="item.overdue ? 'warning' : 'secondary'">
+              {{ item.overdue ? "atrasada" : "prevista" }}
+            </Badge>
             <span class="text-xs font-bold text-muted-foreground">
-              {{ item.confirmRequired ? "valor a confirmar" : formatBRL(item.amountCents) }}
+              {{ item.confirmRequired ? "a confirmar" : formatBRL(item.amountCents) }}
             </span>
+            <Button
+              v-if="item.confirmRequired"
+              size="sm"
+              variant="sun"
+              @click="confirmUpcoming(item)"
+            >
+              Confirmar
+            </Button>
+            <Button
+              v-else-if="item.overdue"
+              size="sm"
+              variant="secondary"
+              @click="confirmUpcoming(item)"
+            >
+              Lançar
+            </Button>
           </li>
         </ul>
       </CardContent>
@@ -623,7 +703,7 @@ watch(() => sync.dataVersion, async () => {
           Contas recorrentes
         </p>
         <p class="px-1 pb-2 text-xs text-muted-foreground">
-          As parcelas emitidas aparecem em “A confirmar”. Toque em ⟳ para verificar as emissões agora.
+          As parcelas aparecem em “Emissões para confirmar” (previstas ou atrasadas). Toque em ⟳ para verificar as emissões agora.
         </p>
         <ul class="stagger">
           <li
@@ -858,8 +938,18 @@ watch(() => sync.dataVersion, async () => {
     </Modal>
 
     <!-- Confirmar valor -->
-    <Modal v-model="confirmOpen" title="Confirmar valor" description="Informe o valor correto desta emissão.">
+    <Modal
+      v-model="confirmOpen"
+      title="Confirmar valor"
+      :description="
+        confirmEarly ? 'Confirmação antecipada — informe o valor previsto.' : 'Informe o valor correto desta emissão.'
+      "
+    >
       <form class="space-y-4" @submit.prevent="confirmValue">
+        <p v-if="confirmEarly" class="rounded-2xl bg-sun/25 px-3 py-2 text-xs font-bold text-accent-foreground">
+          Confirmação antecipada: a emissão está prevista para
+          {{ confirming ? formatDate(confirming.emission_date ?? confirming.due_date) : "" }}.
+        </p>
         <p class="text-sm font-bold">{{ confirming?.title }}</p>
         <div class="space-y-2">
           <Label for="confirm-amount">Valor (R$)</Label>

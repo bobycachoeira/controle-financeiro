@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountSchema, transactionSchema, householdMemberSchema } from "@cf/shared";
+import { accountSchema, categorySchema, transactionSchema, householdMemberSchema } from "@cf/shared";
 
 describe("entity schemas (contract)", () => {
   it("validates an account with defaults", () => {
@@ -28,6 +28,20 @@ describe("entity schemas (contract)", () => {
       date: "2024-03-01",
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it("accepts entrada, saida and ambos category kinds", () => {
+    const base = {
+      id: "c1",
+      household: "h1",
+      sync_id: "00000000-0000-4000-8000-000000000001",
+      name: "Outros",
+      group: "Outros",
+    };
+    expect(categorySchema.safeParse({ ...base, kind: "saida" }).success).toBe(true);
+    expect(categorySchema.safeParse({ ...base, kind: "entrada" }).success).toBe(true);
+    expect(categorySchema.safeParse({ ...base, kind: "ambos" }).success).toBe(true);
+    expect(categorySchema.safeParse({ ...base, kind: "invalido" }).success).toBe(false);
   });
 
   it("validates a member with a known role only", () => {

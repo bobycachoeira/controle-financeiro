@@ -45,7 +45,9 @@ const isCard = computed(() => creditCard.value !== "");
 const card = computed(() => cardsStore.cards.find((item) => item.id === creditCard.value));
 
 const filteredCategories = computed(() =>
-  categories.value.filter((item) => item.kind === (type.value === "receita" ? "entrada" : "saida")),
+  categories.value.filter(
+    (item) => item.kind === (type.value === "receita" ? "entrada" : "saida") || item.kind === "ambos",
+  ),
 );
 
 async function loadCategories(): Promise<void> {

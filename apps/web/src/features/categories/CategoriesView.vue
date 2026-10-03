@@ -162,9 +162,15 @@ watch(() => sync.dataVersion, load);
               </button>
               <span
                 class="text-[0.62rem] font-extrabold uppercase tracking-wide"
-                :class="category.kind === 'entrada' ? 'text-leaf' : 'text-muted-foreground'"
+                :class="
+                  category.kind === 'entrada'
+                    ? 'text-leaf'
+                    : category.kind === 'ambos'
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                "
               >
-                {{ category.kind }}
+                {{ category.kind === "ambos" ? "ambos" : category.kind }}
               </span>
               <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
                 <button
@@ -205,6 +211,7 @@ watch(() => sync.dataVersion, load);
             <Select id="category-kind" v-model="kind">
               <option value="saida">Saída</option>
               <option value="entrada">Entrada</option>
+              <option value="ambos">Ambos</option>
             </Select>
           </div>
         </div>
