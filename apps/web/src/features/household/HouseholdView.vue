@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useHouseholdStore } from "@/stores/household";
+import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
@@ -12,6 +13,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 
 const household = useHouseholdStore();
+const sync = useSyncStore();
 const router = useRouter();
 const toast = useToast();
 
@@ -22,6 +24,7 @@ async function submit(): Promise<void> {
   loading.value = true;
   try {
     await household.createHousehold(name.value);
+    await sync.syncNow();
     toast.success("Família criada com categorias padrão.");
     router.push({ name: "dashboard" });
   } catch (error) {

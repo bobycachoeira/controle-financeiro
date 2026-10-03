@@ -7,6 +7,15 @@
     <meta name="theme-color" content="#fbf3e7" />
     <meta name="description" content="Controle financeiro familiar offline-first" />
     <title>Controle Financeiro Familiar</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("cf.theme");
+          var dark = stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

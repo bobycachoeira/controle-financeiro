@@ -4,7 +4,10 @@ import "@fontsource-variable/fraunces";
 import "@fontsource-variable/nunito";
 import App from "./App.vue";
 import { router } from "./router";
+import { applyTheme } from "./composables/useTheme";
 import "./assets/index.css";
+
+applyTheme();
 
 const app = createApp(App);
 app.use(createPinia());

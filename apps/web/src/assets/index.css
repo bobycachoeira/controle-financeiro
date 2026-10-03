@@ -30,6 +30,32 @@
     --plum: 328 44% 46%;
   }
 
+  .dark {
+    --background: 156 14% 8%;
+    --foreground: 40 30% 94%;
+    --card: 156 12% 13%;
+    --card-foreground: 40 30% 95%;
+    --primary: 14 82% 62%;
+    --primary-foreground: 20 40% 8%;
+    --secondary: 156 12% 20%;
+    --secondary-foreground: 40 28% 92%;
+    --muted: 156 11% 17%;
+    --muted-foreground: 40 12% 66%;
+    --accent: 42 88% 62%;
+    --accent-foreground: 30 45% 10%;
+    --destructive: 358 68% 60%;
+    --destructive-foreground: 40 60% 96%;
+    --border: 156 12% 24%;
+    --input: 156 12% 24%;
+    --ring: 14 82% 62%;
+
+    --ink: 156 20% 6%;
+    --sun: 42 90% 62%;
+    --leaf: 150 52% 58%;
+    --sky: 196 66% 62%;
+    --plum: 328 52% 64%;
+  }
+
   * {
     @apply border-border;
   }
@@ -58,6 +84,18 @@
     opacity: 0.5;
     mix-blend-mode: multiply;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(60rem 40rem at 108% -8%, hsl(var(--primary) / 0.2), transparent 60%),
+      radial-gradient(50rem 36rem at -12% 4%, hsl(var(--plum) / 0.16), transparent 55%),
+      radial-gradient(44rem 34rem at 50% 118%, hsl(var(--sky) / 0.14), transparent 60%);
+  }
+
+  .dark body::after {
+    opacity: 0.35;
+    mix-blend-mode: screen;
   }
 
   h1,

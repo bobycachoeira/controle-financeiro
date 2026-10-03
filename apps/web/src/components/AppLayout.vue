@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
-import { ClipboardList, LayoutDashboard, Menu, Receipt, Wallet } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Menu, Moon, Receipt, Sun, Wallet } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
+import { useTheme } from "@/composables/useTheme";
 import SyncStatus from "@/features/sync/SyncStatus.vue";
 
 const session = useSessionStore();
 const sync = useSyncStore();
 const route = useRoute();
+const { theme, toggle: toggleTheme } = useTheme();
 
 const navItems = [
   { name: "dashboard", label: "Início", icon: LayoutDashboard, matches: ["dashboard"] },
@@ -31,6 +33,7 @@ function isActive(item: { name: string; matches: string[] }): boolean {
 onMounted(async () => {
   sync.bind();
   await sync.refreshStatus();
+  void sync.syncNow();
 });
 </script>
 
@@ -55,7 +58,18 @@ onMounted(async () => {
             </p>
           </div>
         </div>
-        <SyncStatus />
+        <div class="flex shrink-0 items-center gap-2">
+          <SyncStatus />
+          <button
+            type="button"
+            class="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"
+            :aria-label="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
+            @click="toggleTheme"
+          >
+            <Sun v-if="theme === 'dark'" class="h-4 w-4" aria-hidden="true" />
+            <Moon v-else class="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </header>
 
