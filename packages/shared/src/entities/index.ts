@@ -3,3 +3,4 @@ export * from "./household";
 export * from "./finance";
 export * from "./movements";
 export * from "./recurrences";
+export * from "./currency";

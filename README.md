@@ -93,6 +93,19 @@ respeita horário preferido, quiet hours, dias antes por tipo e evita duplicidad
 - Orçamentos por categoria são calculados no cliente a partir dos lançamentos locais, com
   alertas de aproximação e estouro (`alerta_pct`).
 
+## Integrações e Multimoeda (Fase 7)
+
+- **Importar extrato (CSV/OFX)**: em `Mais → Importar extrato`; a prévia mostra itens
+  válidos/inválidos e a confirmação cria lançamentos com `origin=import` e `external_ref`,
+  evitando duplicatas ao reimportar.
+- **Multimoeda ativa**: cadastre cotações em `Mais → Moedas e cotações` (`rate_micros`); o
+  dashboard consolida em BRL pela cotação da data e sinaliza moedas sem cotação.
+- **Feature-flags**: `GET /api/settings/features` expõe `open_finance_enabled` e
+  `passkeys_enabled`.
+- **Passkeys e Open Finance**: estrutura preparada e atrás de flag. A verificação
+  server-side de passkey e a conexão real de Open Finance dependem de runtime/provedor
+  externo e ficam para uma próxima atualização.
+
 ## Conformidade com a constituição
 
 - **I. Segurança/Privacidade**: collections fechadas por padrão (sem acesso direto do

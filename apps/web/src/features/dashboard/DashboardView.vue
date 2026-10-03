@@ -7,9 +7,11 @@ import { useSyncStore } from "@/stores/sync";
 import { useAccountsStore } from "@/stores/accounts";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useCardsStore } from "@/stores/cards";
+import { useRatesStore } from "@/stores/rates";
 import { formatBRL, formatDate } from "@/lib/format";
 import {
   selectBalancesByAccount,
+  selectConsolidatedBalance,
   selectOpenInvoices,
   selectRecentTransactions,
   selectSpendingByAttribution,
@@ -29,12 +31,19 @@ const sync = useSyncStore();
 const accountsStore = useAccountsStore();
 const transactionsStore = useTransactionsStore();
 const cardsStore = useCardsStore();
+const ratesStore = useRatesStore();
 
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
 const today = todayISO();
 
 const balance = computed(() => selectTotalBalance(accountsStore.items, transactionsStore.items));
+const consolidated = computed(() =>
+  selectConsolidatedBalance(accountsStore.items, transactionsStore.items, ratesStore.items, today),
+);
+const hasForeignCurrency = computed(() =>
+  accountsStore.items.some((account) => (account.currency || "BRL") !== "BRL"),
+);
 const byAccount = computed(() => selectBalancesByAccount(accountsStore.items, transactionsStore.items));
 const spending = computed(() => selectSpendingByAttribution(transactionsStore.items));
 const upcoming = computed(() => selectUpcomingBills(bills.value, today));
@@ -56,6 +65,7 @@ async function loadAll(): Promise<void> {
     accountsStore.load(),
     transactionsStore.load(),
     cardsStore.load(),
+    ratesStore.load(),
     loadExtras(),
   ]);
 }
@@ -71,7 +81,13 @@ watch(() => sync.dataVersion, loadAll);
     <Card class="bg-primary text-primary-foreground">
       <CardContent class="p-5">
         <p class="text-sm opacity-80">Saldo total</p>
-        <p class="mt-1 text-3xl font-bold">{{ formatBRL(balance) }}</p>
+        <p class="mt-1 text-3xl font-bold">{{ formatBRL(hasForeignCurrency ? consolidated.totalCents : balance) }}</p>
+        <p v-if="hasForeignCurrency" class="mt-1 text-xs opacity-80">
+          Consolidado em BRL
+          <template v-if="consolidated.missing.length">
+            · sem cotação: {{ consolidated.missing.join(", ") }}
+          </template>
+        </p>
       </CardContent>
     </Card>
 

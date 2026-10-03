@@ -5,6 +5,7 @@ import type {
   Budget,
   Category,
   CreditCard,
+  ExchangeRate,
   Household,
   HouseholdMember,
   Installment,
@@ -34,6 +35,7 @@ export type LocalHousehold = Household & LocalMeta;
 export type LocalHouseholdMember = HouseholdMember & LocalMeta;
 export type LocalRecurrence = Recurrence & LocalMeta;
 export type LocalBudget = Budget & LocalMeta;
+export type LocalExchangeRate = ExchangeRate & LocalMeta;
 
 export interface OutboxItem {
   id?: number;
@@ -68,6 +70,7 @@ export class CfDatabase extends Dexie {
   bills!: Table<LocalBill, string>;
   recurrences!: Table<LocalRecurrence, string>;
   budgets!: Table<LocalBudget, string>;
+  exchange_rates!: Table<LocalExchangeRate, string>;
   outbox!: Table<OutboxItem, number>;
   meta!: Table<MetaRow, string>;
 
@@ -91,6 +94,9 @@ export class CfDatabase extends Dexie {
     this.version(2).stores({
       recurrences: "id, household, active, target, sync_id, updated, deleted_at",
       budgets: "id, household, period, active, sync_id, updated, deleted_at",
+    });
+    this.version(3).stores({
+      exchange_rates: "id, household, currency, date, sync_id, updated, deleted_at",
     });
   }
 }

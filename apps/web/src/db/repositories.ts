@@ -35,6 +35,7 @@ export const ENTITY_TABLES: Record<SyncEntityName, EntityTable> = {
   bills: db.bills as unknown as EntityTable,
   recurrences: db.recurrences as unknown as EntityTable,
   budgets: db.budgets as unknown as EntityTable,
+  exchange_rates: db.exchange_rates as unknown as EntityTable,
 };
 
 export function nowISO(): string {

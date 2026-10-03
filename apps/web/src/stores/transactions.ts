@@ -26,6 +26,8 @@ export interface TransactionInput {
   description?: string;
   status: TransactionStatus;
   note?: string;
+  origin?: "manual" | "import" | "recurrence";
+  external_ref?: string | null;
 }
 
 export interface CardPurchaseInput extends Omit<TransactionInput, "type"> {
@@ -86,9 +88,21 @@ export const useTransactionsStore = defineStore("transactions", () => {
       attachment: null,
       tags: [],
       note: input.note ?? "",
+      origin: input.origin ?? "manual",
+      external_ref: input.external_ref ?? null,
       updated_by: session.user?.id ?? null,
       deleted_at: null,
     };
+  }
+
+  async function findByExternalRef(ref: string): Promise<LocalTransaction | undefined> {
+    const session = useSessionStore();
+    if (!session.currentHouseholdId) return undefined;
+    return db.transactions
+      .where("household")
+      .equals(session.currentHouseholdId)
+      .filter((tx) => tx.external_ref === ref && !tx.deleted_at)
+      .first();
   }
 
   async function create(input: TransactionInput): Promise<LocalTransaction> {
@@ -217,5 +231,5 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
-  return { items, loading, load, create, createCardPurchase, update, remove };
+  return { items, loading, load, create, createCardPurchase, update, remove, findByExternalRef };
 });

@@ -1,5 +1,6 @@
 import {
   computeAccountBalance,
+  consolidateToBRL,
   totalBalance,
   totalToPay,
   totalsByAttribution,
@@ -12,6 +13,25 @@ export function selectTotalBalance(
   transactions: LocalTransaction[],
 ): number {
   return totalBalance(accounts as AccountLike[], transactions as unknown as BalanceTransaction[]);
+}
+
+export function selectConsolidatedBalance(
+  accounts: LocalAccount[],
+  transactions: LocalTransaction[],
+  rates: { currency: string; date: string; rate_micros: number }[],
+  today: string,
+): { totalCents: number; missing: string[] } {
+  const entries = accounts
+    .filter((account) => !account.deleted_at)
+    .map((account) => ({
+      amountCents: computeAccountBalance(
+        account as AccountLike,
+        transactions as unknown as BalanceTransaction[],
+      ),
+      currency: account.currency || "BRL",
+      date: today,
+    }));
+  return consolidateToBRL(entries, rates);
 }
 
 export function selectBalancesByAccount(

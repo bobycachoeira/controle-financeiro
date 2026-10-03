@@ -31,6 +31,8 @@ export const transactionSchema = syncBaseSchema.extend({
   attachment: z.string().nullable().optional(),
   tags: z.array(z.string()).default([]),
   note: z.string().max(1000).default(""),
+  origin: z.enum(["manual", "import", "recurrence"]).default("manual"),
+  external_ref: z.string().nullable().optional(),
 });
 
 export const installmentSchema = syncBaseSchema.extend({
