@@ -57,11 +57,102 @@ Obs.: sem SMTP configurado, o Magic Link é impresso no log do PocketBase (modo 
 | `pnpm test:pb` | Integração PocketBase efêmero: isolamento, RBAC, sync, faturas |
 | `pnpm test:e2e` | Playwright (requer o app rodando) |
 
-## Deploy
+## Deploy em produção (PocketBase + Vercel)
 
-- Frontend: Cloudflare Pages/Vercel (build `pnpm --filter @cf/web build`).
-- Backend: Docker/VPS com `docker/docker-compose.yml`, volume `pb_data` persistente e
-  as variáveis de ambiente acima.
+Arquitetura: **front na Vercel** (estático) + **PocketBase + notifier num VPS** (com TLS via
+Caddy) + **domínio próprio**. A Vercel não roda o PocketBase (stateful) nem o cron do
+notifier — por isso o backend fica em Docker/VPS.
+
+Fluxo:
+
+```
+Navegador ──HTTPS──> Vercel (PWA)
+                 └──HTTPS──> api.seudominio.com (Caddy) ──> PocketBase (8090) + notifier
+```
+
+### A) Backend (VPS com Docker)
+
+Pré-requisito: um VPS com Docker + portas 80/443 abertas e o DNS `api.seudominio.com`
+apontando para o IP do VPS.
+
+```bash
+git clone <repo> && cd controle-financeiro
+
+# 1) Variáveis de ambiente (crie um .env no diretório docker/ ou exporte)
+mkdir -p docker
+cat > docker/.env <<'EOF'
+CF_API_DOMAIN=api.seudominio.com
+CF_APP_URL=https://app.seudominio.com
+CF_ENCRYPTION_KEY=<32+ bytes aleatórios>        # openssl rand -base64 32
+CF_STEPUP_TTL=10m
+CF_TIMEZONE=America/Sao_Paulo
+# SMTP (para enviar o Magic Link) — ajuste conforme seu provedor
+CF_MAIL_HOST=smtp.seudominio.com
+CF_MAIL_PORT=587
+CF_MAIL_USER=no-reply@seudominio.com
+CF_MAIL_PASSWORD=<senha>
+CF_MAIL_FROM=no-reply@seudominio.com
+# Notificações push (opcional)
+CF_VAPID_PUBLIC_KEY=
+CF_VAPID_PRIVATE_KEY=
+CF_VAPID_SUBJECT=mailto:no-reply@seudominio.com
+CF_POCKETBASE_ADMIN_EMAIL=admin@seudominio.com
+CF_POCKETBASE_ADMIN_PASSWORD=<senha-forte>
+EOF
+
+# 2) Subir (Caddy emite o TLS automaticamente)
+CF_API_DOMAIN=api.seudominio.com docker compose \
+  --env-file docker/.env -f docker/docker-compose.prod.yml up -d --build
+```
+
+As **migrações rodam sozinhas** na primeira subida (collections + seed de categorias).
+O banco fica no volume `pb_data` (persistente).
+
+Pós-deploy no backend (uma vez):
+1. Crie o **superusuário** do PocketBase (para acessar o painel em
+   `https://api.seudominio.com/_/`):
+   ```bash
+   docker compose -f docker/docker-compose.prod.yml exec pocketbase \
+     /pb/pocketbase superuser upsert admin@seudominio.com <senha> --dir=/pb/pb_data
+   ```
+2. O **SMTP** já é configurado automaticamente a partir de `CF_MAIL_*` no boot.
+
+### B) Frontend (Vercel)
+
+1. Importe o repositório na Vercel.
+2. **Root Directory**: `apps/web`.
+3. **Framework Preset**: Vite (build `pnpm build` → `dist`). O `apps/web/vercel.json` já
+   adiciona o *rewrite* de SPA (rotas como `/bills` funcionam em refresh).
+4. **Environment Variable**: `VITE_API_URL = https://api.seudominio.com/api`.
+5. Deploy. Serviço em `https://app.seudominio.com` (o HTTPS é obrigatório para o PWA/SW).
+
+### C) Domínio e DNS
+
+| Registro | Tipo | Valor |
+|----------|------|-------|
+| `app.seudominio.com` | CNAME | `cname.vercel-dns.com` |
+| `api.seudominio.com` | A | IP do VPS |
+
+### D) Primeiro uso
+
+1. No painel do PocketBase (`https://api.seudominio.com/_/`), crie o **primeiro usuário**
+   em Collections → `users` (e-mail, `name`, senha, `active=true`).
+2. No app, faça login por Magic Link → crie a família (household) → convide os demais em
+   **Mais → Família e convites**.
+3. **Mais → Pessoas**: ajuste os nomes/atribuições (titular de contas e cartões).
+
+### E) Notas de produção
+
+- **Backups**: faça backup do volume `pb_data` (ex.: `docker run --rm -v cf_pb_data:/data
+  -v $PWD:/backup alpine tar czf /backup/pb-$(date +%F).tgz -C /data .`).
+- **CORS**: o PocketBase 0.23 responde com CORS permissivo; como usamos **Bearer token**
+  (não cookies), funciona. Se quiser restringir, ajuste `settings` no admin.
+- **Segredos**: `CF_ENCRYPTION_KEY` protege o segredo 2FA (AES-GCM). **Não mude** depois de
+  ativado o 2FA, ou os segredos existentes não serão decifrados.
+- **Notifier**: roda no mesmo compose; requer `CF_VAPID_*` e as credenciais admin do PB.
+- **Descarte de itens de sync com erro**: painel de sincronização (tocar no status no topo).
+- Alternativas ao VPS: qualquer host que rode **Docker com volume persistente**
+  (Fly.io, Railway, Render). Serverless não serve para o PocketBase.
 
 ## Notificações push (Fase 5)
 

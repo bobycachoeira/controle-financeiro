@@ -1,0 +1,4 @@
+{$CF_API_DOMAIN} {
+	encode gzip
+	reverse_proxy pocketbase:8090
+}
