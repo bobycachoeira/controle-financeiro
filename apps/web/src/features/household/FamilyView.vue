@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import type { Role } from "@cf/shared";
 import { INVITE_ROLES } from "@cf/shared";
+import { Plus, Trash2 } from "lucide-vue-next";
 import { useHouseholdStore } from "@/stores/household";
 import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
+import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { ApiError } from "@/api/client";
-import type { JoinRequest } from "@/api/household-api";
+import type { JoinRequest, MemberRecord } from "@/api/household-api";
 import StepUpDialog from "@/features/auth/StepUpDialog.vue";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import CardDescription from "@/components/ui/CardDescription.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -22,6 +25,7 @@ import Select from "@/components/ui/Select.vue";
 const household = useHouseholdStore();
 const people = usePeopleStore();
 const session = useSessionStore();
+const sync = useSyncStore();
 const toast = useToast();
 
 const email = ref("");
@@ -33,6 +37,13 @@ let pendingAfterStepUp: (() => Promise<void>) | null = null;
 const approveTarget = ref<JoinRequest | null>(null);
 const approveRole = ref<Role>("child");
 const approvePersonKey = ref("");
+
+interface DraftPerson {
+  key: string;
+  label: string;
+  userId?: string;
+}
+const draft = ref<DraftPerson[]>([]);
 
 const APPROVE_ROLES: Role[] = ["owner", "partner", "teen", "child", "viewer"];
 
@@ -67,7 +78,7 @@ function onVerified(): void {
   if (action) void guarded(action);
 }
 
-async function send(): Promise<void> {
+async function sendInvite(): Promise<void> {
   sending.value = true;
   try {
     await guarded(async () => {
@@ -112,18 +123,84 @@ function changeRole(memberId: string, next: string): void {
   });
 }
 
-onMounted(() => {
-  void household.loadMembers();
-  if (isOwner()) void household.loadJoinRequests();
-  void people.load();
+function toggleAudit(member: MemberRecord): void {
+  void guarded(async () => {
+    const permissions = { ...(member.permissions ?? {}), audit: !member.permissions?.audit };
+    await household.updateMemberPermissions(member.id, permissions);
+    toast.success("Permissão atualizada.");
+  });
+}
+
+function memberName(userId: string): string {
+  const member = session.members.find((item) => item.user === userId);
+  return member?.user_name || member?.user || userId;
+}
+
+function resetPeople(): void {
+  draft.value = people.options.map((option) => ({
+    key: option.key,
+    label: option.label,
+    userId: option.userId,
+  }));
+}
+
+function addPerson(): void {
+  draft.value.push({ key: `pessoa-${Math.random().toString(36).slice(2, 7)}`, label: "" });
+}
+
+function linkUser(person: DraftPerson, event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  person.userId = value || undefined;
+  if (value && !person.label.trim()) person.label = memberName(value);
+}
+
+function removePerson(index: number): void {
+  draft.value.splice(index, 1);
+}
+
+async function savePeople(): Promise<void> {
+  const clean = draft.value
+    .map((item) => ({
+      key: item.key,
+      label: item.label.trim() || (item.userId ? memberName(item.userId) : ""),
+      userId: item.userId,
+    }))
+    .filter((item) => item.label);
+  if (clean.length === 0) {
+    toast.error("Adicione ao menos uma pessoa.");
+    return;
+  }
+  await people.save(clean);
+  resetPeople();
+  toast.success("Pessoas atualizadas.");
+}
+
+async function loadAll(): Promise<void> {
+  await household.loadMembers();
+  if (isOwner()) await household.loadJoinRequests();
+  await people.load();
+  resetPeople();
+}
+
+onMounted(async () => {
+  await session.loadMe().catch(() => {});
+  await loadAll();
 });
+watch(
+  () => sync.dataVersion,
+  async () => {
+    await session.loadMe().catch(() => {});
+    await loadAll();
+  },
+);
 </script>
 
 <template>
   <div class="space-y-6">
     <div>
-      <h1 class="text-xl font-bold">Família e convites</h1>
-      <p class="text-sm text-muted-foreground">Gerencie membros, solicitações e papéis.</p>
+      <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Família</p>
+      <h1 class="font-display text-3xl font-black tracking-tight">Família</h1>
+      <p class="text-sm text-muted-foreground">Membros, convites, solicitações e atribuições.</p>
     </div>
 
     <Card v-if="isOwner() && household.joinRequests.length > 0">
@@ -159,20 +236,35 @@ onMounted(() => {
           <li
             v-for="member in household.members"
             :key="member.id"
-            class="flex items-center justify-between gap-3 py-3 text-sm"
+            class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
           >
-            <span>{{ member.user_name || member.user }}</span>
-            <Select
-              v-if="isOwner()"
-              :model-value="member.role"
-              class="w-40"
-              @update:model-value="(value: string) => changeRole(member.id, value)"
-            >
-              <option v-for="option in APPROVE_ROLES" :key="option" :value="option">
-                {{ roleLabels[option] ?? option }}
-              </option>
-            </Select>
-            <Badge v-else variant="secondary">{{ roleLabels[member.role] ?? member.role }}</Badge>
+            <span class="min-w-0 truncate">{{ member.user_name || member.user }}</span>
+            <div class="flex items-center gap-2">
+              <button
+                v-if="isOwner() && member.role !== 'owner'"
+                type="button"
+                class="rounded-full px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider transition"
+                :class="
+                  member.permissions?.audit
+                    ? 'bg-leaf/20 text-leaf'
+                    : 'bg-muted text-muted-foreground'
+                "
+                @click="toggleAudit(member)"
+              >
+                Auditoria
+              </button>
+              <Select
+                v-if="isOwner()"
+                :model-value="member.role"
+                class="w-36"
+                @update:model-value="(value: string) => changeRole(member.id, value)"
+              >
+                <option v-for="option in APPROVE_ROLES" :key="option" :value="option">
+                  {{ roleLabels[option] ?? option }}
+                </option>
+              </Select>
+              <Badge v-else variant="secondary">{{ roleLabels[member.role] ?? member.role }}</Badge>
+            </div>
           </li>
         </ul>
       </CardContent>
@@ -183,7 +275,7 @@ onMounted(() => {
         <CardTitle>Convidar membro</CardTitle>
       </CardHeader>
       <CardContent>
-        <form class="space-y-4" @submit.prevent="send">
+        <form class="space-y-4" @submit.prevent="sendInvite">
           <div class="space-y-2">
             <Label for="invite-email">E-mail</Label>
             <Input id="invite-email" v-model="email" type="email" required />
@@ -196,10 +288,59 @@ onMounted(() => {
               </option>
             </Select>
           </div>
-          <Button type="submit" :loading="sending" :disabled="!session.hasHousehold">
-            Enviar convite
-          </Button>
+          <Button type="submit" :loading="sending" :disabled="!session.hasHousehold">Enviar convite</Button>
         </form>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Quem participa</CardTitle>
+        <CardDescription>
+          Cada pessoa pode estar ligada a um usuário (quem entra no app) ou não — ex.: uma filha
+          sem conta. O nome aparece na atribuição e nos gastos do mês.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <div
+          v-for="(person, index) in draft"
+          :key="person.key"
+          class="space-y-2 rounded-2xl border-2 border-border p-3"
+        >
+          <div class="space-y-1">
+            <Label :for="`person-${index}`">Nome</Label>
+            <Input :id="`person-${index}`" v-model="person.label" placeholder="Ex.: João / Filha" maxlength="40" />
+          </div>
+          <div class="space-y-1">
+            <Label :for="`person-user-${index}`">Usuário vinculado</Label>
+            <Select
+              :id="`person-user-${index}`"
+              :model-value="person.userId ?? ''"
+              @change="linkUser(person, $event)"
+            >
+              <option value="">Sem usuário (opcional)</option>
+              <option v-for="member in session.members" :key="member.user" :value="member.user">
+                {{ member.user_name || member.user }}
+                <template v-if="member.user === session.user?.id">(eu)</template>
+              </option>
+            </Select>
+          </div>
+          <div class="flex justify-end">
+            <button
+              v-if="draft.length > 1"
+              type="button"
+              class="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground transition hover:text-destructive"
+              @click="removePerson(index)"
+            >
+              <Trash2 class="h-3.5 w-3.5" /> Remover
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <Button variant="outline" size="sm" @click="addPerson"><Plus class="h-4 w-4" /> Adicionar pessoa</Button>
+          <Button @click="savePeople">Salvar</Button>
+        </div>
       </CardContent>
     </Card>
 

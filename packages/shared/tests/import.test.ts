@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectFormat, parseCSV, parseOFX } from "../src/domain/import";
+import { detectFormat, parseCSV, parseOFX, parseOfxMeta } from "../src/domain/import";
 
 describe("import detection", () => {
   it("detects CSV and OFX", () => {
@@ -43,5 +43,22 @@ describe("parseOFX", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ date: "2024-03-01", amountCents: 1050, nature: "saida", externalRef: "abc123" });
     expect(rows[1]).toMatchObject({ nature: "entrada", externalRef: "def456" });
+  });
+});
+
+describe("parseOfxMeta", () => {
+  it("extracts the ending balance and date from LEDGERBAL", () => {
+    const ofx = `
+      <BANKTRANLIST></BANKTRANLIST>
+      <LEDGERBAL><BALAMT>667.17<DTASOF>20261008120000</LEDGERBAL>
+    `;
+    expect(parseOfxMeta(ofx)).toEqual({ balanceCents: 66717, balanceDate: "2026-10-08" });
+  });
+
+  it("returns nulls when there is no LEDGERBAL", () => {
+    expect(parseOfxMeta("<OFX><BANKTRANLIST></BANKTRANLIST>")).toEqual({
+      balanceCents: null,
+      balanceDate: null,
+    });
   });
 });

@@ -1,3 +1,5 @@
+name: controle-financeiro
+
 services:
   pocketbase:
     build:

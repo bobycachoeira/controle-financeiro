@@ -4,7 +4,7 @@ import type { BillNature, BillType } from "@cf/shared";
 import { addDays, billDueDate, computeBillsTotals, occurrencesBetween, todayISO } from "@cf/shared";
 import { Check, Clock, CreditCard, Pause, Pencil, Play, Plus, RefreshCw, RotateCcw, Trash2, Wallet } from "lucide-vue-next";
 import { apiClient } from "@/api/client";
-import { db, type LocalBill, type LocalCategory } from "@/db/schema";
+import { db, type LocalBill } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
@@ -23,6 +23,7 @@ import Badge from "@/components/ui/Badge.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import CategorySelect from "@/components/ui/CategorySelect.vue";
 import Modal from "@/components/ui/Modal.vue";
 import IconChip from "@/components/ui/IconChip.vue";
 
@@ -36,7 +37,7 @@ const cardsStore = useCardsStore();
 const toast = useToast();
 
 const bills = ref<LocalBill[]>([]);
-const categories = ref<LocalCategory[]>([]);
+
 const month = ref(todayISO().slice(0, 7));
 const totals = computed(() => computeBillsTotals(bills.value, month.value));
 
@@ -133,12 +134,45 @@ const upcoming = computed(() => {
         category: template.category ?? null,
         attribution,
         periodicity: periodicityFromRrule(rec.rrule),
-        overdue: emission < today,
+        overdue: billDueDate(emission, dueDay) < today,
       });
     }
   }
-  return list.sort((a, b) => (a.emission < b.emission ? -1 : 1)).slice(0, 12);
+  return list.sort((a, b) => (a.emission < b.emission ? -1 : 1)).slice(0, 200);
 });
+
+const showFutureMonths = ref(false);
+const currentMonth = todayISO().slice(0, 7);
+
+const upcomingByMonth = computed(() => {
+  const map = new Map<string, (typeof upcoming.value)[number][]>();
+  for (const item of upcoming.value) {
+    const monthKey = item.due.slice(0, 7);
+    if (!showFutureMonths.value && monthKey > currentMonth) continue;
+    const list = map.get(monthKey) ?? [];
+    list.push(item);
+    map.set(monthKey, list);
+  }
+  return [...map.entries()]
+    .sort((a, b) => {
+      const aFromToday = a[0] >= currentMonth;
+      const bFromToday = b[0] >= currentMonth;
+      if (aFromToday && bFromToday) return a[0] < b[0] ? -1 : 1; // atual + futuros: ascendente
+      if (!aFromToday && !bFromToday) return a[0] < b[0] ? 1 : -1; // passados: recente primeiro
+      return aFromToday ? -1 : 1; // atual/futuro antes dos passados
+    })
+    .map(([month, items]) => ({ month, items }));
+});
+
+function monthLabel(month: string): string {
+  const [year = 0, m = 1] = month.split("-").map(Number);
+  const label = new Date(Date.UTC(year, m - 1, 1)).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 const confirmEarly = ref(false);
 
@@ -188,9 +222,6 @@ async function load(): Promise<void> {
   bills.value = (await db.bills.where("household").equals(h).toArray())
     .filter((bill) => !bill.deleted_at)
     .sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
-  categories.value = (await db.categories.where("household").equals(h).toArray()).filter(
-    (category) => !category.deleted_at,
-  );
 }
 
 function nextEmissionDate(day: number): string {
@@ -437,6 +468,10 @@ function openPay(bill: LocalBill): void {
 async function confirmPay(): Promise<void> {
   const bill = payingBill.value;
   if (!bill) return;
+  if (bill.amount_cents <= 0) {
+    toast.error("Confirme o valor da conta antes de pagar.");
+    return;
+  }
   paying.value = true;
   try {
     const isIncome = bill.nature === "entrada";
@@ -499,6 +534,7 @@ async function generateNow(): Promise<void> {
   try {
     if (sync.online) await sync.syncNow();
     await apiClient.post("/bills/generate", {});
+    if (sync.online) await sync.syncNow();
     await load();
   } catch {
     // offline ou sem sessão: as emissões serão geradas na próxima verificação
@@ -577,6 +613,7 @@ watch(() => sync.dataVersion, async () => {
           <li
             v-for="bill in pendingConfirm"
             :key="bill.id"
+            data-testid="bill-confirm-row"
             class="flex items-center gap-3 rounded-2xl px-2 py-2.5"
           >
             <IconChip name="calendar-clock" color="#F2A93B" size="sm" />
@@ -587,7 +624,7 @@ watch(() => sync.dataVersion, async () => {
                 {{ formatDate(bill.due_date) }}
               </p>
             </div>
-            <Button size="sm" variant="sun" class="h-8 shrink-0 px-3 text-xs" @click="openConfirm(bill)">
+            <Button size="sm" variant="sun" data-testid="bill-confirm" class="h-8 shrink-0 px-3 text-xs" @click="openConfirm(bill)">
               Confirmar
             </Button>
           </li>
@@ -597,64 +634,85 @@ watch(() => sync.dataVersion, async () => {
 
     <Card v-if="upcoming.length > 0" class="border-dashed">
       <CardContent class="p-3">
-        <p class="px-1 pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-          Emissões para confirmar
-        </p>
-        <ul class="stagger">
-          <li
-            v-for="item in upcoming"
-            :key="item.key"
-            class="flex items-center gap-3 rounded-2xl px-2 py-2.5"
-          >
-            <IconChip
-              name="calendar-clock"
-              :color="item.overdue ? '#E4572E' : '#8A6FD1'"
-              size="sm"
+        <div class="flex items-center justify-between gap-2 px-1 pb-1">
+          <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+            Emissões para confirmar
+          </p>
+          <label class="flex items-center gap-1.5 text-[0.62rem] font-bold text-muted-foreground">
+            <input
+              v-model="showFutureMonths"
+              type="checkbox"
+              class="h-3.5 w-3.5 rounded border-2 border-input"
             />
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="truncate text-[0.9rem] font-bold">{{ item.name }}</span>
-                <span
-                  class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider"
-                  :class="
-                    item.overdue ? 'bg-destructive/15 text-destructive' : 'bg-sky/15 text-sky'
-                  "
-                >
+            meses futuros
+          </label>
+        </div>
+        <p
+          v-if="upcomingByMonth.length === 0"
+          class="px-2 py-4 text-center text-xs text-muted-foreground"
+        >
+          Sem emissões no mês atual. Marque “meses futuros” para ver as próximas.
+        </p>
+        <div v-for="group in upcomingByMonth" :key="group.month" class="mb-1">
+          <p class="px-1 pb-0.5 text-[0.62rem] font-extrabold uppercase tracking-wider text-primary">
+            {{ monthLabel(group.month) }}
+          </p>
+          <ul class="stagger">
+            <li
+              v-for="item in group.items"
+              :key="item.key"
+              class="flex items-center gap-3 rounded-2xl px-2 py-2.5"
+            >
+              <IconChip
+                name="calendar-clock"
+                :color="item.overdue ? '#E4572E' : '#8A6FD1'"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="truncate text-[0.9rem] font-bold">{{ item.name }}</span>
                   <span
-                    class="h-1 w-1 rounded-full"
-                    :class="item.overdue ? 'bg-destructive' : 'bg-sky'"
-                  />
-                  {{ item.overdue ? "atrasada" : "prevista" }}
-                </span>
+                    class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider"
+                    :class="
+                      item.overdue ? 'bg-destructive/15 text-destructive' : 'bg-sky/15 text-sky'
+                    "
+                  >
+                    <span
+                      class="h-1 w-1 rounded-full"
+                      :class="item.overdue ? 'bg-destructive' : 'bg-sky'"
+                    />
+                    {{ item.overdue ? "atrasada" : "prevista" }}
+                  </span>
+                </div>
+                <p class="truncate text-xs text-muted-foreground">
+                  emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
+                </p>
               </div>
-              <p class="truncate text-xs text-muted-foreground">
-                emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
-              </p>
-            </div>
-            <div class="shrink-0 text-right">
-              <p class="text-[0.8rem] font-bold">
-                {{ item.confirmRequired ? "a confirmar" : formatBRL(item.amountCents) }}
-              </p>
-              <Button
-                v-if="item.confirmRequired"
-                size="sm"
-                class="mt-1 h-8 px-3 text-xs"
-                @click="confirmUpcoming(item)"
-              >
-                Confirmar
-              </Button>
-              <Button
-                v-else-if="item.overdue"
-                size="sm"
-                variant="outline"
-                class="mt-1 h-8 px-3 text-xs"
-                @click="confirmUpcoming(item)"
-              >
-                Lançar
-              </Button>
-            </div>
-          </li>
-        </ul>
+              <div class="shrink-0 text-right">
+                <p v-if="!item.confirmRequired" class="text-[0.8rem] font-bold">
+                  {{ formatBRL(item.amountCents) }}
+                </p>
+                <Button
+                  v-if="item.confirmRequired"
+                  size="sm"
+                  class="h-8 px-3 text-xs"
+                  @click="confirmUpcoming(item)"
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  v-else-if="item.overdue"
+                  size="sm"
+                  variant="outline"
+                  class="h-8 px-3 text-xs"
+                  @click="confirmUpcoming(item)"
+                >
+                  Lançar
+                </Button>
+              </div>
+            </li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
 
@@ -670,6 +728,7 @@ watch(() => sync.dataVersion, async () => {
           <li
             v-for="bill in payable"
             :key="bill.id"
+            data-testid="bill-pay-row"
             class="group flex items-center gap-3 rounded-[1.2rem] px-2 py-2.5 transition hover:bg-muted/70"
           >
             <IconChip
@@ -684,9 +743,10 @@ watch(() => sync.dataVersion, async () => {
               </p>
             </button>
             <span class="font-display font-bold">{{ formatBRL(bill.amount_cents) }}</span>
-            <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-leaf"
+                data-testid="bill-pay"
                 aria-label="Pagar conta"
                 @click="openPay(bill)"
               >
@@ -740,7 +800,7 @@ watch(() => sync.dataVersion, async () => {
             <Badge :variant="recurrence.template.confirm_required ? 'warning' : 'secondary'">
               {{ recurrence.template.confirm_required ? "variável" : "fixa" }}
             </Badge>
-            <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta recorrente"
@@ -916,10 +976,12 @@ watch(() => sync.dataVersion, async () => {
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">
             <Label for="rec-category">Categoria</Label>
-            <Select id="rec-category" v-model="recCategory">
-              <option value="">Sem categoria</option>
-              <option v-for="item in categories" :key="item.id" :value="item.id">{{ item.name }}</option>
-            </Select>
+            <CategorySelect
+              id="rec-category"
+              v-model="recCategory"
+              :kind="recNature === 'entrada' ? 'entrada' : 'saida'"
+              allow-empty
+            />
           </div>
           <div class="space-y-2">
             <Label for="rec-attr">Atribuição</Label>

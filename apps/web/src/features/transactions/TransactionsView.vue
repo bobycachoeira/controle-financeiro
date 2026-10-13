@@ -4,7 +4,7 @@ import { RouterLink } from "vue-router";
 import type { TransactionStatus } from "@cf/shared";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Receipt, Trash2 } from "lucide-vue-next";
-import { db, type LocalCategory } from "@/db/schema";
+import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSessionStore } from "@/stores/session";
@@ -32,6 +32,7 @@ const month = ref(todayISO().slice(0, 7));
 const account = ref("");
 const attribution = ref("");
 const status = ref<"" | TransactionStatus>("");
+const reconciled = ref<"all" | "yes" | "no">("all");
 const categories = ref<LocalCategory[]>([]);
 
 const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item])));
@@ -50,6 +51,7 @@ async function reload(): Promise<void> {
     account: account.value || undefined,
     attribution: attribution.value || undefined,
     status: status.value || undefined,
+    reconciled: reconciled.value === "all" ? undefined : reconciled.value,
   });
 }
 
@@ -71,8 +73,15 @@ function attributionLabel(attribution: string): string {
   return people.label(attribution);
 }
 
+function amountLabel(tx: LocalTransaction): string {
+  if (tx.type === "transferencia") {
+    return `${tx.amount_cents < 0 ? "−" : "+"}${formatBRL(Math.abs(tx.amount_cents))}`;
+  }
+  return `${tx.type === "receita" ? "+" : "−"}${formatBRL(tx.amount_cents)}`;
+}
+
 onMounted(loadAll);
-watch([month, account, attribution, status], reload);
+watch([month, account, attribution, status, reconciled], reload);
 watch(() => sync.dataVersion, loadAll);
 </script>
 
@@ -120,6 +129,14 @@ watch(() => sync.dataVersion, loadAll);
             <option value="a_pagar">A pagar</option>
           </Select>
         </div>
+        <div class="space-y-1">
+          <Label for="filter-reconciled">Conciliação</Label>
+          <Select id="filter-reconciled" v-model="reconciled">
+            <option value="all">Todos</option>
+            <option value="yes">Conciliados</option>
+            <option value="no">Não conciliados</option>
+          </Select>
+        </div>
       </CardContent>
     </Card>
 
@@ -159,13 +176,14 @@ watch(() => sync.dataVersion, loadAll);
             <div class="flex flex-col items-end gap-1">
               <span
                 class="font-display font-bold"
-                :class="tx.type === 'receita' ? 'text-leaf' : 'text-primary'"
+                :class="tx.amount_cents < 0 ? 'text-primary' : 'text-leaf'"
               >
-                {{ tx.type === "receita" ? "+" : "−" }}{{ formatBRL(tx.amount_cents) }}
+                {{ amountLabel(tx) }}
               </span>
               <Badge v-if="tx.status === 'a_pagar'" variant="warning">a pagar</Badge>
+              <Badge v-if="tx.external_ref" variant="success">conciliado</Badge>
             </div>
-            <div class="flex gap-1 opacity-0 transition group-hover:opacity-100">
+            <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <RouterLink
                 :to="{ name: 'transaction-edit', params: { id: tx.id } }"
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"

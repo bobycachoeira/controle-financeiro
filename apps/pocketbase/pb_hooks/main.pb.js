@@ -6,6 +6,7 @@ routerAdd("POST", "/api/auth/magic-link/verify", (c) =>
 );
 routerAdd("POST", "/api/auth/refresh", (c) => require(`${__hooks}/lib/handlers/auth.js`).refresh(c));
 routerAdd("GET", "/api/auth/me", (c) => require(`${__hooks}/lib/handlers/auth.js`).me(c));
+routerAdd("PATCH", "/api/auth/me", (c) => require(`${__hooks}/lib/handlers/auth.js`).updateMe(c));
 routerAdd("POST", "/api/auth/logout", (c) => require(`${__hooks}/lib/handlers/auth.js`).logout(c));
 routerAdd("POST", "/api/auth/2fa/setup", (c) =>
   require(`${__hooks}/lib/handlers/auth.js`).twofaSetup(c),
@@ -80,6 +81,9 @@ routerAdd("GET", "/api/notifications/deliveries", (c) =>
 );
 
 routerAdd("GET", "/api/settings/features", (c) => require(`${__hooks}/lib/handlers/features.js`).features(c));
+
+routerAdd("POST", "/api/audit", (c) => require(`${__hooks}/lib/handlers/audit.js`).record(c));
+routerAdd("GET", "/api/audit", (c) => require(`${__hooks}/lib/handlers/audit.js`).list(c));
 
 routerAdd("GET", "/api/auth/passkeys", (c) =>
   require(`${__hooks}/lib/handlers/passkeys.js`).list(c),

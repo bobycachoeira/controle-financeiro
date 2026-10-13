@@ -66,12 +66,12 @@ export const useNotificationsStore = defineStore("notifications", () => {
     pushEnabled.value = result.push_enabled;
   }
 
-  async function enable(): Promise<boolean> {
+  async function enable(): Promise<{ ok: boolean; reason?: string; detail?: string }> {
     const result = await enablePush();
-    if (!result.ok) return false;
+    if (!result.ok) return result;
     pushEnabled.value = true;
     subscriptionsCount.value += 1;
-    return true;
+    return { ok: true };
   }
 
   async function disable(): Promise<void> {

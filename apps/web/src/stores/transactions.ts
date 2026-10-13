@@ -13,6 +13,7 @@ export interface TransactionFilters {
   attribution?: string;
   status?: TransactionStatus;
   creditCard?: string;
+  reconciled?: "all" | "yes" | "no";
 }
 
 export interface TransactionInput {
@@ -55,6 +56,8 @@ export const useTransactionsStore = defineStore("transactions", () => {
         if (filters.attribution && tx.attribution !== filters.attribution) return false;
         if (filters.status && tx.status !== filters.status) return false;
         if (filters.creditCard && tx.credit_card !== filters.creditCard) return false;
+        if (filters.reconciled === "yes" && !tx.external_ref) return false;
+        if (filters.reconciled === "no" && tx.external_ref) return false;
         return true;
       });
       items.value.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -106,6 +109,9 @@ export const useTransactionsStore = defineStore("transactions", () => {
   }
 
   async function create(input: TransactionInput): Promise<LocalTransaction> {
+    if (!Number.isInteger(input.amount_cents) || input.amount_cents <= 0) {
+      throw new Error("Valor deve ser maior que zero.");
+    }
     const record = baseRecord(input);
     await createLocal("transactions", record);
     await load();
@@ -113,6 +119,9 @@ export const useTransactionsStore = defineStore("transactions", () => {
   }
 
   async function createCardPurchase(input: CardPurchaseInput): Promise<void> {
+    if (!Number.isInteger(input.amount_cents) || input.amount_cents <= 0) {
+      throw new Error("Valor deve ser maior que zero.");
+    }
     const session = useSessionStore();
     const household = session.currentHouseholdId ?? "";
     const installments = generateInstallments(

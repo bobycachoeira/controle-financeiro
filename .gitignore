@@ -34,4 +34,12 @@ pb_data/
 *.db-shm
 *.db-wal
 apps/pocketbase/pocketbase
-apps/pocketbase/pb_hooks/lib/shared.js
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Cloud credentials (nunca versionar)
+sa-saopaulo-1
+*.pem
+*.key

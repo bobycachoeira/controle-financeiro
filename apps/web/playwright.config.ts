@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Porta do backend de teste (PocketBase efêmero, subido pela fixture).
+const API_URL = "http://127.0.0.1:8091/api";
+const APP_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5174";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -8,7 +12,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
+    baseURL: APP_URL,
     trace: "on-first-retry",
   },
   projects: [
@@ -17,12 +21,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: "pnpm dev",
-        url: "http://localhost:5173",
-        reuseExistingServer: true,
-        timeout: 120_000,
-      },
+  webServer: {
+    command: "pnpm exec vite --port 5174 --strictPort",
+    url: "http://localhost:5174",
+    reuseExistingServer: false,
+    timeout: 120_000,
+    env: { VITE_API_URL: API_URL },
+  },
 });

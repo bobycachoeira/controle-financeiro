@@ -129,7 +129,7 @@ function listMembers(c) {
       user_name: userName(member.getString("user")),
       role: member.getString("role"),
       invite_status: member.getString("invite_status") || "accepted",
-      permissions: member.get("permissions") || {},
+      permissions: http.jsonField(member, "permissions"),
     })),
   });
 }
@@ -143,11 +143,6 @@ function updateRole(c) {
     return http.fail(c, 403, "forbidden", "Apenas o owner pode alterar papéis");
   }
   if (!auth.requireStepUp(c, user.id)) return http.fail(c, 403, "step_up_required", "Confirmação 2FA necessária");
-  const data = http.requestBody(c);
-  const role = String(data.role || "");
-  if (["owner", "partner", "teen", "child", "viewer"].indexOf(role) === -1) {
-    return http.fail(c, 400, "invalid_role", "Papel inválido");
-  }
   let member;
   try {
     member = $app.findRecordById("household_members", http.pathParam(c, "memberId"));
@@ -157,11 +152,21 @@ function updateRole(c) {
   if (member.getString("household") !== householdId) {
     return http.fail(c, 403, "forbidden", "Membro de outro household");
   }
-  const before = member.getString("role");
-  if (permissions.isAdultRole(role) && !permissions.isAdultRole(before) && adultCount(householdId) >= 2) {
+  const data = http.requestBody(c);
+  const beforeRole = member.getString("role");
+  const role = data.role ? String(data.role) : beforeRole;
+  if (["owner", "partner", "teen", "child", "viewer"].indexOf(role) === -1) {
+    return http.fail(c, 400, "invalid_role", "Papel inválido");
+  }
+  if (data.role && permissions.isAdultRole(role) && !permissions.isAdultRole(beforeRole) && adultCount(householdId) >= 2) {
     return http.fail(c, 409, "adult_limit", "Limite de 2 adultos plenos atingido");
   }
-  member.set("role", role);
+  if (data.role) member.set("role", role);
+  let nextPermissions = http.jsonField(member, "permissions");
+  if (data.permissions && typeof data.permissions === "object") {
+    nextPermissions = Object.assign({}, nextPermissions, data.permissions);
+    member.set("permissions", nextPermissions);
+  }
   member.set("updated_by", user.id);
   $app.save(member);
   audit.writeAudit($app, {
@@ -170,10 +175,12 @@ function updateRole(c) {
     action: "member.role.update",
     entity: "household_members",
     entityId: member.id,
-    before: { role: before },
-    after: { role: role },
+    before: { role: beforeRole },
+    after: { role: role, permissions: nextPermissions },
   });
-  return http.ok(c, { member: { id: member.id, role: role } });
+  return http.ok(c, {
+    member: { id: member.id, role: role, permissions: nextPermissions },
+  });
 }
 
 function removeMember(c) {

@@ -3,12 +3,12 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { todayISO } from "@cf/shared";
 import { ArrowLeft, CreditCard } from "lucide-vue-next";
-import { db, type LocalCategory } from "@/db/schema";
+import { db } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useCardsStore } from "@/stores/cards";
-import { useSessionStore } from "@/stores/session";
 import { usePeopleStore } from "@/stores/people";
+import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput } from "@/lib/format-input";
 import { formatBRL, formatCentsToInput } from "@/lib/format";
@@ -18,12 +18,13 @@ import CardContent from "@/components/ui/CardContent.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import CategorySelect from "@/components/ui/CategorySelect.vue";
 
 const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
 const cardsStore = useCardsStore();
-const session = useSessionStore();
 const people = usePeopleStore();
+const sync = useSyncStore();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
@@ -40,16 +41,9 @@ const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
 const installments = ref(1);
 const saving = ref(false);
-const categories = ref<LocalCategory[]>([]);
 
 const isCard = computed(() => creditCard.value !== "");
 const card = computed(() => cardsStore.cards.find((item) => item.id === creditCard.value));
-
-const filteredCategories = computed(() =>
-  categories.value.filter(
-    (item) => item.kind === (type.value === "receita" ? "entrada" : "saida") || item.kind === "ambos",
-  ),
-);
 
 const accountOwner = computed<string>(() => {
   if (isCard.value && card.value) {
@@ -64,13 +58,6 @@ watch([account, creditCard], () => {
   const owner = accountOwner.value !== "indefinido" ? accountOwner.value : people.currentKey;
   if (owner && owner !== "indefinido") attribution.value = owner;
 });
-
-async function loadCategories(): Promise<void> {
-  if (!session.currentHouseholdId) return;
-  categories.value = (
-    await db.categories.where("household").equals(session.currentHouseholdId).toArray()
-  ).filter((item) => !item.deleted_at);
-}
 
 async function submit(): Promise<void> {
   const cents = parseAmountInput(amount.value);
@@ -134,7 +121,7 @@ async function submit(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([accountsStore.load(), cardsStore.load(), loadCategories(), people.load()]);
+  await Promise.all([accountsStore.load(), cardsStore.load(), people.load()]);
   account.value = accountsStore.items.find((item) => item.type !== "cartao_credito")?.id ?? "";
   if (isEdit.value) {
     const tx = await db.transactions.get(String(route.params.id));
@@ -150,6 +137,13 @@ onMounted(async () => {
     }
   }
 });
+
+watch(
+  () => sync.dataVersion,
+  () => {
+    void Promise.all([accountsStore.load(), cardsStore.load(), people.load()]);
+  },
+);
 </script>
 
 <template>
@@ -224,12 +218,13 @@ onMounted(async () => {
           </div>
           <div class="space-y-2">
             <Label for="category">Categoria</Label>
-            <Select id="category" v-model="category" :required="type === 'despesa'">
-              <option value="">Selecione</option>
-              <option v-for="item in filteredCategories" :key="item.id" :value="item.id">
-                {{ item.group }} · {{ item.name }}
-              </option>
-            </Select>
+            <CategorySelect
+              id="category"
+              v-model="category"
+              :kind="type === 'receita' ? 'entrada' : 'saida'"
+              :required="type === 'despesa'"
+              allow-empty
+            />
           </div>
         </div>
 

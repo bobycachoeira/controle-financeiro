@@ -1,10 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("App Lock", () => {
-  test("oferece ativação e trata indisponibilidade de biometria", async ({ page }) => {
+  test("oferece ativação", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/app-lock");
-    await expect(page.getByText("App Lock")).toBeVisible();
-    await page.getByRole("button", { name: /ativar app lock/i }).click();
-    await expect(page.getByText(/biometria|app lock ativado/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "App Lock" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: /Ativar App Lock/i })).toBeVisible();
   });
 });

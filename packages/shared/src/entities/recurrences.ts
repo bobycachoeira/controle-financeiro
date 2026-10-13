@@ -30,7 +30,7 @@ export const recurrenceSchema = syncBaseSchema
     timezone: z.string().default("America/Sao_Paulo"),
     start_date: isoDate,
     end_date: isoDate.nullable().optional(),
-    count: z.number().int().min(1).nullable().optional(),
+    count: z.number().int().min(0).nullable().optional(),
     active: z.boolean().default(true),
     last_run: isoDate.nullable().optional(),
     next_run: isoDate.nullable().optional(),

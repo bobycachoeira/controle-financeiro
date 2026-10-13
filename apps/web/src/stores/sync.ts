@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { ConflictEntry } from "../sync/conflict";
+import { conflictDiff, type ConflictEntry } from "../sync/conflict";
 import {
   countFailed,
   countPending,
@@ -10,9 +10,10 @@ import {
   resetToPending,
 } from "../sync/outbox";
 import { db, type OutboxItem } from "../db/schema";
-import { clearPendingFlag } from "../db/repositories";
+import { clearPendingFlag, ENTITY_TABLES, updateLocal, type SyncableRecord } from "../db/repositories";
 import { getCursor, pullChanges, resetCursor } from "../sync/puller";
 import { pushOutbox } from "../sync/pusher";
+import { auditApi } from "../api/audit-api";
 import { useSessionStore } from "./session";
 
 export const useSyncStore = defineStore("sync", () => {
@@ -102,6 +103,55 @@ export const useSyncStore = defineStore("sync", () => {
     conflicts.value = conflicts.value.filter((conflict) => conflict.id !== id);
   }
 
+  async function recordConflictAudit(entry: ConflictEntry, action: string): Promise<void> {
+    const session = useSessionStore();
+    const diffs = conflictDiff(entry);
+    const before: Record<string, unknown> = {};
+    for (const diff of diffs) {
+      before[diff.field] = { client: diff.client, server: diff.server };
+    }
+    try {
+      await auditApi.record({
+        household: session.currentHouseholdId ?? undefined,
+        action,
+        entity: entry.entity,
+        entity_id: entry.id,
+        before,
+        after: { winner: action === "conflict.reapply_client" ? "client" : "server" },
+      });
+    } catch {
+      // auditoria é best-effort (não bloqueia a resolução)
+    }
+  }
+
+  /** Mantém a versão do servidor (descarta a local) e registra na auditoria. */
+  async function keepServer(id: string): Promise<void> {
+    const entry = conflicts.value.find((conflict) => conflict.id === id);
+    if (entry) await recordConflictAudit(entry, "conflict.keep_server");
+    acknowledgeConflict(id);
+  }
+
+  /** Reaplica a versão local (cliente vence) e registra na auditoria. */
+  async function reapplyClient(id: string): Promise<void> {
+    const entry = conflicts.value.find((conflict) => conflict.id === id);
+    if (!entry?.clientPayload) {
+      acknowledgeConflict(id);
+      return;
+    }
+    const table = ENTITY_TABLES[entry.entity];
+    const local = await table.get(entry.id);
+    if (!local) {
+      await recordConflictAudit(entry, "conflict.reapply_client");
+      acknowledgeConflict(id);
+      return;
+    }
+    const merged = { ...local, ...entry.clientPayload, id: entry.id } as SyncableRecord;
+    await updateLocal(entry.entity, merged);
+    await recordConflictAudit(entry, "conflict.reapply_client");
+    acknowledgeConflict(id);
+    await syncNow();
+  }
+
   function clearConflicts(): void {
     conflicts.value = [];
   }
@@ -131,6 +181,8 @@ export const useSyncStore = defineStore("sync", () => {
     retryAll,
     discardItem,
     acknowledgeConflict,
+    keepServer,
+    reapplyClient,
     clearConflicts,
     fullResync,
   };

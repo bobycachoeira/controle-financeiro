@@ -147,7 +147,7 @@ function accept(c) {
       user: user.id,
       role: role,
       invite_status: "pending",
-      permissions: member.get("permissions") || {},
+      permissions: http.jsonField(member, "permissions"),
     },
   });
 }

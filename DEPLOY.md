@@ -4,6 +4,10 @@ Guia direto para subir **tudo na Oracle Cloud (Always Free)** em **um servidor s
 (front + backend), num único domínio/hostname. Para detalhes, veja
 [`docs/DEPLOY-ORACLE-ALWAYS-FREE.md`](docs/DEPLOY-ORACLE-ALWAYS-FREE.md).
 
+> **Prefere a Magalu Cloud (100% brasileira, Pix/crédito, egress grátis)?** Use o guia
+> dedicado: [`docs/DEPLOY-MAGALU-CLOUD.md`](docs/DEPLOY-MAGALU-CLOUD.md). O deploy Docker
+> (passos 4–7 abaixo) é o mesmo; só muda criação da VM, rede e DNS.
+
 > **Posso testar por IP público antes de comprar domínio?** Pode, mas com ressalva:
 > o Caddy **não emite HTTPS para IP** (Let's Encrypt não dá certificado de IP) e o **PWA
 > exige HTTPS**. Então, para testar de verdade (PWA, Magic Link, service worker), use um

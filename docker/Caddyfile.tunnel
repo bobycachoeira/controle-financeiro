@@ -1,0 +1,20 @@
+# Roteador local para o Cloudflare Tunnel (HTTP puro na :8080).
+# O TLS termina na borda da Cloudflare, então NÃO configuramos domínio/TLS aqui.
+# - /api/*  -> PocketBase (API)
+# - /_/*    -> PocketBase (painel admin)
+# - demais  -> app estático (PWA)
+:8080 {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy pocketbase:8090
+	}
+
+	handle /_/* {
+		reverse_proxy pocketbase:8090
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}

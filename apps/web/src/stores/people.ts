@@ -21,10 +21,11 @@ export const usePeopleStore = defineStore("people", () => {
     try {
       const household = await db.households.get(session.currentHouseholdId);
       const settings = (household?.settings ?? {}) as { attribution_options?: unknown };
+      let loaded: AttributionOption[];
       if (Array.isArray(settings.attribution_options) && settings.attribution_options.length > 0) {
-        options.value = attributionOptions(household?.settings);
+        loaded = attributionOptions(household?.settings);
       } else if (session.members.length > 0) {
-        options.value = session.members
+        loaded = session.members
           .filter((member) => member.role !== "viewer")
           .map((member) => ({
             key: member.user,
@@ -32,8 +33,37 @@ export const usePeopleStore = defineStore("people", () => {
             userId: member.user,
           }));
       } else {
-        options.value = DEFAULT_ATTRIBUTION_OPTIONS;
+        loaded = [...DEFAULT_ATTRIBUTION_OPTIONS];
       }
+
+      // Garante que todo membro aceito (exceto viewer) seja selecionável.
+      const linked = new Set(loaded.filter((option) => option.userId).map((option) => option.userId));
+      session.members
+        .filter(
+          (member) =>
+            member.role !== "viewer" &&
+            member.invite_status !== "pending" &&
+            !linked.has(member.user),
+        )
+        .forEach((member) => {
+          loaded.push({
+            key: member.user,
+            label: member.user_name || member.user,
+            userId: member.user,
+          });
+        });
+
+      // O rótulo de quem tem usuário vinculado segue o nome do perfil atual.
+      const memberNameByUser = new Map(session.members.map((member) => [member.user, member.user_name]));
+      loaded = loaded.map((option) => {
+        if (option.userId) {
+          const name = memberNameByUser.get(option.userId);
+          if (name) return { ...option, label: name };
+        }
+        return option;
+      });
+
+      options.value = loaded;
     } finally {
       loading.value = false;
     }
@@ -48,11 +78,20 @@ export const usePeopleStore = defineStore("people", () => {
     return options.value.find((option) => option.userId === session.user?.id)?.key ?? "indefinido";
   });
 
-  const selectable = computed(() => [
-    ...options.value.map((option) => ({ value: option.key, label: option.label })),
-    { value: "ambos", label: "Ambos" },
-    { value: "indefinido", label: "Não definido" },
-  ]);
+  const selectable = computed(() => {
+    const session = useSessionStore();
+    return [
+      ...options.value.map((option) => ({
+        value: option.key,
+        label:
+          option.userId && option.userId === session.user?.id
+            ? `${option.label} (você)`
+            : option.label,
+      })),
+      { value: "ambos", label: "Ambos" },
+      { value: "indefinido", label: "Não definido" },
+    ];
+  });
 
   async function save(next: AttributionOption[]): Promise<void> {
     const session = useSessionStore();

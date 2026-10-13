@@ -1,5 +1,11 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import {
+  closingDateForMonth,
+  dueDateForMonth,
+  resolveInvoiceStatus,
+  todayISO,
+} from "@cf/shared";
 import { db, type LocalCreditCard, type LocalInvoice } from "../db/schema";
 import {
   createLocal,
@@ -73,6 +79,7 @@ export const useCardsStore = defineStore("cards", () => {
     };
     await createLocal("credit_cards", card);
     await load();
+    await ensureMonthlyInvoices();
     return card;
   }
 
@@ -101,5 +108,59 @@ export const useCardsStore = defineStore("cards", () => {
     return invoices.value.filter((invoice) => invoice.credit_card === cardId);
   }
 
-  return { cards, invoices, load, create, update, remove, invoicesFor };
+  // Cria a fatura do mês de referência para cada cartão (mesmo com valor 0),
+  // para permitir informar o valor na hora do pagamento.
+  async function ensureMonthlyInvoices(referenceMonth = todayISO().slice(0, 7)): Promise<number> {
+    const session = useSessionStore();
+    const household = session.currentHouseholdId;
+    if (!household) return 0;
+    const today = todayISO();
+    let created = 0;
+    for (const card of cards.value) {
+      const existing = await db.invoices
+        .where("household")
+        .equals(household)
+        .filter(
+          (invoice) =>
+            !invoice.deleted_at &&
+            invoice.credit_card === card.id &&
+            invoice.reference_month === referenceMonth,
+        )
+        .first();
+      if (existing) continue;
+      const closing = closingDateForMonth(referenceMonth, card.closing_day);
+      const due = dueDateForMonth(referenceMonth, card.due_day);
+      const invoice: LocalInvoice = {
+        id: newLocalId(),
+        household,
+        sync_id: newSyncId(),
+        credit_card: card.id,
+        account: card.account,
+        reference_month: referenceMonth,
+        closing_date: closing,
+        due_date: due,
+        total_cents: 0,
+        paid_cents: 0,
+        status: resolveInvoiceStatus({
+          current: "aberta",
+          closingDate: closing,
+          dueDate: due,
+          today,
+          paidCents: 0,
+          totalCents: 0,
+        }),
+        closed_at: null,
+        paid_at: null,
+        note: "",
+        updated_by: session.user?.id ?? null,
+        deleted_at: null,
+      };
+      await createLocal("invoices", invoice);
+      created += 1;
+    }
+    if (created > 0) await load();
+    return created;
+  }
+
+  return { cards, invoices, load, create, update, remove, invoicesFor, ensureMonthlyInvoices };
 });

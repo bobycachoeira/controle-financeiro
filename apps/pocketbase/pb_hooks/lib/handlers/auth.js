@@ -33,7 +33,7 @@ function memberSummary(member) {  return {
     user_name: userName(member.getString("user")),
     role: member.getString("role"),
     invite_status: member.getString("invite_status") || "accepted",
-    permissions: member.get("permissions") || {},
+    permissions: http.jsonField(member, "permissions"),
   };
 }
 
@@ -48,6 +48,36 @@ function createInitialUser(email) {
   $app.save(record);
   console.log("Usuário inicial criado: " + email);
   return record;
+}
+
+function createInvitedUser(email) {
+  const collection = $app.findCollectionByNameOrId("users");
+  const record = new Record(collection);
+  record.setEmail(email);
+  record.setPassword($security.randomString(40));
+  record.set("name", email.split("@")[0] || "Membro");
+  record.set("active", true);
+  record.set("emailVisibility", true);
+  $app.save(record);
+  console.log("Usuário convidado criado: " + email);
+  return record;
+}
+
+// Há convite válido (não usado e não expirado) para este e-mail?
+function hasValidInvite(email) {
+  try {
+    const invites = $app.findAllRecords(
+      $app.findCollectionByNameOrId("invites"),
+      $dbx.hashExp({ email_invited: email }),
+    );
+    return invites.some((invite) => {
+      if (invite.getString("used_at")) return false;
+      const expires = invite.get("expires_at");
+      return Boolean(expires) && new Date(expires).getTime() >= Date.now();
+    });
+  } catch (err) {
+    return false;
+  }
 }
 
 function buildAuthResult(user, options) {
@@ -96,6 +126,18 @@ function magicLinkRequest(c) {
         } catch (err) {
           console.log("Falha ao criar usuário inicial: " + String(err));
           user = null;
+        }
+      } else if (hasValidInvite(email)) {
+        // Convidado com convite válido: cria a conta no primeiro acesso.
+        try {
+          user = createInvitedUser(email);
+        } catch (err) {
+          // Corrida: outra requisição já pode ter criado.
+          try {
+            user = $app.findAuthRecordByEmail("users", email);
+          } catch (err2) {
+            user = null;
+          }
         }
       }
     }
@@ -163,14 +205,20 @@ function me(c) {
     .findAllRecords($app.findCollectionByNameOrId("household_members"))
     .filter((member) => !http.isDeleted(member));
   return http.ok(c, {
-    user: { id: user.id, email: user.email(), name: user.getString("name"), active: user.getBool("active") },
+    user: {
+      id: user.id,
+      email: user.email(),
+      name: user.getString("name"),
+      avatar: user.getString("avatar") || null,
+      active: user.getBool("active"),
+    },
     memberships: memberships.map((member) => ({
       id: member.id,
       household: member.getString("household"),
       user: member.getString("user"),
       role: member.getString("role"),
       invite_status: member.getString("invite_status") || "accepted",
-      permissions: member.get("permissions") || {},
+      permissions: http.jsonField(member, "permissions"),
       household_name: householdName(member.getString("household")),
     })),
     members: allMembers
@@ -286,6 +334,53 @@ function twofaDisable(c) {
   return c.noContent(204);
 }
 
+function updateMe(c) {
+  const user = http.authRecord(c);
+  if (!user) return http.fail(c, 401, "unauthorized", "Autenticação necessária");
+  const data = http.requestBody(c);
+  const before = { name: user.getString("name"), avatar: user.getString("avatar") || null };
+
+  if (data.name !== undefined) {
+    const name = String(data.name || "").trim().slice(0, 60);
+    if (!name) return http.fail(c, 400, "invalid_name", "Informe um nome");
+    user.set("name", name);
+  }
+
+  if (data.avatar !== undefined) {
+    if (data.avatar === null || data.avatar === "") {
+      user.set("avatar", "");
+    } else {
+      const avatar = String(data.avatar);
+      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(avatar)) {
+        return http.fail(c, 400, "invalid_avatar", "Imagem inválida");
+      }
+      if (avatar.length > 400000) {
+        return http.fail(c, 413, "avatar_too_large", "Imagem muito grande");
+      }
+      user.set("avatar", avatar);
+    }
+  }
+
+  $app.save(user);
+  audit.writeAudit($app, {
+    user: user.id,
+    action: "profile.update",
+    entity: "users",
+    entityId: user.id,
+    before: before,
+    after: { name: user.getString("name"), avatar: user.getString("avatar") ? "(imagem)" : null },
+  });
+  return http.ok(c, {
+    user: {
+      id: user.id,
+      email: user.email(),
+      name: user.getString("name"),
+      avatar: user.getString("avatar") || null,
+      active: user.getBool("active"),
+    },
+  });
+}
+
 module.exports = {
   magicLinkRequest,
   magicLinkVerify,
@@ -296,4 +391,5 @@ module.exports = {
   twofaConfirm,
   twofaVerify,
   twofaDisable,
+  updateMe,
 };

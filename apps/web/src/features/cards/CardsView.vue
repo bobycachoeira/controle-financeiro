@@ -58,6 +58,7 @@ const payOpen = ref(false);
 const payingInvoice = ref<LocalInvoice | null>(null);
 const payingCard = ref<LocalCreditCard | null>(null);
 const payAccount = ref("");
+const payAmount = ref("");
 const paying = ref(false);
 
 const statusVariant: Record<string, "secondary" | "success" | "warning" | "destructive"> = {
@@ -146,6 +147,7 @@ function openPay(card: LocalCreditCard, invoice: LocalInvoice): void {
   payingCard.value = card;
   payingInvoice.value = invoice;
   payAccount.value = card.payment_account ?? "";
+  payAmount.value = invoice.total_cents > 0 ? formatCentsToInput(invoice.total_cents) : "";
   payOpen.value = true;
 }
 
@@ -156,19 +158,25 @@ async function confirmPay(): Promise<void> {
     toast.error("Escolha a conta de pagamento.");
     return;
   }
+  const cents = parseAmountInput(payAmount.value);
+  if (cents === null || cents <= 0) {
+    toast.error("Informe o valor da fatura.");
+    return;
+  }
   paying.value = true;
   try {
     await transfersStore.create({
       source_account: payAccount.value,
       destination_account: card.account,
-      amount_cents: invoice.total_cents,
+      amount_cents: cents,
       date: todayISO(),
       description: `Pagamento da fatura ${invoice.reference_month}`,
     });
     await updateLocal("invoices", {
       ...invoice,
+      total_cents: cents,
       status: "paga",
-      paid_cents: invoice.total_cents,
+      paid_cents: cents,
       paid_at: new Date().toISOString(),
     });
     await cardsStore.load();
@@ -183,6 +191,7 @@ async function confirmPay(): Promise<void> {
 
 onMounted(async () => {
   await Promise.all([cardsStore.load(), accountsStore.load(), transfersStore.load(), people.load()]);
+  await cardsStore.ensureMonthlyInvoices();
   if (!editingId.value) color.value = CARD_COLORS[0]!;
 });
 watch(() => sync.dataVersion, () => cardsStore.load());
@@ -207,7 +216,7 @@ watch(() => sync.dataVersion, () => cardsStore.load());
     </p>
 
     <div class="stagger space-y-5">
-      <Card v-for="card in cardsStore.cards" :key="card.id" class="overflow-hidden">
+      <Card v-for="card in cardsStore.cards" :key="card.id" data-testid="card" class="overflow-hidden">
         <div
           class="flex items-start justify-between px-5 py-5 text-white"
           :style="{ background: cardGradient(card) }"
@@ -261,6 +270,7 @@ watch(() => sync.dataVersion, () => cardsStore.load());
                 <Badge :variant="statusVariant[invoice.status] ?? 'secondary'">{{ invoice.status }}</Badge>
                 <Button
                   v-if="invoice.status !== 'paga'"
+                  data-testid="invoice-pay"
                   size="sm"
                   variant="secondary"
                   @click="openPay(card, invoice)"
@@ -355,11 +365,17 @@ watch(() => sync.dataVersion, () => cardsStore.load());
         <div class="flex items-center gap-3 rounded-2xl bg-muted p-3">
           <Banknote class="h-5 w-5 text-primary" />
           <div>
-            <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground">Valor da fatura</p>
-            <p class="font-display text-xl font-bold">
-              {{ payingInvoice ? formatBRL(payingInvoice.total_cents) : "" }}
+            <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Fatura {{ payingInvoice?.reference_month ?? "" }}
+            </p>
+            <p class="text-xs text-muted-foreground">
+              {{ payingInvoice ? `Vence ${formatDate(payingInvoice.due_date)}` : "" }}
             </p>
           </div>
+        </div>
+        <div class="space-y-2">
+          <Label for="pay-amount">Valor da fatura (R$)</Label>
+          <Input id="pay-amount" v-model="payAmount" inputmode="decimal" placeholder="0,00" required />
         </div>
         <div class="space-y-2">
           <Label for="pay-account">Pagar com a conta</Label>

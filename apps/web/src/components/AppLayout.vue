@@ -6,6 +6,7 @@ import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useTheme } from "@/composables/useTheme";
 import SyncStatus from "@/features/sync/SyncStatus.vue";
+import TopProgress from "@/components/TopProgress.vue";
 
 const session = useSessionStore();
 const sync = useSyncStore();
@@ -24,6 +25,7 @@ const householdName = computed(
   () => session.currentMembership?.household_name ?? "Minha família",
 );
 const initial = computed(() => (householdName.value.trim()[0] ?? "F").toUpperCase());
+const userInitial = computed(() => (session.user?.name ?? "?").trim().charAt(0).toUpperCase() || "?");
 
 function isActive(item: { name: string; matches: string[] }): boolean {
   const current = String(route.name ?? "");
@@ -39,6 +41,7 @@ onMounted(async () => {
 
 <template>
   <div class="relative z-[2] mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
+    <TopProgress />
     <header class="sticky top-0 z-40">
       <div
         class="flex items-center justify-between gap-3 border-b border-border/70 bg-background/80 px-4 py-3 backdrop-blur-lg"
@@ -60,6 +63,19 @@ onMounted(async () => {
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <SyncStatus />
+          <RouterLink
+            :to="{ name: 'profile' }"
+            class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-card text-xs font-black text-foreground transition hover:border-primary"
+            aria-label="Meu perfil"
+          >
+            <img
+              v-if="session.user?.avatar"
+              :src="session.user.avatar"
+              alt=""
+              class="h-full w-full object-cover"
+            />
+            <span v-else>{{ userInitial }}</span>
+          </RouterLink>
           <button
             type="button"
             class="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"

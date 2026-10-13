@@ -2,10 +2,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Trash2 } from "lucide-vue-next";
-import { db, type LocalCategory } from "@/db/schema";
 import { useRecurrencesStore } from "@/stores/recurrences";
 import { useAccountsStore } from "@/stores/accounts";
-import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput, formatBRL } from "@/lib/format-input";
@@ -19,10 +17,10 @@ import Badge from "@/components/ui/Badge.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import CategorySelect from "@/components/ui/CategorySelect.vue";
 
 const store = useRecurrencesStore();
 const accountsStore = useAccountsStore();
-const session = useSessionStore();
 const sync = useSyncStore();
 const toast = useToast();
 
@@ -41,14 +39,15 @@ const name = ref("");
 const frequency = ref("mensal");
 const rrule = ref("FREQ=MONTHLY;INTERVAL=1");
 const startDate = ref(todayISO());
-const target = ref<"transaction" | "bill">("transaction");
+const target = ref<"transaction" | "bill">("bill");
 const createsStatus = ref<"pago" | "a_pagar">("a_pagar");
 const amount = ref("");
 const account = ref("");
 const category = ref("");
 const nature = ref<"entrada" | "saida">("saida");
+const dueDay = ref("");
+const confirmRequired = ref(false);
 const saving = ref(false);
-const categories = ref<LocalCategory[]>([]);
 
 const isCustomFreq = computed(() => frequency.value === "custom");
 const effectiveRrule = computed(() => {
@@ -70,13 +69,6 @@ function frequencyLabel(value: string): string {
   return found ? found.label : value;
 }
 
-async function loadCategories(): Promise<void> {
-  if (!session.currentHouseholdId) return;
-  categories.value = (
-    await db.categories.where("household").equals(session.currentHouseholdId).toArray()
-  ).filter((item) => !item.deleted_at);
-}
-
 function resetForm(): void {
   editingId.value = null;
   name.value = "";
@@ -84,11 +76,13 @@ function resetForm(): void {
   frequency.value = "mensal";
   rrule.value = "FREQ=MONTHLY;INTERVAL=1";
   startDate.value = todayISO();
-  target.value = "transaction";
+  target.value = "bill";
   createsStatus.value = "a_pagar";
   account.value = "";
   category.value = "";
   nature.value = "saida";
+  dueDay.value = "";
+  confirmRequired.value = false;
 }
 
 function openEdit(item: (typeof store.items)[number]): void {
@@ -103,12 +97,15 @@ function openEdit(item: (typeof store.items)[number]): void {
   account.value = item.template.account ?? "";
   category.value = item.template.category ?? "";
   nature.value = item.template.nature ?? (item.template.type === "receita" ? "entrada" : "saida");
+  dueDay.value = item.template.due_day ? String(item.template.due_day) : "";
+  confirmRequired.value = Boolean(item.template.confirm_required);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function submit(): Promise<void> {
   const cents = parseAmountInput(amount.value);
-  if (!name.value || cents === null || cents <= 0) {
+  const needsAmount = !(target.value === "bill" && confirmRequired.value);
+  if (!name.value || cents === null || (needsAmount && cents <= 0)) {
     toast.error("Informe nome e valor.");
     return;
   }
@@ -121,13 +118,15 @@ async function submit(): Promise<void> {
       target: target.value,
       creates_status: createsStatus.value,
       template: {
-        amount_cents: cents,
+        amount_cents: cents ?? 0,
         type: (nature.value === "entrada" ? "receita" : "despesa") as "receita" | "despesa",
         account: account.value || null,
         category: category.value || null,
         attribution: "ambos" as const,
         nature: nature.value,
         description: name.value,
+        due_day: dueDay.value ? Number(dueDay.value) : null,
+        confirm_required: target.value === "bill" ? confirmRequired.value : undefined,
       },
     };
     if (editingId.value) {
@@ -155,7 +154,7 @@ async function remove(id: string): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([accountsStore.load(), loadCategories(), store.load()]);
+  await Promise.all([accountsStore.load(), store.load()]);
 });
 watch(() => sync.dataVersion, () => store.load());
 </script>
@@ -208,8 +207,8 @@ watch(() => sync.dataVersion, () => store.load());
             <div class="space-y-2">
               <Label for="rec-target">Gera</Label>
               <Select id="rec-target" v-model="target">
-                <option value="transaction">Lançamento</option>
                 <option value="bill">Conta a pagar/receber</option>
+                <option value="transaction">Lançamento</option>
               </Select>
             </div>
             <div class="space-y-2">
@@ -238,14 +237,31 @@ watch(() => sync.dataVersion, () => store.load());
               </Select>
             </div>
           </div>
+          <div v-if="target === 'bill'" class="grid grid-cols-2 gap-3">
+            <div class="space-y-2">
+              <Label for="rec-due-day">Dia do vencimento</Label>
+              <Input
+                id="rec-due-day"
+                v-model="dueDay"
+                inputmode="numeric"
+                min="1"
+                max="31"
+                placeholder="Ex.: 10"
+              />
+            </div>
+            <label class="flex items-end gap-2 pb-3 text-sm font-bold">
+              <input v-model="confirmRequired" type="checkbox" class="h-5 w-5 rounded border-2 border-input" />
+              Exige confirmação (a confirmar)
+            </label>
+          </div>
           <div class="space-y-2">
             <Label for="rec-category">Categoria</Label>
-            <Select id="rec-category" v-model="category">
-              <option value="">Selecione</option>
-              <option v-for="item in categories" :key="item.id" :value="item.id">
-                {{ item.group }} · {{ item.name }}
-              </option>
-            </Select>
+            <CategorySelect
+              id="rec-category"
+              v-model="category"
+              :kind="nature === 'entrada' ? 'entrada' : 'saida'"
+              allow-empty
+            />
           </div>
           <div class="flex justify-end gap-2 pt-1">
             <Button v-if="editingId" variant="ghost" type="button" @click="resetForm">Cancelar</Button>

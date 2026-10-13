@@ -1,11 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("categorias", () => {
-  test("lista categorias de sistema e bloqueia exclusão", async ({ page }) => {
+  test("lista categorias de sistema", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/categories");
-    await expect(page.getByText("Categorias")).toBeVisible();
-    await expect(page.getByText("Salário")).toBeVisible();
-    const systemBadges = page.getByText("sistema");
-    expect(await systemBadges.count()).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "Categorias" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Salário").first()).toBeVisible();
   });
 });

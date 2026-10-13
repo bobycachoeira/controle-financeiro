@@ -27,7 +27,11 @@ const typeLabels: Record<ReminderType, string> = {
   fixas_recorrentes: "Contas fixas/recorrentes",
 };
 
-const form = reactive<NotificationPreferences>(structuredClone(store.preferences));
+const form = reactive<NotificationPreferences>(plainClone(store.preferences));
+
+function plainClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 const types = computed(() => REMINDER_TYPES);
 
@@ -43,12 +47,22 @@ function isDaySelected(type: ReminderType, day: number): boolean {
 }
 
 async function activate(): Promise<void> {
-  const ok = await store.enable();
-  if (!ok) {
-    toast.error("Não foi possível ativar as notificações neste dispositivo.");
-    return;
+  try {
+    const result = await store.enable();
+    if (!result.ok) {
+      const messages: Record<string, string> = {
+        unsupported: "Este navegador não suporta notificações push.",
+        denied: "Permissão de notificação negada. Habilite nas configurações do navegador/site.",
+        no_vapid_key: "Servidor sem chave de notificação (VAPID) configurada.",
+        error: `Falha ao ativar: ${result.detail ?? "erro desconhecido"}`,
+      };
+      toast.error(messages[result.reason ?? "error"] ?? "Não foi possível ativar as notificações.");
+      return;
+    }
+    toast.success("Notificações ativadas.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao ativar as notificações.");
   }
-  toast.success("Notificações ativadas.");
 }
 
 async function deactivate(): Promise<void> {
@@ -77,7 +91,7 @@ async function save(): Promise<void> {
 onMounted(async () => {
   try {
     await store.load();
-    Object.assign(form, structuredClone(store.preferences));
+    Object.assign(form, plainClone(store.preferences));
   } catch {
     // mantém defaults
   }

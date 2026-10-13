@@ -64,6 +64,16 @@ export const useHouseholdStore = defineStore("household", () => {
     await loadMembers();
   }
 
+  async function updateMemberPermissions(
+    memberId: string,
+    permissions: Record<string, unknown>,
+  ): Promise<void> {
+    const session = useSessionStore();
+    if (!session.currentHouseholdId) throw new Error("Sem household");
+    await householdApi.updateMemberPermissions(session.currentHouseholdId, memberId, permissions);
+    await loadMembers();
+  }
+
   return {
     members,
     joinRequests,
@@ -75,5 +85,6 @@ export const useHouseholdStore = defineStore("household", () => {
     approveJoinRequest,
     rejectJoinRequest,
     updateMemberRole,
+    updateMemberPermissions,
   };
 });

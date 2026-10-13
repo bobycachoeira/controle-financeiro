@@ -1,15 +1,25 @@
 import { z } from "zod";
 
-export const isoDateTime = z.string().datetime({ offset: true }).or(z.string().datetime());
-export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+// Aceita "YYYY-MM-DD", ISO com "T" (com Z ou offset) e o formato do PocketBase
+// ("YYYY-MM-DD HH:MM:SS.sssZ"), que é o que a API retorna.
+const dateLike = z
+  .string()
+  .regex(
+    /^(\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?)?$/,
+  );
+
+export const isoDateTime = dateLike;
+export const isoDate = dateLike;
 export const isoMonth = z.string().regex(/^\d{4}-\d{2}$/);
-export const nullableDateTime = isoDateTime.nullable();
+export const nullableDateTime = z.union([dateLike, z.literal("")]).nullable();
 export const cents = z.number().int();
 
 export const syncBaseSchema = z.object({
   id: z.string(),
   household: z.string(),
-  sync_id: z.string().uuid(),
+  // sync_id é uma chave de idempotência: o cliente usa UUID, mas registros
+  // criados no servidor podem usar string aleatória.
+  sync_id: z.string().min(1).max(100),
   updated_by: z.string().nullable().optional(),
   deleted_at: nullableDateTime.optional(),
   created: isoDateTime.optional(),

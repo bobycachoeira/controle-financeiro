@@ -31,10 +31,16 @@ function sendSecurityAlert(app, email, subject, text) {
     text: text,
     html: "<p>" + text + "</p>",
   });
-  try {
-    app.newMailClient().send(message);
-  } catch (err) {
-    console.log("mail send failed: " + String(err));
+  const hasSmtp = Boolean($os.getenv("CF_MAIL_HOST"));
+  if (hasSmtp) {
+    try {
+      app.newMailClient().send(message);
+    } catch (err) {
+      console.log("mail send failed: " + String(err));
+    }
+  }
+  if (!hasSmtp || app.isDev()) {
+    console.log("SECURITY_MAIL " + email + " | " + subject + " -> " + text);
   }
 }
 

@@ -36,4 +36,9 @@ export const authApi = {
   listDevices: () => apiClient.get<{ items: TrustedDevice[] }>("/auth/devices"),
   trustDevice: () => apiClient.post<TrustedDevice>("/auth/devices", {}),
   revokeDevice: (id: string) => apiClient.del<void>(`/auth/devices/${id}`),
+  updateProfile: (input: { name?: string; avatar?: string | null }) =>
+    apiClient.patch<{ user: { id: string; email: string; name: string; avatar: string | null; active: boolean } }>(
+      "/auth/me",
+      input,
+    ),
 };

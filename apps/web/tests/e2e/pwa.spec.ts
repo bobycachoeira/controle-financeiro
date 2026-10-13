@@ -1,14 +1,18 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("PWA", () => {
-  test("o atalho de novo lançamento abre o formulário", async ({ page }) => {
+  test("o atalho de novo lançamento abre o formulário", async ({ page, loginAs, backend }) => {
+    void backend;
+    await loginAs("titular");
     await page.goto("/?new=1");
-    await expect(page.getByText("Novo lançamento")).toBeVisible();
+    await expect(page.getByText("Novo lançamento")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("expõe o manifest instalável", async ({ page }) => {
-    await page.goto("/");
-    const manifestHref = await page.getAttribute('link[rel="manifest"]', "href");
-    expect(manifestHref).toBeTruthy();
+  test("expõe o manifest instalável", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const response = await page.request.get("/manifest.webmanifest");
+    const contentType = response.headers()["content-type"] ?? "";
+    test.skip(!response.ok() || !contentType.includes("json"), "manifest não é servido no modo dev");
+    expect((await response.json()).name).toContain("Controle Financeiro");
   });
 });

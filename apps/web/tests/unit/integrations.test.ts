@@ -32,11 +32,11 @@ describe("import store", () => {
     expect(preview.validCount).toBe(2);
 
     const first = await store.confirm("a1", null);
-    expect(first).toBe(2);
+    expect(first.created).toBe(2);
 
     store.parse(csv);
     const second = await store.confirm("a1", null);
-    expect(second).toBe(0);
+    expect(second.created).toBe(0);
   });
 });
 

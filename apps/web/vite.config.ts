@@ -10,7 +10,7 @@ export default defineConfig({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
-      registerType: "prompt",
+      registerType: "autoUpdate",
       injectRegister: "auto",
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
@@ -20,14 +20,14 @@ export default defineConfig({
         short_name: "Finanças",
         description: "Controle financeiro familiar offline-first",
         lang: "pt-BR",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
+        theme_color: "#208877",
+        background_color: "#f4f8f6",
         display: "standalone",
         start_url: "/",
         icons: [
           { src: "/pwa-192.png", sizes: "192x192", type: "image/png" },
           { src: "/pwa-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/pwa-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+          { src: "/pwa-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         shortcuts: [
           {

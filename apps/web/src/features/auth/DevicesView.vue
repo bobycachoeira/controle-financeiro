@@ -20,6 +20,8 @@ const session = useSessionStore();
 const toast = useToast();
 
 const confirmCode = ref("");
+const regenOpen = ref(false);
+const regenCode = ref("");
 const stepUpOpen = ref(false);
 const pendingAction = ref<null | (() => Promise<void>)>(null);
 
@@ -52,6 +54,17 @@ async function confirmSetup(): Promise<void> {
   try {
     await tfa.confirmSetup(confirmCode.value);
     toast.success("2FA ativado. Guarde seus códigos de recuperação.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Código inválido.");
+  }
+}
+
+async function regenerateRecoveryCodes(): Promise<void> {
+  try {
+    await tfa.confirmSetup(regenCode.value);
+    regenOpen.value = false;
+    regenCode.value = "";
+    toast.success("Novos códigos de recuperação gerados. Guarde-os agora.");
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Código inválido.");
   }
@@ -119,13 +132,6 @@ onMounted(() => {
             <Button @click="confirmSetup">Confirmar ativação</Button>
           </div>
 
-          <div v-if="tfa.recoveryCodes.length > 0" class="space-y-2 rounded-md border border-amber-300 p-3">
-            <p class="text-sm font-medium">Guarde estes códigos (exibidos uma única vez):</p>
-            <ul class="grid grid-cols-2 gap-1 font-mono text-xs">
-              <li v-for="recoveryCode in tfa.recoveryCodes" :key="recoveryCode">{{ recoveryCode }}</li>
-            </ul>
-            <Button size="sm" variant="outline" @click="tfa.clearRecoveryCodes">Já guardei</Button>
-          </div>
         </template>
 
         <template v-else>
@@ -134,7 +140,31 @@ onMounted(() => {
             <Input id="disable-code" v-model="confirmCode" inputmode="numeric" />
           </div>
           <Button variant="destructive" @click="disable2fa">Desativar 2FA</Button>
+
+          <div class="space-y-2 border-t pt-4">
+            <div v-if="!regenOpen">
+              <Button size="sm" variant="outline" @click="regenOpen = true">
+                Gerar novos códigos de recuperação
+              </Button>
+            </div>
+            <div v-else class="space-y-2">
+              <Label for="regen-code">Código do autenticador</Label>
+              <Input id="regen-code" v-model="regenCode" inputmode="numeric" />
+              <div class="flex gap-2">
+                <Button size="sm" @click="regenerateRecoveryCodes">Gerar códigos</Button>
+                <Button size="sm" variant="ghost" @click="regenOpen = false">Cancelar</Button>
+              </div>
+            </div>
+          </div>
         </template>
+
+        <div v-if="tfa.recoveryCodes.length > 0" class="space-y-2 rounded-md border border-amber-300 p-3">
+          <p class="text-sm font-medium">Guarde estes códigos (exibidos uma única vez):</p>
+          <ul class="grid grid-cols-2 gap-1 font-mono text-xs">
+            <li v-for="recoveryCode in tfa.recoveryCodes" :key="recoveryCode">{{ recoveryCode }}</li>
+          </ul>
+          <Button size="sm" variant="outline" @click="tfa.clearRecoveryCodes">Já guardei</Button>
+        </div>
       </CardContent>
     </Card>
 

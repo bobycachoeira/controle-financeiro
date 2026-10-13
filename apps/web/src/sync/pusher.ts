@@ -33,14 +33,14 @@ function toOperation(item: OutboxItem): SyncOperationItem {
 
 async function rekeyLocal(
   entity: SyncEntityName,
-  syncId: string,
+  localId: string,
   remoteId: string,
 ): Promise<void> {
+  if (!localId) return;
   const table = ENTITY_TABLES[entity];
-  const all = await table.toArray();
-  const local = all.find((record) => record.sync_id === syncId);
+  const local = await table.get(localId);
   if (!local) return;
-  await table.delete(local.id);
+  await table.delete(localId);
   await table.put({ ...local, id: remoteId, _dirty: false, _pendingOutboxId: undefined });
 }
 
@@ -53,7 +53,7 @@ async function handleResult(
   switch (result.status) {
     case "applied": {
       if (item.operation === "create" && result.remote_id) {
-        await rekeyLocal(item.entity, item.sync_id, result.remote_id);
+        await rekeyLocal(item.entity, item.entity_id ?? "", result.remote_id);
       }
       await markDone(item.id);
       break;
@@ -67,6 +67,8 @@ async function handleResult(
           id: record.id,
           reason: result.code ?? "conflict_kept_server",
           serverRecord: record,
+          clientPayload: item.payload,
+          clientUpdatedAt: item.client_ts,
         });
       }
       if (item.entity_id) await flagForReview(item.entity, item.entity_id);

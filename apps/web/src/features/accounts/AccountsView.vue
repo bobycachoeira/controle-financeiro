@@ -165,7 +165,7 @@ watch(() => sync.dataVersion, loadAll);
             >
               {{ formatBRL(row.balance) }}
             </span>
-            <div class="flex flex-col gap-1 opacity-0 transition group-hover:opacity-100">
+            <div class="flex flex-col gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta"

@@ -154,3 +154,22 @@ export function parseStatement(text: string): ParsedImportRow[] {
   if (format === "csv") return parseCSV(text);
   return [];
 }
+
+export interface StatementMeta {
+  balanceCents: number | null;
+  balanceDate: string | null;
+}
+
+/** Extrai o saldo final (LEDGERBAL) de um extrato OFX, quando presente. */
+export function parseOfxMeta(text: string): StatementMeta {
+  const blockMatch = text.match(/<LEDGERBAL>[\s\S]*?(?:<\/LEDGERBAL>|(?=<BANKTRANLIST>)|$)/i);
+  const block = blockMatch ? blockMatch[0] : "";
+  const balRaw = block.match(/<BALAMT>([^<\r\n]*)/i)?.[1]?.trim() ?? "";
+  const dateRaw = block.match(/<DTASOF>([^<\r\n]*)/i)?.[1]?.trim() ?? "";
+  const amount = balRaw ? parseAmount(balRaw) : null;
+  const dateMatch = dateRaw.match(/^(\d{4})(\d{2})(\d{2})/);
+  return {
+    balanceCents: amount ? (amount.nature === "saida" ? -amount.cents : amount.cents) : null,
+    balanceDate: dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}` : null,
+  };
+}

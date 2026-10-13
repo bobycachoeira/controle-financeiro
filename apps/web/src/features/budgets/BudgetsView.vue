@@ -34,7 +34,16 @@ const alertPct = ref(80);
 const referenceMonth = ref(todayISO().slice(0, 7));
 const selectedCategories = ref<string[]>([]);
 const categories = ref<LocalCategory[]>([]);
+const categoryFilter = ref("");
 const saving = ref(false);
+
+const filteredCategories = computed(() => {
+  const term = categoryFilter.value.trim().toLowerCase();
+  if (!term) return categories.value;
+  return categories.value.filter(
+    (item) => item.name.toLowerCase().includes(term) || item.group.toLowerCase().includes(term),
+  );
+});
 
 const statusVariant: Record<string, "success" | "warning" | "destructive"> = {
   ok: "success",
@@ -174,9 +183,10 @@ watch(() => sync.dataVersion, loadAll);
           </div>
           <div class="space-y-2">
             <Label>Categorias</Label>
+            <Input v-model="categoryFilter" placeholder="Filtrar categoria…" />
             <div class="flex flex-wrap gap-2">
               <label
-                v-for="item in categories"
+                v-for="item in filteredCategories"
                 :key="item.id"
                 class="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs"
               >
@@ -188,6 +198,9 @@ watch(() => sync.dataVersion, loadAll);
                 />
                 {{ item.name }}
               </label>
+              <p v-if="filteredCategories.length === 0" class="text-xs text-muted-foreground">
+                Nenhuma categoria encontrada.
+              </p>
             </div>
           </div>
           <div class="flex justify-end gap-2 pt-1">

@@ -112,9 +112,17 @@ watch(() => sync.dataVersion, loadAll);
 
 <template>
   <div class="space-y-5">
-    <div>
-      <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Painel da família</p>
-      <h1 class="font-display text-3xl font-black tracking-tight">Olá, {{ firstName }}!</h1>
+    <div class="flex items-center gap-3">
+      <div
+        v-if="session.user?.avatar"
+        class="h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-primary/20"
+      >
+        <img :src="session.user.avatar" alt="" class="h-full w-full object-cover" />
+      </div>
+      <div>
+        <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Painel da família</p>
+        <h1 class="font-display text-3xl font-black tracking-tight">Olá, {{ firstName }}!</h1>
+      </div>
     </div>
 
     <ConflictPanel />

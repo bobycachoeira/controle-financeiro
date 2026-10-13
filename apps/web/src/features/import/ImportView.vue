@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { db, type LocalCategory } from "@/db/schema";
-import { useImportStore } from "@/stores/import";
+import { computed, onMounted, ref, watch } from "vue";
+import { useImportStore, type ImportDecision, type ImportPreview, type ImportRow } from "@/stores/import";
 import { useAccountsStore } from "@/stores/accounts";
-import { useSessionStore } from "@/stores/session";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDate } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -14,39 +12,52 @@ import CardTitle from "@/components/ui/CardTitle.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import CategorySelect from "@/components/ui/CategorySelect.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 
 const store = useImportStore();
 const accountsStore = useAccountsStore();
-const session = useSessionStore();
 const toast = useToast();
 
 const text = ref("");
 const account = ref("");
 const category = ref("");
-const categories = ref<LocalCategory[]>([]);
-const preview = ref<{ validCount: number; invalidCount: number; totalCents: number } | null>(null);
+const preview = ref<ImportPreview | null>(null);
 
 const singleAccount = computed(() => accountsStore.items.length === 1);
 
-async function loadCategories(): Promise<void> {
-  if (!session.currentHouseholdId) return;
-  categories.value = (
-    await db.categories.where("household").equals(session.currentHouseholdId).toArray()
-  ).filter((item) => !item.deleted_at);
+const projectedAfterCents = computed(() =>
+  store.currentBalanceCents === null ? null : store.currentBalanceCents + store.projectedNetCents,
+);
+
+function diffLabel(cents: number): string {
+  const sign = cents > 0 ? "+" : "-";
+  return `${sign}${formatBRL(Math.abs(cents))}`;
 }
 
-function doParse(): void {
-  const result = store.parse(text.value);
-  preview.value = result;
-  if (result.rows.length === 0) toast.error("Nenhum lançamento reconhecido.");
+async function refresh(): Promise<void> {
+  if (account.value) await store.reconcile(account.value);
+  preview.value = store.summary();
+}
+
+async function doParse(): Promise<void> {
+  preview.value = store.parse(text.value);
+  if (store.rows.length === 0) {
+    toast.error("Nenhum lançamento reconhecido.");
+    return;
+  }
+  await refresh();
 }
 
 async function onFile(event: Event): Promise<void> {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
   text.value = await file.text();
-  doParse();
+  await doParse();
+}
+
+function changeDecision(item: ImportRow, value: string): void {
+  store.setDecision(item.row.externalRef, value as ImportDecision);
 }
 
 async function confirmImport(): Promise<void> {
@@ -54,15 +65,22 @@ async function confirmImport(): Promise<void> {
     toast.error("Selecione a conta de destino.");
     return;
   }
-  const created = await store.confirm(account.value, category.value || null);
-  toast.success(`${created} lançamento(s) importado(s).`);
+  const result = await store.confirm(account.value, category.value || null);
+  const parts = [`${result.created} importado(s)`];
+  if (result.linked > 0) parts.push(`${result.linked} vinculado(s)`);
+  if (result.ignored > 0) parts.push(`${result.ignored} ignorado(s)`);
+  toast.success(parts.join(" · "));
   preview.value = null;
   text.value = "";
 }
 
 onMounted(async () => {
-  await Promise.all([accountsStore.load(), loadCategories()]);
+  await accountsStore.load();
   if (singleAccount.value) account.value = accountsStore.items[0]?.id ?? "";
+});
+
+watch(account, () => {
+  if (store.rows.length > 0) void refresh();
 });
 </script>
 
@@ -98,10 +116,7 @@ onMounted(async () => {
         </div>
         <div class="space-y-2">
           <Label for="import-category">Categoria (padrão)</Label>
-          <Select id="import-category" v-model="category">
-            <option value="">Sem categoria</option>
-            <option v-for="item in categories" :key="item.id" :value="item.id">{{ item.name }}</option>
-          </Select>
+          <CategorySelect id="import-category" v-model="category" kind="all" allow-empty />
         </div>
         <Button @click="doParse">Pré-visualizar</Button>
       </CardContent>
@@ -114,22 +129,82 @@ onMounted(async () => {
           {{ preview.validCount }} válidos · {{ preview.invalidCount }} inválidos · líquido
           {{ formatBRL(preview.totalCents) }}
         </p>
+        <p v-if="preview.matchedCount > 0" class="text-xs font-bold text-amber-600">
+          {{ preview.matchedCount }} possível(is) já lançado(s) — confira abaixo
+        </p>
       </CardHeader>
       <CardContent class="space-y-3">
+        <div
+          v-if="store.statementBalanceCents !== null"
+          class="space-y-1 rounded-2xl border-2 p-3 text-sm"
+          :class="
+            store.balanceDiffCents === 0
+              ? 'border-leaf/40 bg-leaf/5'
+              : 'border-amber-300 bg-sun/10'
+          "
+        >
+          <p class="font-bold">Reconciliação de saldo</p>
+          <p class="text-xs text-muted-foreground">
+            Saldo do extrato: {{ formatBRL(store.statementBalanceCents) }}
+            <template v-if="store.statementBalanceDate"> · {{ formatDate(store.statementBalanceDate) }}</template>
+          </p>
+          <p class="text-xs text-muted-foreground">
+            Calculado após importar:
+            {{ projectedAfterCents === null ? "—" : formatBRL(projectedAfterCents) }}
+          </p>
+          <p
+            v-if="store.balanceDiffCents !== null"
+            class="text-xs font-bold"
+            :class="store.balanceDiffCents === 0 ? 'text-leaf' : 'text-amber-600'"
+          >
+            <template v-if="store.balanceDiffCents === 0">✓ Confere com o extrato</template>
+            <template v-else>
+              Diferença: {{ diffLabel(store.balanceDiffCents) }} — verifique lançamentos
+              faltando/sobrando
+            </template>
+          </p>
+        </div>
+
+        <div v-if="preview.matchedCount > 0" class="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" @click="store.setAllMatched('ignore')">
+            Ignorar todos os prováveis
+          </Button>
+          <Button size="sm" variant="outline" @click="store.setAllMatched('import')">
+            Importar todos mesmo assim
+          </Button>
+        </div>
         <ul class="divide-y text-sm">
           <li
-            v-for="(row, index) in store.rows"
-            :key="index"
-            class="flex items-center justify-between gap-2 py-2"
+            v-for="item in store.rows"
+            :key="item.row.externalRef"
+            class="flex flex-col gap-1.5 py-2"
           >
-            <span class="truncate">{{ row.description || "(sem descrição)" }}</span>
-            <span class="flex items-center gap-2 whitespace-nowrap">
-              {{ row.date ? formatDate(row.date) : "" }}
-              <span :class="row.nature === 'entrada' ? 'text-emerald-600' : 'text-red-600'">
-                {{ row.nature === "entrada" ? "+" : "-" }}{{ formatBRL(row.amountCents) }}
+            <div class="flex items-center justify-between gap-2">
+              <span class="truncate">{{ item.row.description || "(sem descrição)" }}</span>
+              <span class="flex items-center gap-2 whitespace-nowrap">
+                {{ item.row.date ? formatDate(item.row.date) : "" }}
+                <span :class="item.row.nature === 'entrada' ? 'text-emerald-600' : 'text-red-600'">
+                  {{ item.row.nature === "entrada" ? "+" : "-" }}{{ formatBRL(item.row.amountCents) }}
+                </span>
+                <Badge v-if="item.row.error" variant="destructive">erro</Badge>
+                <Badge v-else-if="item.match" variant="warning">já lançado?</Badge>
               </span>
-              <Badge v-if="row.error" variant="destructive">erro</Badge>
-            </span>
+            </div>
+            <div v-if="!item.row.error" class="flex flex-wrap items-center gap-2">
+              <Select
+                :model-value="item.decision"
+                class="max-w-[16rem] text-xs"
+                @update:model-value="(value: string) => changeDecision(item, value)"
+              >
+                <option value="import">Importar</option>
+                <option value="ignore">Ignorar</option>
+                <option v-if="item.match" value="link">Vincular ao existente</option>
+              </Select>
+              <span v-if="item.match" class="min-w-0 truncate text-xs text-muted-foreground">
+                existente: {{ item.match.description || "(sem descrição)" }} ·
+                {{ formatDate(item.match.date) }}
+              </span>
+            </div>
           </li>
         </ul>
         <Button :loading="store.importing" @click="confirmImport">Confirmar importação</Button>

@@ -33,19 +33,43 @@ function readSettings(household) {
 function ensurePerson(household, member, personKey) {
   const settings = readSettings(household);
   const options = Array.isArray(settings.attribution_options) ? [...settings.attribution_options] : [];
-  const userId = member.getString("user");
-  const label = userName(userId) || userEmail(userId) || userId;
-  if (personKey) {
-    const existing = options.find((item) => item && item.key === personKey);
-    if (existing) {
-      existing.userId = userId;
-      if (!existing.label) existing.label = label;
-    } else {
-      options.push({ key: personKey, label: label, userId: userId });
-    }
-  } else if (!options.some((item) => item && item.userId === userId)) {
-    options.push({ key: userId, label: label, userId: userId });
+
+  function labelFor(userId) {
+    return userName(userId) || userEmail(userId) || userId;
   }
+
+  function upsert(userId, key) {
+    const byUser = options.find((item) => item && item.userId === userId);
+    if (byUser) {
+      byUser.userId = userId;
+      if (key) byUser.key = key;
+      if (!byUser.label) byUser.label = labelFor(userId);
+      return;
+    }
+    const effectiveKey = key || userId;
+    const byKey = options.find((item) => item && item.key === effectiveKey);
+    if (byKey) {
+      byKey.userId = userId;
+      if (!byKey.label) byKey.label = labelFor(userId);
+      return;
+    }
+    options.push({ key: effectiveKey, label: labelFor(userId), userId: userId });
+  }
+
+  // Todo membro aceito (inclui o owner) vira uma pessoa selecionável.
+  $app
+    .findAllRecords(
+      $app.findCollectionByNameOrId("household_members"),
+      $dbx.hashExp({ household: household.id }),
+    )
+    .filter(
+      (m) => !m.getString("deleted_at") && m.getString("invite_status") !== "pending",
+    )
+    .forEach((m) => upsert(m.getString("user"), null));
+
+  // Chave personalizada escolhida para o membro recém-aprovado.
+  if (personKey) upsert(member.getString("user"), personKey);
+
   settings.attribution_options = options;
   household.set("settings", settings);
   $app.save(household);

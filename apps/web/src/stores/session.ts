@@ -2,12 +2,14 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import type { Role } from "@cf/shared";
 import { apiClient } from "../api/client";
+import { authApi } from "../api/auth-api";
 import { clearTokens, loadTokens, saveTokens } from "../api/tokens";
 
 export interface MeUser {
   id: string;
   email: string;
   name: string;
+  avatar?: string | null;
   active: boolean;
 }
 
@@ -146,6 +148,11 @@ export const useSessionStore = defineStore("session", () => {
     stepUpRequired.value = false;
   }
 
+  async function updateProfile(input: { name?: string; avatar?: string | null }): Promise<void> {
+    const result = await authApi.updateProfile(input);
+    if (user.value) user.value = { ...user.value, ...result.user };
+  }
+
   async function logout(): Promise<void> {
     try {
       if (loadTokens()?.token) await apiClient.post("/auth/logout", {});
@@ -180,6 +187,7 @@ export const useSessionStore = defineStore("session", () => {
     loadMe,
     setHousehold,
     setStepUp,
+    updateProfile,
     logout,
   };
 });

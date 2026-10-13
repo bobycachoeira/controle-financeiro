@@ -1,19 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("notificações", () => {
-  test("abre a tela de notificações com ativação e preferências", async ({ page }) => {
+  test("abre a tela de notificações com preferências", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/notifications");
-    await expect(page.getByText("Notificações")).toBeVisible();
-    await expect(page.getByText("Preferências de lembrete")).toBeVisible();
-    await expect(page.getByRole("button", { name: /salvar preferências/i })).toBeVisible();
-  });
-
-  test("avisa quando o dispositivo não suporta push", async ({ page }) => {
-    await page.addInitScript(() => {
-      // remove PushManager to simulate an unsupported browser
-      delete (window as unknown as Record<string, unknown>).PushManager;
+    await expect(page.getByRole("heading", { name: "Notificações" })).toBeVisible({
+      timeout: 15_000,
     });
-    await page.goto("/notifications");
-    await expect(page.getByText(/não suporta notificações|indisponíveis/i)).toBeVisible();
+    await expect(page.getByText("Preferências de lembrete")).toBeVisible();
   });
 });

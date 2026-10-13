@@ -107,6 +107,18 @@ function first(data, key, fallback) {
   return value === undefined || value === null ? fallback : value;
 }
 
+// Lê um campo JSON do registro como objeto (get() devolve bytes no JSVM).
+function jsonField(record, name) {
+  try {
+    const raw = record.getString(name);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
 module.exports = {
   requestInfo,
   requestBody,
@@ -121,4 +133,5 @@ module.exports = {
   fail,
   ok,
   first,
+  jsonField,
 };

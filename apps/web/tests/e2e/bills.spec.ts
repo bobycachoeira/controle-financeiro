@@ -1,13 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("contas a pagar e receber", () => {
-  test("adiciona uma conta e lista", async ({ page }) => {
+  test("mostra a tela e o seletor de nova conta", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/bills");
-    await expect(page.getByText("Contas a pagar e receber")).toBeVisible();
-    await expect(page.getByLabel("Título")).toBeVisible();
-    await page.getByLabel("Título").fill("Internet");
-    await page.getByLabel(/valor/i).fill("120,00");
-    await page.getByRole("button", { name: /adicionar/i }).click();
-    await expect(page.getByText("Internet")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Contas" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("A pagar / receber")).toBeVisible();
+    await page.getByRole("button", { name: /^Nova$/ }).click();
+    await expect(page.getByText("O que você quer criar?")).toBeVisible();
   });
 });

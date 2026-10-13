@@ -5,6 +5,14 @@ declare const self: ServiceWorkerGlobalScope;
 
 precacheAndRoute(self.__WB_MANIFEST);
 
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event: PushEvent) => {
   let payload: { title?: string; body?: string; data?: Record<string, unknown> } = {};
   try {
@@ -16,7 +24,7 @@ self.addEventListener("push", (event: PushEvent) => {
     self.registration.showNotification(payload.title ?? "Controle Financeiro Familiar", {
       body: payload.body ?? "",
       icon: "/pwa-192.png",
-      badge: "/pwa-192.png",
+      badge: "/badge.png",
       data: payload.data ?? {},
     }),
   );

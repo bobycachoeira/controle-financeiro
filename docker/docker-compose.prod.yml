@@ -5,6 +5,8 @@
 #     --env-file docker/.env -f docker/docker-compose.prod.yml up -d --build
 #
 # O front e a API ficam no MESMO domínio: o app chama /api (mesma origem).
+name: controle-financeiro
+
 services:
   caddy:
     image: caddy:2-alpine

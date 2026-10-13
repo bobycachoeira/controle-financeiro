@@ -36,6 +36,12 @@ export const householdApi = {
       { role },
       { stepUp: true },
     ),
+  updateMemberPermissions: (household: string, memberId: string, permissions: Record<string, unknown>) =>
+    apiClient.patch<{ member: { id: string; role: string; permissions: Record<string, unknown> } }>(
+      `/households/${household}/members/${memberId}`,
+      { permissions },
+      { stepUp: true },
+    ),
   createInvite: (household: string, email: string, role: string) =>
     apiClient.post<{ invite: InviteRecord }>(
       `/households/${household}/invites`,

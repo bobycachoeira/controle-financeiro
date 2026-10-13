@@ -11,29 +11,40 @@ import {
   transactionTypeSchema,
 } from "./enums";
 
-export const transactionSchema = syncBaseSchema.extend({
-  account: z.string(),
-  credit_card: z.string().nullable().optional(),
-  amount_cents: cents.positive(),
-  currency: z.string().default("BRL"),
-  type: transactionTypeSchema,
-  date: isoDate,
-  posting_date: isoDate.nullable().optional(),
-  attribution: attributionSchema.default("indefinido"),
-  payer_user: z.string().nullable().optional(),
-  category: z.string().nullable().optional(),
-  description: z.string().max(200).default(""),
-  status: transactionStatusSchema.default("pago"),
-  recurrence: z.string().nullable().optional(),
-  installment: z.string().nullable().optional(),
-  invoice: z.string().nullable().optional(),
-  transfer: z.string().nullable().optional(),
-  attachment: z.string().nullable().optional(),
-  tags: z.array(z.string()).default([]),
-  note: z.string().max(1000).default(""),
-  origin: z.enum(["manual", "import", "recurrence"]).default("manual"),
-  external_ref: z.string().nullable().optional(),
-});
+export const transactionSchema = syncBaseSchema
+  .extend({
+    account: z.string(),
+    credit_card: z.string().nullable().optional(),
+    // Transferências usam valores com sinal (a perna de origem é negativa).
+    amount_cents: cents,
+    currency: z.string().default("BRL"),
+    type: transactionTypeSchema,
+    date: isoDate,
+    posting_date: isoDate.nullable().optional(),
+    attribution: attributionSchema.default("indefinido"),
+    payer_user: z.string().nullable().optional(),
+    category: z.string().nullable().optional(),
+    description: z.string().max(200).default(""),
+    status: transactionStatusSchema.default("pago"),
+    recurrence: z.string().nullable().optional(),
+    installment: z.string().nullable().optional(),
+    invoice: z.string().nullable().optional(),
+    transfer: z.string().nullable().optional(),
+    attachment: z.string().nullable().optional(),
+    tags: z.array(z.string()).default([]),
+    note: z.string().max(1000).default(""),
+    origin: z.enum(["manual", "import", "recurrence"]).default("manual"),
+    external_ref: z.string().nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.type !== "transferencia" && value.amount_cents <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["amount_cents"],
+        message: "Valor deve ser maior que zero",
+      });
+    }
+  });
 
 export const installmentSchema = syncBaseSchema.extend({
   installment_group_id: z.string(),

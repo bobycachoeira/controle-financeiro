@@ -39,12 +39,12 @@ function discardPendingDeliveries(entity, entityId) {
   }
 }
 
-function existingEvent(household, entity, syncId) {
+function existingEvent(household, entity, syncId, operation) {
   try {
     return $app.findFirstRecordByFilter(
       "sync_events",
-      "household = {:household} && entity = {:entity} && sync_id = {:syncId}",
-      { household: household, entity: entity, syncId: syncId },
+      "household = {:household} && entity = {:entity} && sync_id = {:syncId} && operation = {:operation}",
+      { household: household, entity: entity, syncId: syncId, operation: operation },
     );
   } catch (err) {
     return null;
@@ -109,7 +109,7 @@ function capabilityError(entity, role, userId, payload) {
 
 function applyOperation(household, userId, role, operation) {
   const entity = operation.entity;
-  const previous = existingEvent(household, entity, operation.sync_id);
+  const previous = existingEvent(household, entity, operation.sync_id, operation.operation);
   if (previous) {
     return {
       sync_id: operation.sync_id,

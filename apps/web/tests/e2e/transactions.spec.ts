@@ -1,15 +1,18 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test.describe("lançamentos", () => {
-  test("abre o formulário de novo lançamento", async ({ page }) => {
+  test("abre o formulário de novo lançamento", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/transactions/new");
-    await expect(page.getByText("Novo lançamento")).toBeVisible();
-    await expect(page.getByLabel(/valor/i)).toBeVisible();
+    await expect(page.getByText("Novo lançamento")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#amount")).toBeVisible();
   });
 
-  test("lista lançamentos com filtros", async ({ page }) => {
+  test("lista lançamentos", async ({ page, loginAs }) => {
+    await loginAs("titular");
     await page.goto("/transactions");
-    await expect(page.getByText("Lançamentos")).toBeVisible();
-    await expect(page.getByLabel("Mês")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lançamentos" })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

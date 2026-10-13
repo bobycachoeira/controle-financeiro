@@ -1,5 +1,6 @@
 import { errorEnvelopeSchema } from "@cf/shared";
 import { clearTokens, loadTokens, saveTokens, type SessionTokens } from "./tokens";
+import { endRequest, startRequest } from "@/lib/loading";
 
 export const API_URL: string =
   (import.meta.env?.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8090/api";
@@ -56,7 +57,7 @@ async function refreshTokens(): Promise<SessionTokens | null> {
   return tokens;
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function requestInner<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, auth = true, stepUp = false, signal } = options;
   const tokens = auth ? loadTokens() : null;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -75,7 +76,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const refreshed = await refreshInFlight;
     refreshInFlight = null;
     if (refreshed) {
-      return request<T>(path, { ...options, retry: false });
+      return requestInner<T>(path, { ...options, retry: false });
     }
   }
 
@@ -84,7 +85,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const text = await response.text();
-  const data: unknown = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = undefined;
+    }
+  }
 
   if (!response.ok) {
     const parsed = errorEnvelopeSchema.safeParse(data);
@@ -99,7 +107,20 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw new ApiError(response.status, "http_error", response.statusText || "Erro inesperado");
   }
 
+  if (data === undefined) {
+    throw new ApiError(response.status, "invalid_response", "Resposta inválida do servidor");
+  }
+
   return data as T;
+}
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  startRequest();
+  try {
+    return await requestInner<T>(path, options);
+  } finally {
+    endRequest();
+  }
 }
 
 export const apiClient = {

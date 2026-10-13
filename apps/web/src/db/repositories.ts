@@ -105,7 +105,7 @@ export interface EnqueueInput {
 
 export async function enqueue(input: EnqueueInput): Promise<number> {
   const item: OutboxItem = {
-    sync_id: input.record.sync_id,
+    sync_id: newSyncId(),
     household: input.household,
     entity: input.entity,
     operation: input.operation,

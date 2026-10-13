@@ -67,6 +67,22 @@ export const CATEGORIES_SEED: readonly SeedCategory[] = [
   { name: "Internet", kind: "saida", group: "Casa", color: "#8b5cf6", icon: "wifi", order: 25 },
   { name: "Gás", kind: "saida", group: "Casa", color: "#ef4444", icon: "fuel", order: 26 },
   { name: "Telefone", kind: "saida", group: "Casa", color: "#6366f1", icon: "wifi", order: 27 },
+  {
+    name: "Financiamento",
+    kind: "saida",
+    group: "Casa",
+    color: "#0f766e",
+    icon: "building",
+    order: 28,
+  },
+  {
+    name: "Consórcio",
+    kind: "saida",
+    group: "Casa",
+    color: "#115e59",
+    icon: "building",
+    order: 29,
+  },
 
   // Alimentação
   {
