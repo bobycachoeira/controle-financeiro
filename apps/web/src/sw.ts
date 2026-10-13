@@ -23,7 +23,7 @@ self.addEventListener("push", (event: PushEvent) => {
   event.waitUntil(
     self.registration.showNotification(payload.title ?? "Controle Financeiro Familiar", {
       body: payload.body ?? "",
-      icon: "/pwa-192.png",
+      icon: "/pwa-512.png",
       badge: "/badge.png",
       data: payload.data ?? {},
     }),

@@ -128,7 +128,10 @@ function targetsByUser(subscriptions: SubRecord[]): Map<string, PushTarget[]> {
 
 export class Notifier {
   private readonly store: DeliveryStore;
-  private readonly push = { sendNotification: (t: PushTarget, p: string) => webpush.sendNotification(t as never, p) };
+  private readonly push = {
+    sendNotification: (t: PushTarget, p: string) =>
+      webpush.sendNotification({ endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } }, p),
+  };
 
   constructor(
     private readonly client: PocketBaseClient,

@@ -33,6 +33,13 @@ cp apps/web/.env.example apps/web/.env.local
 Variáveis principais do backend: `CF_ENCRYPTION_KEY`, `CF_MAIL_*`, `CF_CORS_ORIGINS`,
 `CF_STEPUP_TTL`, `CF_APP_URL`. Do frontend: `VITE_API_URL`.
 
+## Manutenção
+
+- **`apps/pocketbase/pb_hooks/lib/shared.js` é gerado** por `pnpm build:hooks` a partir de
+  `packages/shared` e fica **versionado** (o `deploy.sh`/Docker copiam os hooks direto, sem
+  rodar o build do monorepo). **Ao alterar `packages/shared`, rode `pnpm build:hooks` e faça
+  commit do arquivo gerado** — senão os hooks de produção usam uma versão antiga do domínio.
+
 ## Executando
 
 ```bash
