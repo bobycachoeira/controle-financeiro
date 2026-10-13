@@ -49,3 +49,35 @@ jobs:
 
       - name: PocketBase integration tests
         run: pnpm test:pb
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate PocketBase hooks bundle
+        run: pnpm build:hooks
+
+      - name: Download PocketBase
+        run: |
+          curl -sL -o /tmp/pb.zip https://github.com/pocketbase/pocketbase/releases/download/v0.23.7/pocketbase_0.23.7_linux_amd64.zip
+          unzip -o /tmp/pb.zip -d apps/pocketbase
+          chmod +x apps/pocketbase/pocketbase
+
+      - name: Install Playwright browser
+        run: pnpm --filter @cf/web exec playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: pnpm test:e2e
