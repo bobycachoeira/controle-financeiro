@@ -122,6 +122,43 @@ function invoicePaymentWins(entity, record, payload) {
   return payloadTotal >= recordTotal;
 }
 
+/**
+ * Duas faturas do mesmo cartão/mês não podem coexistir (índice único). Quando
+ * um create duplicado chega (outro aparelho criou a fatura antes, ou o ciclo
+ * já existia), devolvemos o registro que já está no servidor em vez de erro —
+ * inclusive se estiver soft-deleted, pois o ciclo fechado não deve voltar.
+ */
+function findDuplicateRecord(entity, record) {
+  if (entity !== "invoices") return null;
+  try {
+    return $app.findFirstRecordByFilter(
+      "invoices",
+      "credit_card = {:card} && reference_month = {:month}",
+      {
+        card: record.getString("credit_card"),
+        month: record.getString("reference_month"),
+      },
+    );
+  } catch (err) {
+    return null;
+  }
+}
+
+function recordSyncEvent(household, userId, operation, result) {
+  const event = new Record($app.findCollectionByNameOrId("sync_events"));
+  event.set("household", household);
+  event.set("user", userId);
+  event.set("entity", operation.entity);
+  event.set("entity_id", result.remote_id || operation.entity_id || "");
+  event.set("sync_id", operation.sync_id);
+  event.set("operation", operation.operation);
+  event.set("client_ts", operation.client_ts);
+  event.set("server_ts", new Date().toISOString());
+  event.set("result", result.status);
+  event.set("detail", { code: result.code || "" });
+  $app.save(event);
+}
+
 function validatePayload(entity, payload) {
   const schemaMap = {
     accounts: shared.accountSchema,
@@ -252,7 +289,18 @@ function applyOperation(household, userId, role, operation) {
     record.set("sync_id", payload.sync_id || operation.sync_id);
     record.set("updated_by", userId);
     record.set("deleted_at", null);
-    $app.save(record);
+    try {
+      $app.save(record);
+    } catch (err) {
+      const existing = findDuplicateRecord(entity, record);
+      if (!existing) throw err;
+      result.status = "applied";
+      result.code = "duplicate_merged";
+      result.remote_id = existing.id;
+      result.record = serialize(existing);
+      recordSyncEvent(household, userId, operation, result);
+      return result;
+    }
     result.status = "applied";
     result.remote_id = record.id;
     result.record = serialize(record);
@@ -336,19 +384,7 @@ function applyOperation(household, userId, role, operation) {
     }
   }
 
-  const event = new Record($app.findCollectionByNameOrId("sync_events"));
-  event.set("household", household);
-  event.set("user", userId);
-  event.set("entity", entity);
-  event.set("entity_id", result.remote_id || operation.entity_id || "");
-  event.set("sync_id", operation.sync_id);
-  event.set("operation", operation.operation);
-  event.set("client_ts", operation.client_ts);
-  event.set("server_ts", new Date().toISOString());
-  event.set("result", result.status);
-  event.set("detail", { code: result.code || "" });
-  $app.save(event);
-
+  recordSyncEvent(household, userId, operation, result);
   return result;
 }
 

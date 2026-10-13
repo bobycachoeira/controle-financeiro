@@ -7,7 +7,7 @@ import {
 } from "@cf/shared";
 import { apiClient } from "../api/client";
 import { db, type OutboxItem } from "../db/schema";
-import { ENTITY_TABLES, type SyncableRecord } from "../db/repositories";
+import { ENTITY_TABLES, removeLocal, type SyncableRecord } from "../db/repositories";
 import { applyServerState, flagForReview, type ConflictEntry } from "./conflict";
 import { headPending, markDone, markFailed, markSending } from "./outbox";
 
@@ -44,6 +44,21 @@ async function rekeyLocal(
   await table.put({ ...local, id: remoteId, _dirty: false, _pendingOutboxId: undefined });
 }
 
+/**
+ * O servidor já tinha um registro equivalente (ex.: fatura do mesmo cartão/mês
+ * criada por outro aparelho). Troca a cópia local pela versão do servidor —
+ * ou remove, se no servidor ela já estiver excluída (ciclo fechado).
+ */
+async function mergeDuplicate(
+  entity: SyncEntityName,
+  localId: string | null | undefined,
+  record: SyncableRecord,
+): Promise<void> {
+  if (localId) await removeLocal(entity, localId);
+  if (record.deleted_at) return;
+  await applyServerState(entity, record);
+}
+
 async function handleResult(
   result: OperationResult,
   item: OutboxItem,
@@ -52,7 +67,13 @@ async function handleResult(
   if (!item.id) return;
   switch (result.status) {
     case "applied": {
-      if (item.operation === "create" && result.remote_id) {
+      if (result.code === "duplicate_merged" && result.record) {
+        const record = {
+          ...(result.record as unknown as SyncableRecord),
+          id: result.remote_id ?? String((result.record as Record<string, unknown>).id ?? ""),
+        };
+        if (record.id) await mergeDuplicate(item.entity, item.entity_id, record);
+      } else if (item.operation === "create" && result.remote_id) {
         await rekeyLocal(item.entity, item.entity_id ?? "", result.remote_id);
       }
       await markDone(item.id);

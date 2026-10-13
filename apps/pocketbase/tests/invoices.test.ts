@@ -216,4 +216,54 @@ describe("invoice recalculation", () => {
     expect(record?.status).toBe("paga");
     expect(record?.paid_cents).toBe(1000);
   });
+
+  function invoiceCreatePayload(localId: string, syncId: string) {
+    return {
+      id: localId,
+      household: "",
+      sync_id: syncId,
+      credit_card: cardId,
+      account: accountId,
+      reference_month: "2024-04",
+      closing_date: "2024-04-15",
+      due_date: "2024-04-25",
+      total_cents: 0,
+      paid_cents: 0,
+      status: "aberta",
+    };
+  }
+
+  it("merges a duplicated invoice create into the existing record", async () => {
+    const localId = crypto.randomUUID();
+    const syncId = crypto.randomUUID();
+    const result = await push(harness, family.token, family.householdId, [
+      operation(syncId, "invoices", "create", invoiceCreatePayload(localId, syncId), localId),
+    ]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect(result.data.results[0]?.code).toBe("duplicate_merged");
+    expect(result.data.results[0]?.remote_id).toBe(invoiceId);
+  });
+
+  it("does not resurrect a soft-deleted invoice cycle", async () => {
+    await push(harness, family.token, family.householdId, [
+      operation(
+        crypto.randomUUID(),
+        "invoices",
+        "delete",
+        { id: invoiceId, sync_id: crypto.randomUUID() },
+        invoiceId,
+      ),
+    ]);
+
+    const localId = crypto.randomUUID();
+    const syncId = crypto.randomUUID();
+    const result = await push(harness, family.token, family.householdId, [
+      operation(syncId, "invoices", "create", invoiceCreatePayload(localId, syncId), localId),
+    ]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect(result.data.results[0]?.code).toBe("duplicate_merged");
+    expect(result.data.results[0]?.remote_id).toBe(invoiceId);
+    const record = result.data.results[0]?.record as Record<string, unknown> | undefined;
+    expect(record?.deleted_at).toBeTruthy();
+  });
 });
