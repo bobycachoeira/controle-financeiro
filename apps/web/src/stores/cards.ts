@@ -3,6 +3,7 @@ import { ref } from "vue";
 import {
   closingDateForMonth,
   dueDateForMonth,
+  referenceMonthForPurchase,
   resolveInvoiceStatus,
   todayISO,
 } from "@cf/shared";
@@ -108,15 +109,18 @@ export const useCardsStore = defineStore("cards", () => {
     return invoices.value.filter((invoice) => invoice.credit_card === cardId);
   }
 
-  // Cria a fatura do mês de referência para cada cartão (mesmo com valor 0),
-  // para permitir informar o valor na hora do pagamento.
-  async function ensureMonthlyInvoices(referenceMonth = todayISO().slice(0, 7)): Promise<number> {
+  // Cria a fatura do ciclo aberto para cada cartão (mesmo com valor 0),
+  // para permitir informar o valor na hora do pagamento. Se o fechamento do
+  // mês corrente já passou, garante a fatura do próximo ciclo (um cartão
+  // recém-contratado não deve nascer com fatura vencida de ciclo passado).
+  async function ensureMonthlyInvoices(referenceMonth?: string): Promise<number> {
     const session = useSessionStore();
     const household = session.currentHouseholdId;
     if (!household) return 0;
     const today = todayISO();
     let created = 0;
     for (const card of cards.value) {
+      const month = referenceMonth ?? referenceMonthForPurchase(today, card.closing_day);
       const existing = await db.invoices
         .where("household")
         .equals(household)
@@ -124,19 +128,19 @@ export const useCardsStore = defineStore("cards", () => {
           (invoice) =>
             !invoice.deleted_at &&
             invoice.credit_card === card.id &&
-            invoice.reference_month === referenceMonth,
+            invoice.reference_month === month,
         )
         .first();
       if (existing) continue;
-      const closing = closingDateForMonth(referenceMonth, card.closing_day);
-      const due = dueDateForMonth(referenceMonth, card.due_day);
+      const closing = closingDateForMonth(month, card.closing_day);
+      const due = dueDateForMonth(month, card.due_day);
       const invoice: LocalInvoice = {
         id: newLocalId(),
         household,
         sync_id: newSyncId(),
         credit_card: card.id,
         account: card.account,
-        reference_month: referenceMonth,
+        reference_month: month,
         closing_date: closing,
         due_date: due,
         total_cents: 0,
