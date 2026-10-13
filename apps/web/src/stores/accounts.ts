@@ -66,6 +66,22 @@ export const useAccountsStore = defineStore("accounts", () => {
     await load();
   }
 
+  /** Move a conta uma posição na lista (reordena os `order` afetados). */
+  async function move(id: string, direction: -1 | 1): Promise<void> {
+    const list = [...items.value];
+    const index = list.findIndex((account) => account.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target]!, list[index]!];
+    for (let position = 0; position < list.length; position += 1) {
+      const account = list[position]!;
+      if ((account.order ?? 0) === position) continue;
+      const stored = await db.accounts.get(account.id);
+      if (stored) await updateLocal("accounts", { ...stored, order: position });
+    }
+    await load();
+  }
+
   async function remove(id: string): Promise<void> {
     await softDeleteLocal("accounts", id);
     await load();
@@ -76,5 +92,5 @@ export const useAccountsStore = defineStore("accounts", () => {
     await load();
   }
 
-  return { items, load, create, update, remove, hardRemoveLocal };
+  return { items, load, create, update, move, remove, hardRemoveLocal };
 });

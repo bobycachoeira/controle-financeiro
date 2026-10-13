@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { AccountType } from "@cf/shared";
 import { ACCOUNT_TYPES, computeAccountBalance } from "@cf/shared";
-import { Pencil, Plus, Trash2, Wallet } from "lucide-vue-next";
+import { Pencil, Plus, Trash2, Wallet, ChevronDown, ChevronUp } from "lucide-vue-next";
 import { useAccountsStore } from "@/stores/accounts";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useSyncStore } from "@/stores/sync";
@@ -141,7 +141,7 @@ watch(() => sync.dataVersion, loadAll);
         </p>
         <ul v-else class="stagger">
           <li
-            v-for="row in balances"
+            v-for="(row, rowIndex) in balances"
             :key="row.account.id"
             class="group flex items-center gap-3 rounded-[1.3rem] px-3 py-3 transition hover:bg-muted/70"
           >
@@ -165,7 +165,23 @@ watch(() => sync.dataVersion, loadAll);
             >
               {{ formatBRL(row.balance) }}
             </span>
-            <div class="flex flex-col gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+            <div class="grid grid-cols-2 gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                aria-label="Mover conta para cima"
+                :disabled="rowIndex === 0"
+                @click="accountsStore.move(row.account.id, -1)"
+              >
+                <ChevronUp class="h-3.5 w-3.5" />
+              </button>
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                aria-label="Mover conta para baixo"
+                :disabled="rowIndex === balances.length - 1"
+                @click="accountsStore.move(row.account.id, 1)"
+              >
+                <ChevronDown class="h-3.5 w-3.5" />
+              </button>
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta"

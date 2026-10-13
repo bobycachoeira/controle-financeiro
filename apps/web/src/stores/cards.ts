@@ -38,7 +38,13 @@ export const useCardsStore = defineStore("cards", () => {
     const session = useSessionStore();
     if (!session.currentHouseholdId) return;
     const allCards = await db.credit_cards.where("household").equals(session.currentHouseholdId).toArray();
-    cards.value = allCards.filter((card) => !card.deleted_at);
+    cards.value = allCards
+      .filter((card) => !card.deleted_at)
+      .sort(
+        (a, b) =>
+          (a.order ?? 0) - (b.order ?? 0) ||
+          (a.bank ?? a.id).localeCompare(b.bank ?? b.id),
+      );
     const allInvoices = await db.invoices.where("household").equals(session.currentHouseholdId).toArray();
     invoices.value = allInvoices
       .filter((invoice) => !invoice.deleted_at)
@@ -72,6 +78,7 @@ export const useCardsStore = defineStore("cards", () => {
       purchase_at_posting: false,
       uses_account_balance_for_invoice: false,
       active: true,
+      order: cards.value.length,
       color: input.color ?? null,
       payment_account: input.payment_account ?? null,
       owner: input.owner ?? "indefinido",
@@ -102,6 +109,22 @@ export const useCardsStore = defineStore("cards", () => {
 
   async function remove(id: string): Promise<void> {
     await softDeleteLocal("credit_cards", id);
+    await load();
+  }
+
+  /** Move um cartão uma posição na lista (reordena os `order` afetados). */
+  async function move(id: string, direction: -1 | 1): Promise<void> {
+    const list = [...cards.value];
+    const index = list.findIndex((card) => card.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target]!, list[index]!];
+    for (let position = 0; position < list.length; position += 1) {
+      const card = list[position]!;
+      if ((card.order ?? 0) === position) continue;
+      const stored = await db.credit_cards.get(card.id);
+      if (stored) await updateLocal("credit_cards", { ...stored, order: position });
+    }
     await load();
   }
 
@@ -166,5 +189,5 @@ export const useCardsStore = defineStore("cards", () => {
     return created;
   }
 
-  return { cards, invoices, load, create, update, remove, invoicesFor, ensureMonthlyInvoices };
+  return { cards, invoices, load, create, update, move, remove, invoicesFor, ensureMonthlyInvoices };
 });

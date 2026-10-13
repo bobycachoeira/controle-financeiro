@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
-import { Banknote, Check, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import { Banknote, Check, ChevronDown, ChevronUp, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { todayISO } from "@cf/shared";
 import { updateLocal } from "@/db/repositories";
 import { useCardsStore } from "@/stores/cards";
@@ -216,7 +216,7 @@ watch(() => sync.dataVersion, () => cardsStore.load());
     </p>
 
     <div class="stagger space-y-5">
-      <Card v-for="card in cardsStore.cards" :key="card.id" data-testid="card" class="overflow-hidden">
+      <Card v-for="(card, cardIndex) in cardsStore.cards" :key="card.id" data-testid="card" class="overflow-hidden">
         <div
           class="flex items-start justify-between px-5 py-5 text-white"
           :style="{ background: cardGradient(card) }"
@@ -234,7 +234,23 @@ watch(() => sync.dataVersion, () => cardsStore.load());
               Fatura paga por {{ paymentAccountName(card) }}
             </p>
           </div>
-          <div class="flex gap-1">
+          <div class="grid grid-cols-2 gap-1">
+            <button
+              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
+              aria-label="Mover cartão para cima"
+              :disabled="cardIndex === 0"
+              @click="cardsStore.move(card.id, -1)"
+            >
+              <ChevronUp class="h-4 w-4" />
+            </button>
+            <button
+              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
+              aria-label="Mover cartão para baixo"
+              :disabled="cardIndex === cardsStore.cards.length - 1"
+              @click="cardsStore.move(card.id, 1)"
+            >
+              <ChevronDown class="h-4 w-4" />
+            </button>
             <button
               class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30"
               aria-label="Editar cartão"

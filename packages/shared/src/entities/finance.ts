@@ -25,6 +25,7 @@ export const creditCardSchema = syncBaseSchema.extend({
   purchase_at_posting: z.boolean().default(false),
   uses_account_balance_for_invoice: z.boolean().default(false),
   active: z.boolean().default(true),
+  order: z.number().int().default(0),
   color: z.string().nullable().optional(),
   payment_account: z.string().nullable().optional(),
   owner: attributionSchema.default("indefinido"),

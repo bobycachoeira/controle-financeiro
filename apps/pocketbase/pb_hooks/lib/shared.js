@@ -4500,6 +4500,7 @@ var creditCardSchema = syncBaseSchema.extend({
   purchase_at_posting: external_exports.boolean().default(false),
   uses_account_balance_for_invoice: external_exports.boolean().default(false),
   active: external_exports.boolean().default(true),
+  order: external_exports.number().int().default(0),
   color: external_exports.string().nullable().optional(),
   payment_account: external_exports.string().nullable().optional(),
   owner: attributionSchema.default("indefinido")
