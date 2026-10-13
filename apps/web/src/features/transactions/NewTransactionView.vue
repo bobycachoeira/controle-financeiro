@@ -131,6 +131,7 @@ onMounted(async () => {
       description.value = tx.description;
       date.value = tx.date.slice(0, 10);
       account.value = tx.account;
+      creditCard.value = tx.credit_card ?? "";
       attribution.value = tx.attribution;
       status.value = tx.status;
       category.value = tx.category ?? "";
@@ -242,11 +243,11 @@ watch(
           </Select>
         </div>
 
-        <div v-if="!isEdit && type === 'despesa'" class="space-y-2">
+        <div v-if="type === 'despesa' && (!isEdit || isCard)" class="space-y-2">
           <Label for="card" class="flex items-center gap-1">
             <CreditCard class="h-3.5 w-3.5" /> Cartão de crédito
           </Label>
-          <Select id="card" v-model="creditCard">
+          <Select id="card" v-model="creditCard" :disabled="isEdit">
             <option value="">Sem cartão</option>
             <option v-for="item in cardsStore.cards" :key="item.id" :value="item.id">
               {{ item.bank || "Cartão" }} •••• {{ item.closing_day }}/{{ item.due_day }}
