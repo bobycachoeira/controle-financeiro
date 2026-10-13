@@ -3,7 +3,7 @@ import { ref } from "vue";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { closingDateForMonth, dueDateForMonth, generateInstallments } from "@cf/shared";
 import { db, type LocalInstallment, type LocalInvoice, type LocalTransaction } from "../db/schema";
-import { createLocal, newSyncId, softDeleteLocal, updateLocal, newLocalId } from "../db/repositories";
+import { createLocal, newSyncId, softDeleteLocal, updateLocal, updateLocalOnly, newLocalId } from "../db/repositories";
 import { useSessionStore } from "./session";
 
 export interface TransactionFilters {
@@ -220,7 +220,9 @@ export const useTransactionsStore = defineStore("transactions", () => {
     const total = transactions
       .filter((tx) => !tx.deleted_at)
       .reduce((sum, tx) => sum + tx.amount_cents, 0);
-    await updateLocal("invoices", { ...invoice, total_cents: total });
+    // O servidor recalcula a fatura ao aplicar as transações; enviar o total
+    // daqui só disputa com o recálculo (updated do servidor mais novo).
+    await updateLocalOnly("invoices", { ...invoice, total_cents: total });
   }
 
   async function update(id: string, changes: Partial<TransactionInput>): Promise<void> {

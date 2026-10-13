@@ -34,6 +34,25 @@ export async function markSending(id: number): Promise<void> {
   await db.outbox.update(id, { status: "sending" });
 }
 
+/**
+ * Itens que ficaram em `sending` (app fechado/recarregado no meio de um push)
+ * voltam para `pending` com um attempt a mais; como o sync_id é preservado,
+ * reenviá-los é idempotente — mas eles não podem mais coalescer com edições
+ * novas (o payload antigo pode ter chegado ao servidor).
+ */
+export async function resetStaleSending(): Promise<number> {
+  const stale = await db.outbox.where("status").equals("sending").toArray();
+  for (const item of stale) {
+    if (item.id === undefined) continue;
+    await db.outbox.update(item.id, {
+      status: "pending",
+      attempts: (item.attempts ?? 0) + 1,
+      last_error: item.last_error ?? "sync_interrupted",
+    });
+  }
+  return stale.length;
+}
+
 export async function markDone(id: number): Promise<void> {
   await db.outbox.update(id, { status: "done", last_error: null });
 }

@@ -184,4 +184,36 @@ describe("invoice recalculation", () => {
     const record = await invoiceRecord();
     expect(record?.status).toBe("vencida");
   });
+
+  it("keeps a client payment even when the recalculated invoice is newer", async () => {
+    const pay = operation(
+      crypto.randomUUID(),
+      "invoices",
+      "update",
+      {
+        id: invoiceId,
+        household: "",
+        sync_id: crypto.randomUUID(),
+        credit_card: cardId,
+        account: accountId,
+        reference_month: "2024-04",
+        closing_date: "2024-04-15",
+        due_date: "2024-04-25",
+        total_cents: 1000,
+        paid_cents: 1000,
+        status: "paga",
+        paid_at: new Date().toISOString(),
+      },
+      invoiceId,
+    );
+    // O pagamento foi enfileirado antes do push: o client_ts é mais antigo que
+    // o recálculo que o servidor fez ao aplicar a compra.
+    pay.client_ts = new Date(Date.now() - 60_000).toISOString();
+    const result = await push(harness, family.token, family.householdId, [pay]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect(result.data.results[0]?.code).toBe("payment_applied");
+    const record = await invoiceRecord();
+    expect(record?.status).toBe("paga");
+    expect(record?.paid_cents).toBe(1000);
+  });
 });

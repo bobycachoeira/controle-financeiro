@@ -70,6 +70,58 @@ function setWhitelistedFields(record, collection, payload) {
   }
 }
 
+function normalizeForCompare(value) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") {
+    const date = value.match(/^\d{4}-\d{2}-\d{2}/);
+    return date ? date[0] : value.trim();
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch (err) {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+/**
+ * Um update cujo payload é igual ao registro atual não é conflito real: acontece
+ * quando o mesmo dado é recalculado no cliente e no servidor (ex.: total de
+ * fatura) ou reenviado depois de uma sincronização. Devolver `conflict` nesse
+ * caso só polui a fila de revisão do usuário.
+ */
+function payloadMatchesRecord(record, collection, payload) {
+  const fields = collection.fields;
+  for (let index = 0; index < fields.length; index += 1) {
+    const name = fields[index].name;
+    if (SYSTEM_FIELDS.indexOf(name) !== -1) continue;
+    if (PROTECTED.indexOf(name) !== -1) continue;
+    if (payload[name] === undefined) continue;
+    if (normalizeForCompare(record.get(name)) !== normalizeForCompare(payload[name])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Pagamento de fatura feito no cliente perde a corrida de timestamp porque o
+ * servidor acabou de recalcular a fatura (updated mais novo) ao aplicar as
+ * compras. Como o pagamento é uma ação explícita do usuário e o recálculo é
+ * derivado, deixamos o cliente vencer quando a fatura ainda não foi paga e o
+ * valor pago cobre o total atual.
+ */
+function invoicePaymentWins(entity, record, payload) {
+  if (entity !== "invoices" || !payload) return false;
+  if (payload.status !== "paga" || !payload.paid_at) return false;
+  if (record.getString("paid_at")) return false;
+  const recordTotal = record.getInt("total_cents") || 0;
+  const payloadTotal = Number(payload.total_cents) || 0;
+  return payloadTotal >= recordTotal;
+}
+
 function validatePayload(entity, payload) {
   const schemaMap = {
     accounts: shared.accountSchema,
@@ -235,11 +287,27 @@ function applyOperation(household, userId, role, operation) {
         discardPendingDeliveries(entity, record.id);
       }
     } else {
-      result.status = "conflict";
-      result.conflict = true;
-      result.code = "conflict_kept_server";
-      result.remote_id = record.id;
-      result.record = serialize(record);
+      if (payloadMatchesRecord(record, collection, payload)) {
+        result.status = "applied";
+        result.code = "noop";
+        result.remote_id = record.id;
+        result.record = serialize(record);
+      } else if (invoicePaymentWins(entity, record, payload)) {
+        setWhitelistedFields(record, collection, payload);
+        record.set("updated_by", userId);
+        $app.save(record);
+        result.status = "applied";
+        result.code = "payment_applied";
+        result.remote_id = record.id;
+        result.record = serialize(record);
+        discardPendingDeliveries(entity, record.id);
+      } else {
+        result.status = "conflict";
+        result.conflict = true;
+        result.code = "conflict_kept_server";
+        result.remote_id = record.id;
+        result.record = serialize(record);
+      }
     }
   } else {
     const record = findExisting(entity, operation.entity_id);

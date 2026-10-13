@@ -7,6 +7,7 @@ import {
   discard as discardOutbox,
   lastError as readLastError,
   listFailed,
+  resetStaleSending,
   resetToPending,
 } from "../sync/outbox";
 import { db, type OutboxItem } from "../db/schema";
@@ -28,6 +29,19 @@ export const useSyncStore = defineStore("sync", () => {
   const cursor = ref(0);
   const dataVersion = ref(0);
   let bound = false;
+  let outboxTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleSync(delayMs = 800): void {
+    if (outboxTimer !== null) clearTimeout(outboxTimer);
+    outboxTimer = setTimeout(() => {
+      outboxTimer = null;
+      if (syncing.value) {
+        scheduleSync(400);
+        return;
+      }
+      void syncNow();
+    }, delayMs);
+  }
 
   function bind(): void {
     if (bound || typeof window === "undefined") return;
@@ -38,6 +52,14 @@ export const useSyncStore = defineStore("sync", () => {
     });
     window.addEventListener("offline", () => {
       online.value = false;
+    });
+    // Toda alteração local enfileira no outbox e avisa aqui: sobe logo
+    // (com debounce), em vez de esperar abrir o app ou sincronizar no botão.
+    window.addEventListener("cf:outbox-change", () => {
+      if (online.value) scheduleSync();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") void syncNow();
     });
   }
 
@@ -82,6 +104,7 @@ export const useSyncStore = defineStore("sync", () => {
     if (!household || !online.value || syncing.value) return;
     syncing.value = true;
     try {
+      await resetStaleSending();
       const summary = await pushOutbox(household);
       if (summary.conflicts.length > 0) {
         conflicts.value = [...conflicts.value, ...summary.conflicts];

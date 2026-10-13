@@ -9,7 +9,7 @@ import { apiClient } from "../api/client";
 import { db, type OutboxItem } from "../db/schema";
 import { ENTITY_TABLES, type SyncableRecord } from "../db/repositories";
 import { applyServerState, flagForReview, type ConflictEntry } from "./conflict";
-import { headPending, markDone, markFailed } from "./outbox";
+import { headPending, markDone, markFailed, markSending } from "./outbox";
 
 export interface PushSummary {
   applied: number;
@@ -98,10 +98,24 @@ export async function pushOutbox(household: string): Promise<PushSummary> {
   };
   if (items.length === 0) return summary;
 
-  const response = await apiClient.post<PushResponse>("/sync/push", {
-    household,
-    operations: items.map(toOperation),
-  });
+  // Marca como `sending` antes de enviar: novas edições locais não podem
+  // coalescer neste lote (o payload em voo já pode ter sido aplicado).
+  for (const item of items) {
+    if (item.id !== undefined) await markSending(item.id);
+  }
+
+  let response: PushResponse;
+  try {
+    response = await apiClient.post<PushResponse>("/sync/push", {
+      household,
+      operations: items.map(toOperation),
+    });
+  } catch (error) {
+    for (const item of items) {
+      if (item.id !== undefined) await markFailed(item.id, "network_error");
+    }
+    throw error;
+  }
   const parsed = pushResponseSchema.parse(response);
   summary.serverSeq = parsed.server_seq;
 

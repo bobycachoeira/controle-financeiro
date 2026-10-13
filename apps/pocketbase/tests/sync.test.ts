@@ -58,6 +58,23 @@ describe("sync idempotency and conflicts", () => {
     expect(conflict.data.results[0]?.code).toBe("conflict_kept_server");
   });
 
+  it("applies an update without a real difference even with an old timestamp", async () => {
+    const { remoteId, syncId, localId } = await createAccount(family, harness);
+
+    const same = operation(
+      crypto.randomUUID(),
+      "accounts",
+      "update",
+      accountPayload(localId, syncId, "Conta"),
+      remoteId,
+    );
+    same.client_ts = "2000-01-01T00:00:00.000Z";
+    const result = await push(harness, family.token, family.householdId, [same]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect(result.data.results[0]?.code).toBe("noop");
+    expect(result.data.results[0]?.conflict).toBe(false);
+  });
+
   it("applies the client version when its timestamp is newer", async () => {
     const { remoteId, syncId, localId } = await createAccount(family, harness);
 

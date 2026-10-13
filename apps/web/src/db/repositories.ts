@@ -103,7 +103,67 @@ export interface EnqueueInput {
   payload: Record<string, unknown>;
 }
 
+/** Avisa o sincronizador de que há trabalho novo na fila (dispara push com debounce). */
+function notifyOutboxChange(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cf:outbox-change"));
+  }
+}
+
+/**
+ * Junta operações pendentes para o mesmo registro, evitando que um create
+ * seguido de edições vire um lote com várias operações no mesmo item (o que
+ * gera conflitos falsos no servidor). Só considera itens `pending` com
+ * `attempts === 0`: itens já enviados (ou possivelmente enviados) não podem
+ * ter o payload reescrito, pois o servidor é idempotente pelo sync_id.
+ */
+async function findCoalescable(entity: SyncEntityName, entityId: string): Promise<OutboxItem | undefined> {
+  return db.outbox
+    .where("entity")
+    .equals(entity)
+    .filter(
+      (item) =>
+        item.entity_id === entityId &&
+        item.status === "pending" &&
+        (item.attempts ?? 0) === 0,
+    )
+    .first();
+}
+
 export async function enqueue(input: EnqueueInput): Promise<number> {
+  const existing = await findCoalescable(input.entity, input.record.id);
+  if (existing?.id !== undefined) {
+    if (existing.operation === "create" && input.operation === "delete") {
+      // O create nunca chegou ao servidor; a exclusão local dispensa o envio.
+      await db.outbox.delete(existing.id);
+      const table = ENTITY_TABLES[input.entity];
+      const record = await table.get(input.record.id);
+      if (record) {
+        const clean: SyncableRecord = { ...record, _dirty: false };
+        delete clean._pendingOutboxId;
+        await table.put(toPlain(clean));
+      }
+      notifyOutboxChange();
+      return existing.id;
+    }
+    const merged: OutboxItem = {
+      ...existing,
+      operation: existing.operation === "create" ? "create" : input.operation,
+      payload: toPlain(input.payload),
+      client_ts: nowISO(),
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+    };
+    await db.outbox.put(toPlain(merged));
+    const table = ENTITY_TABLES[input.entity];
+    const record = await table.get(input.record.id);
+    if (record) {
+      await table.put(toPlain({ ...record, _dirty: true, _pendingOutboxId: existing.id }));
+    }
+    notifyOutboxChange();
+    return existing.id;
+  }
   const item: OutboxItem = {
     sync_id: newSyncId(),
     household: input.household,
@@ -119,10 +179,11 @@ export async function enqueue(input: EnqueueInput): Promise<number> {
   };
   const id = await db.outbox.add(toPlain(item));
   const table = ENTITY_TABLES[input.entity];
-  const existing = await table.get(input.record.id);
-  if (existing) {
-    await table.put(toPlain({ ...existing, _dirty: true, _pendingOutboxId: id }));
+  const record = await table.get(input.record.id);
+  if (record) {
+    await table.put(toPlain({ ...record, _dirty: true, _pendingOutboxId: id }));
   }
+  notifyOutboxChange();
   return id;
 }
 
@@ -156,6 +217,20 @@ export async function updateLocal<T extends SyncableRecord>(
     payload: toPayload(dirty),
   });
   return { ...dirty, _pendingOutboxId: outboxId };
+}
+
+/**
+ * Atualiza apenas o IndexedDB, sem enfileirar no outbox. Use para campos
+ * derivados que o servidor recalcula sozinho (ex.: `total_cents` da fatura a
+ * partir das transações) — reenviá-los só cria corrida de sincronização.
+ */
+export async function updateLocalOnly<T extends SyncableRecord>(
+  entity: SyncEntityName,
+  record: T,
+): Promise<T> {
+  const dirty: T = { ...record, _dirty: true, updated: nowISO() };
+  await ENTITY_TABLES[entity].put(toPlain(dirty));
+  return dirty;
 }
 
 export async function softDeleteLocal(
