@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { todayISO } from "@cf/shared";
-import { db, type LocalBill, type LocalCreditCard, type LocalInvoice } from "@/db/schema";
+import { db, type LocalBill, type LocalCreditCard, type LocalInvoice, type LocalTransaction } from "@/db/schema";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { formatBRL, formatDateShort, formatMonth } from "@/lib/format";
@@ -21,6 +21,8 @@ const selected = ref(today);
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
 const cards = ref<LocalCreditCard[]>([]);
+const transactions = ref<LocalTransaction[]>([]);
+const visible = ref({ bills: true, invoices: true, transactions: true });
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 const COLOR_IN = "#3F9A6A";
@@ -29,7 +31,7 @@ const COLOR_INVOICE = "#8A6FD1";
 
 interface DayItem {
   id: string;
-  kind: "bill" | "invoice";
+  kind: "bill" | "invoice" | "transaction";
   title: string;
   amountCents: number;
   nature: "entrada" | "saida";
@@ -48,31 +50,49 @@ const itemsByDate = computed(() => {
     list.push(item);
     map.set(date, list);
   };
-  for (const bill of bills.value) {
-    if (bill.deleted_at) continue;
-    if (bill.status !== "pendente" && bill.status !== "a_confirmar") continue;
-    push(bill.due_date.slice(0, 10), {
-      id: bill.id,
-      kind: "bill",
-      title: bill.title,
-      amountCents: bill.amount_cents,
-      nature: bill.nature,
-      status: bill.status,
-      color: bill.nature === "entrada" ? COLOR_IN : COLOR_OUT,
-    });
+  if (visible.value.bills) {
+    for (const bill of bills.value) {
+      if (bill.deleted_at) continue;
+      if (bill.status !== "pendente" && bill.status !== "a_confirmar") continue;
+      push(bill.due_date.slice(0, 10), {
+        id: bill.id,
+        kind: "bill",
+        title: bill.title,
+        amountCents: bill.amount_cents,
+        nature: bill.nature,
+        status: bill.status,
+        color: bill.nature === "entrada" ? COLOR_IN : COLOR_OUT,
+      });
+    }
   }
-  for (const invoice of invoices.value) {
-    if (invoice.deleted_at || invoice.status === "paga") continue;
-    const bank = cardById.value.get(invoice.credit_card)?.bank?.trim() || "Cartão";
-    push(invoice.due_date.slice(0, 10), {
-      id: invoice.id,
-      kind: "invoice",
-      title: `Fatura ${bank} ${invoice.reference_month}`,
-      amountCents: Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0)),
-      nature: "saida",
-      status: invoice.status,
-      color: COLOR_INVOICE,
-    });
+  if (visible.value.invoices) {
+    for (const invoice of invoices.value) {
+      if (invoice.deleted_at || invoice.status === "paga") continue;
+      const bank = cardById.value.get(invoice.credit_card)?.bank?.trim() || "Cartão";
+      push(invoice.due_date.slice(0, 10), {
+        id: invoice.id,
+        kind: "invoice",
+        title: `Fatura ${bank} ${invoice.reference_month}`,
+        amountCents: Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0)),
+        nature: "saida",
+        status: invoice.status,
+        color: COLOR_INVOICE,
+      });
+    }
+  }
+  if (visible.value.transactions) {
+    for (const tx of transactions.value) {
+      if (tx.deleted_at || tx.type === "transferencia") continue;
+      push(tx.date.slice(0, 10), {
+        id: tx.id,
+        kind: "transaction",
+        title: tx.description || "Lançamento",
+        amountCents: tx.amount_cents,
+        nature: tx.type === "receita" ? "entrada" : "saida",
+        status: tx.status,
+        color: tx.type === "receita" ? COLOR_IN : COLOR_OUT,
+      });
+    }
   }
   return map;
 });
@@ -88,6 +108,22 @@ function dotsFor(date: string): DayItem[] {
   return (itemsByDate.value.get(date) ?? []).slice(0, 3);
 }
 
+const filters = computed(() => [
+  { key: "bills" as const, label: "Contas" },
+  { key: "invoices" as const, label: "Faturas" },
+  { key: "transactions" as const, label: "Lançamentos" },
+]);
+
+function toggleFilter(key: "bills" | "invoices" | "transactions"): void {
+  visible.value[key] = !visible.value[key];
+}
+
+function kindLabel(item: DayItem): string {
+  if (item.kind === "invoice") return "Fatura do cartão";
+  if (item.kind === "bill") return "Conta";
+  return item.nature === "entrada" ? "Receita" : "Despesa";
+}
+
 async function loadAll(): Promise<void> {
   if (!session.currentHouseholdId) return;
   const household = session.currentHouseholdId;
@@ -100,6 +136,9 @@ async function loadAll(): Promise<void> {
   cards.value = (await db.credit_cards.where("household").equals(household).toArray()).filter(
     (card) => !card.deleted_at,
   );
+  transactions.value = (
+    await db.transactions.where("household").equals(household).toArray()
+  ).filter((tx) => !tx.deleted_at && tx.type !== "transferencia");
 }
 
 onMounted(loadAll);
@@ -130,6 +169,23 @@ watch(() => sync.dataVersion, loadAll);
             @click="shiftMonth(1)"
           >
             <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="option in filters"
+            :key="option.key"
+            type="button"
+            class="rounded-full border px-3 py-1 text-xs font-bold transition"
+            :class="
+              visible[option.key]
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground'
+            "
+            @click="toggleFilter(option.key)"
+          >
+            {{ option.label }}
           </button>
         </div>
 
@@ -195,10 +251,11 @@ watch(() => sync.dataVersion, loadAll);
             <div class="min-w-0">
               <p class="truncate font-bold">{{ item.title }}</p>
               <p class="text-xs text-muted-foreground">
-                {{ item.kind === "invoice" ? "Fatura do cartão" : "Conta" }} ·
-                <Badge :variant="item.status === 'vencida' ? 'destructive' : 'secondary'">
+                {{ kindLabel(item) }} ·
+                <Badge v-if="item.kind !== 'transaction'" :variant="item.status === 'vencida' ? 'destructive' : 'secondary'">
                   {{ item.status }}
                 </Badge>
+                <Badge v-else-if="item.status === 'a_pagar'" variant="warning">a pagar</Badge>
               </p>
             </div>
             <span

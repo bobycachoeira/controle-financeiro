@@ -57,4 +57,68 @@ test.describe("calendário", () => {
     await expect(page.getByText("Internet Calendário")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("−R$ 99,90")).toBeVisible();
   });
+
+  test("mostra lançamentos no dia e respeita os filtros", async ({ page, loginAs, backend }) => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
+      new Date(),
+    );
+    const pull = await backend.api<{
+      changes: Array<{ entity: string; id: string; record?: Record<string, unknown> }>;
+    }>("/sync/pull?since=0&limit=500", { token: backend.titular.token });
+    const accountId = String(
+      pull.data.changes.find(
+        (change) => change.entity === "accounts" && change.record?.name === "Conta Principal",
+      )?.id ?? "",
+    );
+    const id = randId();
+    await backend.api("/sync/push", {
+      token: backend.titular.token,
+      body: {
+        household: backend.household,
+        operations: [
+          {
+            sync_id: crypto.randomUUID(),
+            entity: "transactions",
+            operation: "create",
+            entity_id: id,
+            payload: {
+              id,
+              household: backend.household,
+              sync_id: crypto.randomUUID(),
+              account: accountId,
+              credit_card: null,
+              amount_cents: 1290,
+              currency: "BRL",
+              type: "despesa",
+              date: today,
+              attribution: "ambos",
+              payer_user: null,
+              category: null,
+              description: "Café Calendário",
+              status: "pago",
+              recurrence: null,
+              installment: null,
+              invoice: null,
+              transfer: null,
+              tags: [],
+              note: "",
+              origin: "manual",
+              updated_by: null,
+              deleted_at: null,
+            },
+            client_ts: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    await loginAs("titular");
+    await page.goto("/calendar");
+    await expect(page.getByText("Café Calendário")).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Lançamentos" }).click();
+    await expect(page.getByText("Café Calendário")).toHaveCount(0);
+    await page.getByRole("button", { name: "Lançamentos" }).click();
+    await expect(page.getByText("Café Calendário")).toBeVisible({ timeout: 10_000 });
+  });
 });
