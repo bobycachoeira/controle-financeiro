@@ -8,6 +8,10 @@ export const goalEntrySchema = z.object({
   amount_cents: cents,
   date: isoDate,
   note: z.string().max(200).default(""),
+  /** Conta de origem (guardar) ou destino (resgatar), quando o dinheiro se move. */
+  account: z.string().nullable().optional(),
+  /** Transferência criada para o movimento, quando houver. */
+  transfer: z.string().nullable().optional(),
 });
 
 export const goalSchema = syncBaseSchema.extend({
@@ -18,6 +22,8 @@ export const goalSchema = syncBaseSchema.extend({
   icon: z.string().nullable().optional(),
   owner: attributionSchema.default("indefinido"),
   active: z.boolean().default(true),
+  /** Conta interna ("cofrinho") usada quando o dinheiro é movimentado. */
+  cofrinho_account: z.string().nullable().optional(),
   entries: z.array(goalEntrySchema).max(500).default([]),
 });
 

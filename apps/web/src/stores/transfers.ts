@@ -23,7 +23,7 @@ export const useTransfersStore = defineStore("transfers", () => {
     items.value = all.filter((transfer) => !transfer.deleted_at);
   }
 
-  async function create(input: TransferInput): Promise<void> {
+  async function create(input: TransferInput): Promise<LocalTransfer> {
     const validation = validateTransfer(input);
     if (!validation.valid) {
       throw new Error(
@@ -81,6 +81,7 @@ export const useTransfersStore = defineStore("transfers", () => {
       });
     }
     await load();
+    return transfer;
   }
 
   async function remove(id: string): Promise<void> {

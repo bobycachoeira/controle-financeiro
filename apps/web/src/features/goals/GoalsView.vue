@@ -4,6 +4,7 @@ import { Minus, Pencil, PiggyBank, Plus, Target, Trash2 } from "lucide-vue-next"
 import { goalProgress, todayISO } from "@cf/shared";
 import type { LocalGoal } from "@/db/schema";
 import { useGoalsStore } from "@/stores/goals";
+import { useAccountsStore } from "@/stores/accounts";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
@@ -21,6 +22,7 @@ import Modal from "@/components/ui/Modal.vue";
 const GOAL_COLORS = ["#3F9A6A", "#3B82B6", "#8A6FD1", "#F2A93B", "#E4572E", "#B0477E"];
 
 const goals = useGoalsStore();
+const accountsStore = useAccountsStore();
 const people = usePeopleStore();
 const sync = useSyncStore();
 const toast = useToast();
@@ -40,7 +42,16 @@ const entryMode = ref<"guardar" | "resgatar">("guardar");
 const entryAmount = ref("");
 const entryNote = ref("");
 const entryDate = ref(todayISO());
+const entryAccount = ref("");
 const entrySaving = ref(false);
+const cofrinhoById = ref<Record<string, number>>({});
+
+const moveAccounts = computed(() =>
+  accountsStore.items.filter(
+    (account) =>
+      account.type !== "cartao_credito" && account.id !== entryGoal.value?.cofrinho_account,
+  ),
+);
 
 const progressById = computed(() => {
   const map = new Map<string, ReturnType<typeof goalProgress>>();
@@ -110,7 +121,16 @@ function openEntry(goal: LocalGoal, mode: "guardar" | "resgatar"): void {
   entryAmount.value = "";
   entryNote.value = "";
   entryDate.value = todayISO();
+  entryAccount.value = "";
   entryOpen.value = true;
+}
+
+async function refreshCofrinhos(): Promise<void> {
+  const result: Record<string, number> = {};
+  for (const goal of goals.items) {
+    result[goal.id] = await goals.cofrinhoBalance(goal);
+  }
+  cofrinhoById.value = result;
 }
 
 async function submitEntry(): Promise<void> {
@@ -123,9 +143,26 @@ async function submitEntry(): Promise<void> {
   entrySaving.value = true;
   try {
     const signed = entryMode.value === "guardar" ? cents : -cents;
-    await goals.addEntry(goal.id, signed, entryNote.value.trim(), entryDate.value);
-    toast.success(entryMode.value === "guardar" ? "Valor guardado na meta." : "Resgate registrado.");
+    await goals.addEntry(
+      goal.id,
+      signed,
+      entryNote.value.trim(),
+      entryDate.value,
+      entryAccount.value || null,
+    );
+    const moved = Boolean(entryAccount.value);
+    toast.success(
+      entryMode.value === "guardar"
+        ? moved
+          ? "Valor guardado na meta (saiu da conta)."
+          : "Valor guardado na meta."
+        : moved
+          ? "Resgate registrado (foi para a conta)."
+          : "Resgate registrado.",
+    );
     entryOpen.value = false;
+    await accountsStore.load();
+    await refreshCofrinhos();
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Falha ao registrar.");
   } finally {
@@ -134,12 +171,17 @@ async function submitEntry(): Promise<void> {
 }
 
 async function remove(goal: LocalGoal): Promise<void> {
-  await goals.remove(goal.id);
-  toast.info("Meta removida.");
+  try {
+    await goals.remove(goal.id);
+    toast.info("Meta removida.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao remover.");
+  }
 }
 
 async function loadAll(): Promise<void> {
-  await Promise.all([goals.load(), people.load()]);
+  await Promise.all([goals.load(), people.load(), accountsStore.load()]);
+  await refreshCofrinhos();
 }
 
 onMounted(loadAll);
@@ -224,6 +266,12 @@ watch(() => sync.dataVersion, loadAll);
                 faltam {{ formatBRL(progressById.get(goal.id)?.remainingCents ?? 0) }}
               </span>
             </div>
+            <p
+              v-if="goal.cofrinho_account && cofrinhoById[goal.id]"
+              class="mt-1 text-xs font-semibold text-muted-foreground"
+            >
+              no cofrinho: {{ formatBRL(cofrinhoById[goal.id] ?? 0) }}
+            </p>
           </div>
 
           <div class="flex flex-wrap gap-2">
@@ -313,6 +361,24 @@ watch(() => sync.dataVersion, loadAll);
         <div class="space-y-2">
           <Label for="entry-date">Data</Label>
           <Input id="entry-date" v-model="entryDate" type="date" />
+        </div>
+        <div class="space-y-2">
+          <Label for="entry-account">
+            {{
+              entryMode === "guardar"
+                ? "De qual conta sai (opcional)"
+                : "Para qual conta vai (opcional)"
+            }}
+          </Label>
+          <Select id="entry-account" v-model="entryAccount">
+            <option value="">Não mover agora (só organizar)</option>
+            <option v-for="account in moveAccounts" :key="account.id" :value="account.id">
+              {{ account.name }}
+            </option>
+          </Select>
+          <p class="text-xs text-muted-foreground">
+            Ao mover, o valor sai/entra da conta escolhida e fica guardado no cofrinho da meta.
+          </p>
         </div>
         <div class="space-y-2">
           <Label for="entry-note">Observação (opcional)</Label>

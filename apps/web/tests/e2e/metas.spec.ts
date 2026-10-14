@@ -36,4 +36,33 @@ test.describe("metas", () => {
     // Persiste no servidor (sync da nova entidade "goals").
     await expect(page.getByText("Sincronizado")).toBeVisible({ timeout: 20_000 });
   });
+
+  test("guardar e resgatar movendo de uma conta (cofrinho)", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const name = `Reserva ${stamp}`;
+
+    await page.goto("/goals");
+    await page.getByRole("button", { name: /^Nova$/ }).click();
+    await page.locator("#goal-name").fill(name);
+    await page.locator("#goal-target").fill("500,00");
+    await page.getByRole("button", { name: "Salvar" }).click();
+
+    const card = page.getByTestId("goal").filter({ hasText: name });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    await card.getByTestId("goal-save").click();
+    await page.locator("#entry-amount").fill("200,00");
+    await page.locator("#entry-account").selectOption({ label: "Conta Principal" });
+    const saveForm = page.locator("form", { has: page.locator("#entry-amount") });
+    await saveForm.getByRole("button", { name: "Guardar" }).click();
+    await expect(card).toContainText("no cofrinho: R$ 200,00", { timeout: 15_000 });
+
+    await card.getByRole("button", { name: "Resgatar" }).click();
+    await page.locator("#entry-amount").fill("50,00");
+    await page.locator("#entry-account").selectOption({ label: "Conta Principal" });
+    const withdrawForm = page.locator("form", { has: page.locator("#entry-amount") });
+    await withdrawForm.getByRole("button", { name: "Resgatar" }).click();
+    await expect(card).toContainText("no cofrinho: R$ 150,00", { timeout: 15_000 });
+  });
 });

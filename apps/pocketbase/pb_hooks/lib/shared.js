@@ -4617,7 +4617,11 @@ var goalEntrySchema = external_exports.object({
   /** Positivo = guardou; negativo = resgatou. */
   amount_cents: cents,
   date: isoDate,
-  note: external_exports.string().max(200).default("")
+  note: external_exports.string().max(200).default(""),
+  /** Conta de origem (guardar) ou destino (resgatar), quando o dinheiro se move. */
+  account: external_exports.string().nullable().optional(),
+  /** Transferência criada para o movimento, quando houver. */
+  transfer: external_exports.string().nullable().optional()
 });
 var goalSchema = syncBaseSchema.extend({
   name: external_exports.string().min(1).max(80),
@@ -4627,6 +4631,8 @@ var goalSchema = syncBaseSchema.extend({
   icon: external_exports.string().nullable().optional(),
   owner: attributionSchema.default("indefinido"),
   active: external_exports.boolean().default(true),
+  /** Conta interna ("cofrinho") usada quando o dinheiro é movimentado. */
+  cofrinho_account: external_exports.string().nullable().optional(),
   entries: external_exports.array(goalEntrySchema).max(500).default([])
 });
 
