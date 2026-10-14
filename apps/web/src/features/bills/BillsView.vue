@@ -15,7 +15,7 @@ import { usePeopleStore } from "@/stores/people";
 import { useCardsStore } from "@/stores/cards";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput, formatBRL } from "@/lib/format-input";
-import { formatCentsToInput, formatDate } from "@/lib/format";
+import { formatCentsToInput, formatDate, formatDateShort } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -685,7 +685,7 @@ watch(() => sync.dataVersion, async () => {
                   </span>
                 </div>
                 <p class="truncate text-xs text-muted-foreground">
-                  emite {{ formatDate(item.emission) }} · vence {{ formatDate(item.due) }}
+                  emite {{ formatDateShort(item.emission) }} · vence {{ formatDateShort(item.due) }}
                 </p>
               </div>
               <div class="shrink-0 text-right">
@@ -737,9 +737,9 @@ watch(() => sync.dataVersion, async () => {
               size="md"
             />
             <button class="min-w-0 flex-1 text-left" @click="openEdit(bill)">
-              <p class="truncate font-bold">{{ bill.title }}</p>
+              <p class="line-clamp-2 break-words font-bold">{{ bill.title }}</p>
               <p class="truncate text-xs font-semibold text-muted-foreground">
-                vence {{ formatDate(bill.due_date) }}
+                vence {{ formatDateShort(bill.due_date) }}
               </p>
             </button>
             <span class="font-display font-bold">{{ formatBRL(bill.amount_cents) }}</span>

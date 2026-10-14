@@ -11,7 +11,7 @@ import { useSessionStore } from "@/stores/session";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDateShort } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -162,8 +162,8 @@ watch(() => sync.dataVersion, loadAll);
             />
             <div class="min-w-0 flex-1">
               <p class="truncate font-bold">{{ tx.description || "Lançamento" }}</p>
-              <p class="truncate text-xs font-semibold text-muted-foreground">
-                {{ formatDate(tx.date) }}
+              <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
+                {{ formatDateShort(tx.date) }}
                 <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
                 <template v-if="categoryById.get(tx.category ?? '')">
                   · {{ categoryById.get(tx.category ?? '')?.name }}</template

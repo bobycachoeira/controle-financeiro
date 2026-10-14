@@ -14,6 +14,13 @@ export function formatDate(iso: string): string {
   return `${day}/${month}/${year}`;
 }
 
+/** Data compacta para listas: dd/mm no ano corrente, senão dd/mm/aaaa. */
+export function formatDateShort(iso: string, now = new Date()): string {
+  if (!iso) return "";
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  return year === String(now.getFullYear()) ? `${day}/${month}` : `${day}/${month}/${year}`;
+}
+
 export function formatMonth(monthISO: string): string {
   const [year, month] = monthISO.split("-");
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
