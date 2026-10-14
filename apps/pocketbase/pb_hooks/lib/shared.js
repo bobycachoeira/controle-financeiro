@@ -77,6 +77,7 @@ __export(src_exports, {
   accountTypeSchema: () => accountTypeSchema,
   addDays: () => addDays,
   addMonths: () => addMonths,
+  applyInvoicePayment: () => applyInvoicePayment,
   attributionLabel: () => attributionLabel,
   attributionOptions: () => attributionOptions,
   attributionSchema: () => attributionSchema,
@@ -4976,6 +4977,16 @@ function resolveInvoiceStatus(input) {
   if (input.dueDate < input.today) return "vencida";
   if (input.closedAt || input.today >= input.closingDate) return "fechada";
   return "aberta";
+}
+function applyInvoicePayment(invoice, cents2, paidAtISO) {
+  var _a, _b;
+  const paid = ((_a = invoice.paid_cents) != null ? _a : 0) + cents2;
+  const fullyPaid = paid >= invoice.total_cents;
+  return {
+    paid_cents: paid,
+    status: fullyPaid ? "paga" : invoice.status,
+    paid_at: fullyPaid ? invoice.paid_at || paidAtISO : (_b = invoice.paid_at) != null ? _b : null
+  };
 }
 
 // src/domain/installments.ts

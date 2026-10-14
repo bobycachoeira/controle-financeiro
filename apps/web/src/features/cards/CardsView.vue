@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { Banknote, Check, ChevronDown, ChevronUp, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-next";
-import { todayISO } from "@cf/shared";
+import { applyInvoicePayment, todayISO } from "@cf/shared";
 import { updateLocal } from "@/db/repositories";
 import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
@@ -147,7 +147,8 @@ function openPay(card: LocalCreditCard, invoice: LocalInvoice): void {
   payingCard.value = card;
   payingInvoice.value = invoice;
   payAccount.value = card.payment_account ?? "";
-  payAmount.value = invoice.total_cents > 0 ? formatCentsToInput(invoice.total_cents) : "";
+  const remaining = Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0));
+  payAmount.value = remaining > 0 ? formatCentsToInput(remaining) : "";
   payOpen.value = true;
 }
 
@@ -172,15 +173,13 @@ async function confirmPay(): Promise<void> {
       date: todayISO(),
       description: `Pagamento da fatura ${invoice.reference_month}`,
     });
-    await updateLocal("invoices", {
-      ...invoice,
-      total_cents: cents,
-      status: "paga",
-      paid_cents: cents,
-      paid_at: new Date().toISOString(),
-    });
+    // Acumula pagamentos parciais; não sobrescreve o total da fatura.
+    const payment = applyInvoicePayment(invoice, cents, new Date().toISOString());
+    await updateLocal("invoices", { ...invoice, ...payment });
     await cardsStore.load();
-    toast.success("Fatura paga e transferência registrada.");
+    toast.success(
+      payment.status === "paga" ? "Fatura paga e transferência registrada." : "Pagamento parcial registrado.",
+    );
     payOpen.value = false;
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Falha ao pagar a fatura.");
@@ -284,7 +283,16 @@ watch(() => sync.dataVersion, () => cardsStore.load());
                 </p>
               </div>
               <div class="flex items-center gap-2">
-                <span class="font-display font-bold">{{ formatBRL(invoice.total_cents) }}</span>
+                <div class="text-right">
+                  <span class="font-display font-bold">{{ formatBRL(invoice.total_cents) }}</span>
+                  <p
+                    v-if="(invoice.paid_cents ?? 0) > 0 && (invoice.paid_cents ?? 0) < invoice.total_cents"
+                    class="text-[0.62rem] font-semibold text-muted-foreground"
+                  >
+                    pago {{ formatBRL(invoice.paid_cents) }} · falta
+                    {{ formatBRL(invoice.total_cents - invoice.paid_cents) }}
+                  </p>
+                </div>
                 <Badge :variant="statusVariant[invoice.status] ?? 'secondary'">{{ invoice.status }}</Badge>
                 <Button
                   v-if="invoice.status !== 'paga'"
@@ -386,8 +394,11 @@ watch(() => sync.dataVersion, () => cardsStore.load());
             <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               Fatura {{ payingInvoice?.reference_month ?? "" }}
             </p>
-            <p class="text-xs text-muted-foreground">
-              {{ payingInvoice ? `Vence ${formatDate(payingInvoice.due_date)}` : "" }}
+            <p v-if="payingInvoice" class="text-xs text-muted-foreground">
+              Vence {{ formatDate(payingInvoice.due_date) }} · Total {{ formatBRL(payingInvoice.total_cents) }}
+              <template v-if="(payingInvoice.paid_cents ?? 0) > 0">
+                · já pago {{ formatBRL(payingInvoice.paid_cents) }}
+              </template>
             </p>
           </div>
         </div>

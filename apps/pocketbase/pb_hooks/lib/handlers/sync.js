@@ -107,19 +107,17 @@ function payloadMatchesRecord(record, collection, payload) {
 }
 
 /**
- * Pagamento de fatura feito no cliente perde a corrida de timestamp porque o
- * servidor acabou de recalcular a fatura (updated mais novo) ao aplicar as
- * compras. Como o pagamento é uma ação explícita do usuário e o recálculo é
- * derivado, deixamos o cliente vencer quando a fatura ainda não foi paga e o
- * valor pago cobre o total atual.
+ * Pagamento de fatura (total ou parcial) feito no cliente perde a corrida de
+ * timestamp porque o servidor acabou de recalcular a fatura (updated mais novo)
+ * ao aplicar as compras. Como o pagamento é uma ação explícita do usuário e o
+ * recálculo é derivado, deixamos o cliente vencer sempre que houver pagamento
+ * novo (`paid_cents` maior) — o `total_cents` continua sendo do servidor.
  */
 function invoicePaymentWins(entity, record, payload) {
   if (entity !== "invoices" || !payload) return false;
-  if (payload.status !== "paga" || !payload.paid_at) return false;
-  if (record.getString("paid_at")) return false;
-  const recordTotal = record.getInt("total_cents") || 0;
-  const payloadTotal = Number(payload.total_cents) || 0;
-  return payloadTotal >= recordTotal;
+  const payloadPaid = Number(payload.paid_cents) || 0;
+  const recordPaid = record.getInt("paid_cents") || 0;
+  return payloadPaid > recordPaid;
 }
 
 /**
@@ -328,6 +326,12 @@ function applyOperation(household, userId, role, operation) {
       if (entity === "transactions" && record.get("invoice")) {
         invoiceDomain.recalcInvoice($app, record.getString("invoice"));
       }
+      if (entity === "invoices") {
+        // O total da fatura é sempre derivado das transações no servidor;
+        // nunca confiamos no total que veio no payload.
+        invoiceDomain.recalcInvoice($app, record.id);
+        result.record = serialize($app.findRecordById(entity, record.id));
+      }
       if (
         (entity === "bills" || entity === "invoices") &&
         (payload.status === "pago" || payload.status === "cancelado" || payload.status === "paga")
@@ -344,10 +348,11 @@ function applyOperation(household, userId, role, operation) {
         setWhitelistedFields(record, collection, payload);
         record.set("updated_by", userId);
         $app.save(record);
+        invoiceDomain.recalcInvoice($app, record.id);
         result.status = "applied";
         result.code = "payment_applied";
         result.remote_id = record.id;
-        result.record = serialize(record);
+        result.record = serialize($app.findRecordById(entity, record.id));
         discardPendingDeliveries(entity, record.id);
       } else {
         result.status = "conflict";

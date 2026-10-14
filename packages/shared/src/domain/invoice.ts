@@ -49,3 +49,26 @@ export function resolveInvoiceStatus(input: {
   if (input.closedAt || input.today >= input.closingDate) return "fechada";
   return "aberta";
 }
+
+/**
+ * Aplica um pagamento (total ou parcial) à fatura: acumula em `paid_cents`,
+ * mantém o `total_cents` intacto e só marca "paga" quando quitar tudo.
+ */
+export function applyInvoicePayment(
+  invoice: {
+    total_cents: number;
+    paid_cents: number;
+    status: InvoiceStatusValue;
+    paid_at?: string | null;
+  },
+  cents: number,
+  paidAtISO: string,
+): { paid_cents: number; status: InvoiceStatusValue; paid_at: string | null } {
+  const paid = (invoice.paid_cents ?? 0) + cents;
+  const fullyPaid = paid >= invoice.total_cents;
+  return {
+    paid_cents: paid,
+    status: fullyPaid ? "paga" : invoice.status,
+    paid_at: fullyPaid ? invoice.paid_at || paidAtISO : invoice.paid_at ?? null,
+  };
+}

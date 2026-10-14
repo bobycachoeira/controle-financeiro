@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyInvoicePayment,
   closingDateForMonth,
   dueDateForMonth,
   referenceMonthForPurchase,
@@ -79,5 +80,32 @@ describe("invoice cycle", () => {
         totalCents: 1000,
       }),
     ).toBe("paga");
+  });
+
+  it("accumulates partial payments without touching the total", () => {
+    const invoice = { total_cents: 1000, paid_cents: 0, status: "fechada" as const, paid_at: null };
+    const first = applyInvoicePayment(invoice, 300, "2024-03-20T10:00:00.000Z");
+    expect(first).toEqual({ paid_cents: 300, status: "fechada", paid_at: null });
+
+    const second = applyInvoicePayment(
+      { ...invoice, ...first },
+      400,
+      "2024-03-21T10:00:00.000Z",
+    );
+    expect(second).toEqual({ paid_cents: 700, status: "fechada", paid_at: null });
+
+    const third = applyInvoicePayment({ ...invoice, ...second }, 300, "2024-03-22T10:00:00.000Z");
+    expect(third.paid_cents).toBe(1000);
+    expect(third.status).toBe("paga");
+    expect(third.paid_at).toBe("2024-03-22T10:00:00.000Z");
+  });
+
+  it("marks a zero-total invoice as paid with any payment", () => {
+    const result = applyInvoicePayment(
+      { total_cents: 0, paid_cents: 0, status: "vencida", paid_at: null },
+      1,
+      "2024-03-22T10:00:00.000Z",
+    );
+    expect(result.status).toBe("paga");
   });
 });
