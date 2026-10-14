@@ -20,23 +20,16 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 
 ## Fases (cada marco = 1+ commits próprios)
 
-### Fase A — Melhorias no que já existe
-- [ ] A1. “A pagar 30 dias” não duplica faturas: compras do cartão (vínculo
-      `invoice`) saem do “a pagar”; só a fatura representa o compromisso.
-- [ ] A2. Esconder contas internas de cartão (`type = cartao_credito`) das
-      listas de contas e de “Saldos por conta”.
-- [ ] A3. Corrigir truncamentos de título/vencimento no mobile (Contas e
-      Lançamentos).
-- [ ] A4. Cartão mostra “fecha dia X · vence dia Y” em vez de “•••• X/Y”.
-- [ ] A5. Editar compra no cartão: permitir trocar o cartão (realoca a
-      fatura) além de valor/descrição/categoria; parcelas em fase futura.
-- [ ] A6. “Gastos do mês” passa a incluir atribuições sem pessoa vinculada
-      (Indefinido/legado).
-- [ ] A7. Conflitos de sincronização persistem entre sessões e ganham texto
-      simples para leigos.
-- [ ] A8. Orçamento com histórico mensal do uso (limite × gasto por mês).
-- [ ] A9. Pagamento de fatura parcial: acumula `paid_cents`, não sobrescreve
-      `total_cents`, e só marca “paga” ao quitar.
+### Fase A — Melhorias no que já existe ✅ (concluída)
+- [x] A1. “A pagar 30 dias” não duplica faturas — `14ae06d`.
+- [x] A2. Esconder contas internas de cartão — `6211bd4`.
+- [x] A3. Menos truncamento de título/datas no mobile — `01ab880`.
+- [x] A4. Cartão com “fecha dia X · vence dia Y” — `75a0ece`.
+- [x] A5. Trocar o cartão de uma compra (move a fatura) — `9926d80`.
+- [x] A6. “Gastos do mês” com Indefinido e legado — `6211bd4`.
+- [x] A7. Conflitos persistidos + linguagem simples — `533b8fd`.
+- [x] A8. Histórico mensal de orçamento — `d45b30e`.
+- [x] A9. Pagamento parcial de fatura — `6be47bc`.
 
 ### Fase B — Modo do casal (configurável)
 - [ ] B1. Config `split_mode` nas configurações da família (`junto` padrão ×
