@@ -41,12 +41,9 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       tela) — `b1f5fbe`.
 
 ### Fase C — Busca, filtros e organização ✅ (concluída)
-- [x] C1. Busca por texto + filtros de categoria e tipo — `0fd3ecd`(a).
-- [x] C2. Etiquetas na UI (formulário, filtro e destaque na lista) — `0fd3ecd`(a).
-- [x] C3. Anexo de foto (cupom) comprimido, offline-first — `147ec26`(b).
-
-> (a)/(b): commits “feat(lancamentos): busca, filtros…” e “feat(lancamentos):
-> anexar foto…” logo após a Fase B.
+- [x] C1. Busca por texto + filtros de categoria e tipo — `8c84cbd`.
+- [x] C2. Etiquetas na UI (formulário, filtro e destaque na lista) — `8c84cbd`.
+- [x] C3. Anexo de foto (cupom) comprimido, offline-first — `9d05797`.
 
 ### Fase D — Metas e orçamento proativo
 - [ ] D1. Metas/caixinhas compartilhadas (objetivo, aportes, progresso).
