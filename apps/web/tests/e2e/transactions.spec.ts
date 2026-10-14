@@ -15,4 +15,61 @@ test.describe("lançamentos", () => {
       timeout: 15_000,
     });
   });
+
+  test("cria despesa com etiquetas, busca e filtra por etiqueta", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const description = `Tag E2E ${stamp}`;
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("10,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#tags").fill("viagem, trabalho");
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator("li", { hasText: description });
+    await expect(row).toContainText("#viagem");
+    await expect(row).toContainText("#trabalho");
+
+    await page.locator("#filter-query").fill(String(stamp));
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+    await page.locator("#filter-query").fill("");
+
+    await page.locator("#filter-tag").selectOption({ label: "viagem" });
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("anexa comprovante (foto) no lançamento", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const description = `Cupom E2E ${stamp}`;
+    const png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGN4Eq4HRwzEcQBWUhaRV1WeswAAAABJRU5ErkJggg==";
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("9,90");
+    await page.locator("#description").fill(description);
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.locator("#photo").setInputFiles({
+      name: "cupom.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+    await expect(page.getByText(/Foto anexada/)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator("li", { hasText: description });
+    await expect(row.getByTestId("tx-photo")).toBeVisible();
+    await row.getByTestId("tx-photo").click();
+    await expect(page.getByText("Comprovante")).toBeVisible({ timeout: 10_000 });
+  });
 });

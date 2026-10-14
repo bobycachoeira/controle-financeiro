@@ -17,8 +17,12 @@ export interface TransactionFilters {
   category?: string;
   attribution?: string;
   status?: TransactionStatus;
+  type?: TransactionType;
   creditCard?: string;
   reconciled?: "all" | "yes" | "no";
+  tag?: string;
+  /** Busca livre por descrição, observação e etiquetas. */
+  query?: string;
 }
 
 export interface TransactionInput {
@@ -31,6 +35,8 @@ export interface TransactionInput {
   category?: string | null;
   description?: string;
   status: TransactionStatus;
+  tags?: string[];
+  attachment?: string | null;
   note?: string;
   origin?: "manual" | "import" | "recurrence";
   external_ref?: string | null;
@@ -60,9 +66,20 @@ export const useTransactionsStore = defineStore("transactions", () => {
         if (filters.category && tx.category !== filters.category) return false;
         if (filters.attribution && tx.attribution !== filters.attribution) return false;
         if (filters.status && tx.status !== filters.status) return false;
+        if (filters.type && tx.type !== filters.type) return false;
         if (filters.creditCard && tx.credit_card !== filters.creditCard) return false;
+        if (filters.tag && !(tx.tags ?? []).includes(filters.tag)) return false;
         if (filters.reconciled === "yes" && !tx.external_ref) return false;
         if (filters.reconciled === "no" && tx.external_ref) return false;
+        if (filters.query) {
+          const query = filters.query.trim().toLowerCase();
+          if (query) {
+            const haystack = [tx.description, tx.note, ...(tx.tags ?? [])]
+              .join(" ")
+              .toLowerCase();
+            if (!haystack.includes(query)) return false;
+          }
+        }
         return true;
       });
       items.value.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -93,8 +110,8 @@ export const useTransactionsStore = defineStore("transactions", () => {
       installment: null,
       invoice: null,
       transfer: null,
-      attachment: null,
-      tags: [],
+      attachment: input.attachment ?? null,
+      tags: input.tags ?? [],
       note: input.note ?? "",
       origin: input.origin ?? "manual",
       external_ref: input.external_ref ?? null,

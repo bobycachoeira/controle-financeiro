@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import type { TransactionStatus } from "@cf/shared";
+import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { todayISO } from "@cf/shared";
-import { Pencil, Plus, Receipt, Trash2 } from "lucide-vue-next";
+import { Pencil, Plus, Receipt, Search, Trash2, X } from "lucide-vue-next";
 import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
@@ -19,6 +19,7 @@ import Badge from "@/components/ui/Badge.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import Modal from "@/components/ui/Modal.vue";
 import IconChip from "@/components/ui/IconChip.vue";
 
 const transactionsStore = useTransactionsStore();
@@ -33,16 +34,50 @@ const account = ref("");
 const attribution = ref("");
 const status = ref<"" | TransactionStatus>("");
 const reconciled = ref<"all" | "yes" | "no">("all");
+const category = ref("");
+const type = ref<"" | TransactionType>("");
+const tag = ref("");
+const query = ref("");
+const viewingPhoto = ref<string | null>(null);
 const categories = ref<LocalCategory[]>([]);
+const allTags = ref<string[]>([]);
 
 const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item])));
 const categoryById = computed(() => new Map(categories.value.map((item) => [item.id, item])));
 
-async function loadCategories(): Promise<void> {
+const hasFilters = computed(
+  () =>
+    Boolean(query.value || category.value || type.value || tag.value) ||
+    attribution.value !== "" ||
+    status.value !== "" ||
+    reconciled.value !== "all",
+);
+
+function clearFilters(): void {
+  query.value = "";
+  category.value = "";
+  type.value = "";
+  tag.value = "";
+  attribution.value = "";
+  status.value = "";
+  reconciled.value = "all";
+}
+
+async function loadFiltersData(): Promise<void> {
   if (!session.currentHouseholdId) return;
   categories.value = (
     await db.categories.where("household").equals(session.currentHouseholdId).toArray()
-  ).filter((category) => !category.deleted_at);
+  ).filter((item) => !item.deleted_at);
+  const transactions = await db.transactions
+    .where("household")
+    .equals(session.currentHouseholdId)
+    .toArray();
+  const tags = new Set<string>();
+  for (const tx of transactions) {
+    if (tx.deleted_at) continue;
+    for (const item of tx.tags ?? []) tags.add(item);
+  }
+  allTags.value = [...tags].sort((a, b) => a.localeCompare(b));
 }
 
 async function reload(): Promise<void> {
@@ -51,12 +86,16 @@ async function reload(): Promise<void> {
     account: account.value || undefined,
     attribution: attribution.value || undefined,
     status: status.value || undefined,
+    category: category.value || undefined,
+    type: type.value || undefined,
+    tag: tag.value || undefined,
+    query: query.value || undefined,
     reconciled: reconciled.value === "all" ? undefined : reconciled.value,
   });
 }
 
 async function loadAll(): Promise<void> {
-  await Promise.all([accountsStore.load(), loadCategories(), people.load(), reload()]);
+  await Promise.all([accountsStore.load(), loadFiltersData(), people.load(), reload()]);
 }
 
 async function removeTransaction(id: string): Promise<void> {
@@ -81,7 +120,7 @@ function amountLabel(tx: LocalTransaction): string {
 }
 
 onMounted(loadAll);
-watch([month, account, attribution, status, reconciled], reload);
+watch([month, account, attribution, status, reconciled, category, type, tag, query], reload);
 watch(() => sync.dataVersion, loadAll);
 </script>
 
@@ -98,45 +137,91 @@ watch(() => sync.dataVersion, loadAll);
     </div>
 
     <Card>
-      <CardContent class="grid grid-cols-2 gap-3 p-4">
-        <div class="space-y-1">
-          <Label for="filter-month">Mês</Label>
-          <Input id="filter-month" v-model="month" type="month" />
+      <CardContent class="space-y-3 p-4">
+        <div class="relative">
+          <Search
+            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            id="filter-query"
+            v-model="query"
+            class="pl-9"
+            placeholder="Buscar por descrição, nota ou etiqueta…"
+          />
         </div>
-        <div class="space-y-1">
-          <Label for="filter-account">Conta</Label>
-          <Select id="filter-account" v-model="account">
-            <option value="">Todas</option>
-            <option v-for="item in accountsStore.items" :key="item.id" :value="item.id">
-              {{ item.name }}
-            </option>
-          </Select>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <Label for="filter-month">Mês</Label>
+            <Input id="filter-month" v-model="month" type="month" />
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-type">Tipo</Label>
+            <Select id="filter-type" v-model="type">
+              <option value="">Todos</option>
+              <option value="despesa">Despesas</option>
+              <option value="receita">Receitas</option>
+              <option value="transferencia">Transferências</option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-account">Conta</Label>
+            <Select id="filter-account" v-model="account">
+              <option value="">Todas</option>
+              <option v-for="item in accountsStore.items" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-category">Categoria</Label>
+            <Select id="filter-category" v-model="category">
+              <option value="">Todas</option>
+              <option v-for="item in categories" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-attribution">Atribuição</Label>
+            <Select id="filter-attribution" v-model="attribution">
+              <option value="">Todas</option>
+              <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-status">Status</Label>
+            <Select id="filter-status" v-model="status">
+              <option value="">Todos</option>
+              <option value="pago">Pago</option>
+              <option value="a_pagar">A pagar</option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-reconciled">Conciliação</Label>
+            <Select id="filter-reconciled" v-model="reconciled">
+              <option value="all">Todos</option>
+              <option value="yes">Conciliados</option>
+              <option value="no">Não conciliados</option>
+            </Select>
+          </div>
+          <div v-if="allTags.length > 0" class="space-y-1">
+            <Label for="filter-tag">Etiqueta</Label>
+            <Select id="filter-tag" v-model="tag">
+              <option value="">Todas</option>
+              <option v-for="item in allTags" :key="item" :value="item">{{ item }}</option>
+            </Select>
+          </div>
         </div>
-        <div class="space-y-1">
-          <Label for="filter-attribution">Atribuição</Label>
-          <Select id="filter-attribution" v-model="attribution">
-            <option value="">Todas</option>
-            <option v-for="option in people.selectable" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </Select>
-        </div>
-        <div class="space-y-1">
-          <Label for="filter-status">Status</Label>
-          <Select id="filter-status" v-model="status">
-            <option value="">Todos</option>
-            <option value="pago">Pago</option>
-            <option value="a_pagar">A pagar</option>
-          </Select>
-        </div>
-        <div class="space-y-1">
-          <Label for="filter-reconciled">Conciliação</Label>
-          <Select id="filter-reconciled" v-model="reconciled">
-            <option value="all">Todos</option>
-            <option value="yes">Conciliados</option>
-            <option value="no">Não conciliados</option>
-          </Select>
-        </div>
+        <button
+          v-if="hasFilters"
+          type="button"
+          class="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground transition hover:text-primary"
+          @click="clearFilters"
+        >
+          <X class="h-3.5 w-3.5" /> Limpar filtros
+        </button>
       </CardContent>
     </Card>
 
@@ -160,6 +245,16 @@ watch(() => sync.dataVersion, loadAll);
               :color="categoryById.get(tx.category ?? '')?.color"
               :seed="tx.category ?? tx.type"
             />
+            <button
+              v-if="tx.attachment"
+              type="button"
+              data-testid="tx-photo"
+              class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border"
+              aria-label="Ver comprovante"
+              @click="viewingPhoto = tx.attachment ?? null"
+            >
+              <img :src="tx.attachment" alt="" class="h-full w-full object-cover" />
+            </button>
             <div class="min-w-0 flex-1">
               <p class="truncate font-bold">{{ tx.description || "Lançamento" }}</p>
               <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
@@ -172,6 +267,15 @@ watch(() => sync.dataVersion, loadAll);
                   · {{ attributionLabel(tx.attribution) }}</template
                 >
               </p>
+              <div v-if="(tx.tags ?? []).length > 0" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="item in tx.tags.slice(0, 3)"
+                  :key="item"
+                  class="rounded-full bg-muted px-2 py-0.5 text-[0.58rem] font-bold text-muted-foreground"
+                >
+                  #{{ item }}
+                </span>
+              </div>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span
@@ -203,5 +307,18 @@ watch(() => sync.dataVersion, loadAll);
         </ul>
       </CardContent>
     </Card>
+
+    <Modal
+      :model-value="Boolean(viewingPhoto)"
+      title="Comprovante"
+      @update:model-value="viewingPhoto = null"
+    >
+      <img
+        v-if="viewingPhoto"
+        :src="viewingPhoto"
+        alt="Comprovante"
+        class="max-h-[70vh] w-full rounded-2xl object-contain"
+      />
+    </Modal>
   </div>
 </template>

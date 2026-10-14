@@ -11,6 +11,7 @@ import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { parseAmountInput } from "@/lib/format-input";
+import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL, formatCentsToInput } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
@@ -39,8 +40,35 @@ const creditCard = ref("");
 const attribution = ref("indefinido");
 const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
+const tagsInput = ref("");
+const attachment = ref<string | null>(null);
+const attachmentBusy = ref(false);
+const photoInput = ref<HTMLInputElement | null>(null);
 const installments = ref(1);
 const saving = ref(false);
+
+function parseTags(): string[] {
+  const list = tagsInput.value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  return [...new Set(list)].slice(0, 8);
+}
+
+async function onPhotoChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  attachmentBusy.value = true;
+  try {
+    attachment.value = await compressImageFile(file);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao processar a foto.");
+  } finally {
+    attachmentBusy.value = false;
+  }
+}
 
 const isCard = computed(() => creditCard.value !== "");
 const card = computed(() => cardsStore.cards.find((item) => item.id === creditCard.value));
@@ -82,6 +110,8 @@ async function submit(): Promise<void> {
           category: category.value || null,
           description: description.value,
           status: status.value,
+          tags: parseTags(),
+          attachment: attachment.value,
           credit_card: creditCard.value,
         });
       } else {
@@ -94,6 +124,8 @@ async function submit(): Promise<void> {
           category: category.value || null,
           description: description.value,
           status: status.value,
+          tags: parseTags(),
+          attachment: attachment.value,
         });
       }
       toast.success("Lançamento atualizado.");
@@ -107,6 +139,8 @@ async function submit(): Promise<void> {
         category: category.value || null,
         description: description.value,
         status: "a_pagar",
+        tags: parseTags(),
+        attachment: attachment.value,
         installments: installments.value,
         closing_day: card.value.closing_day,
         due_day: card.value.due_day,
@@ -123,6 +157,8 @@ async function submit(): Promise<void> {
         category: category.value || null,
         description: description.value,
         status: status.value,
+        tags: parseTags(),
+        attachment: attachment.value,
       });
       toast.success("Lançamento salvo.");
     }
@@ -149,6 +185,8 @@ onMounted(async () => {
       attribution.value = tx.attribution;
       status.value = tx.status;
       category.value = tx.category ?? "";
+      tagsInput.value = (tx.tags ?? []).join(", ");
+      attachment.value = tx.attachment ?? null;
     }
   }
 });
@@ -226,6 +264,47 @@ watch(
         <div class="space-y-2">
           <Label for="description">Descrição</Label>
           <Input id="description" v-model="description" maxlength="200" placeholder="Ex.: Mercado da semana" />
+        </div>
+
+        <div class="space-y-2">
+          <Label for="tags">Etiquetas (opcional)</Label>
+          <Input
+            id="tags"
+            v-model="tagsInput"
+            placeholder="Ex.: viagem, trabalho (separadas por vírgula)"
+          />
+        </div>
+
+        <div class="space-y-2">
+          <Label for="photo">Comprovante (foto, opcional)</Label>
+          <input
+            id="photo"
+            ref="photoInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="hidden"
+            @change="onPhotoChange"
+          />
+          <div v-if="!attachment" class="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              :loading="attachmentBusy"
+              @click="photoInput?.click()"
+            >
+              Anexar foto
+            </Button>
+            <span class="text-xs text-muted-foreground">A imagem é comprimida antes de salvar.</span>
+          </div>
+          <div v-else class="flex items-center gap-3 rounded-2xl border-2 border-border p-2">
+            <img :src="attachment" alt="Comprovante" class="h-16 w-16 rounded-xl object-cover" />
+            <p class="min-w-0 flex-1 text-xs text-muted-foreground">
+              Foto anexada · {{ dataUrlSizeLabel(attachment) }}
+            </p>
+            <Button variant="ghost" size="sm" type="button" @click="attachment = null">Remover</Button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
