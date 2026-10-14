@@ -65,6 +65,29 @@ export function buildImmediatePayload(input: ImmediatePayloadInput): string {
   });
 }
 
+/** Payload do alerta de orçamento (70/90/100% do limite). */
+export function buildBudgetAlertPayload(input: {
+  name: string;
+  threshold: number;
+  spentCents: number;
+  totalCents: number;
+  budgetId: string;
+}): string {
+  const spent = (input.spentCents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+  const total = (input.totalCents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+  return JSON.stringify({
+    title: `${input.name}: ${input.threshold}% do orçamento`,
+    body: `Usou ${spent} de ${total}`,
+    data: { entity: "budgets", entityId: input.budgetId, kind: "orcamento" },
+  });
+}
+
 export async function sendReminder(
   job: ReminderJob,
   targets: PushTarget[],

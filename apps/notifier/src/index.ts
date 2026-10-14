@@ -1,17 +1,25 @@
 import cron from "node-cron";
 import webpush from "web-push";
-import { notificationPreferencesSchema } from "@cf/shared";
+import { budgetPeriodRange, computeBudgetUsage, notificationPreferencesSchema } from "@cf/shared";
 import { hasVapid, loadConfig } from "./config.js";
 import { PocketBaseClient } from "./pocketbase.js";
+import { budgetAlertKey, highestBudgetThreshold } from "./budget.js";
 import {
   buildReminderJobs,
+  resolveSendWindow,
   type BillItem,
   type ExistingDelivery,
   type InvoiceItem,
   type PreferenceEntry,
   type ReminderJob,
 } from "./schedule.js";
-import { buildImmediatePayload, sendReminder, type DeliveryStore, type PushTarget } from "./sender.js";
+import {
+  buildBudgetAlertPayload,
+  buildImmediatePayload,
+  sendReminder,
+  type DeliveryStore,
+  type PushTarget,
+} from "./sender.js";
 
 interface PrefRecord {
   id: string;
@@ -41,6 +49,28 @@ interface BillRecord {
   type: "fixa" | "variavel";
   periodicity: string;
   status: string;
+  category?: string | null;
+}
+
+interface BudgetRecord {
+  id: string;
+  household: string;
+  name: string;
+  period: "mensal" | "trimestral" | "anual";
+  reference_month: string;
+  total_cents: number;
+  alert_pct: number;
+  categories: Array<{ category: string; limit_cents?: number }>;
+}
+
+interface TransactionRecord {
+  id: string;
+  household: string;
+  type: "receita" | "despesa" | "transferencia";
+  status: "pago" | "a_pagar";
+  amount_cents: number;
+  category?: string | null;
+  date: string;
 }
 
 interface InvoiceRecord {
@@ -143,7 +173,13 @@ export class Notifier {
     this.store = makeStore(client);
   }
 
-  async runOnce(): Promise<{ jobs: number; sent: number; failed: number; immediate: number }> {
+  async runOnce(): Promise<{
+    jobs: number;
+    sent: number;
+    failed: number;
+    immediate: number;
+    budgetAlerts: number;
+  }> {
     const { date, time } = nowInTz(this.timezone);
     const prefRecords = await this.client.listAll<PrefRecord>("notification_preferences");
     const subscriptions = await this.client.listAll<SubRecord>("push_subscriptions");
@@ -154,6 +190,14 @@ export class Notifier {
     const invoices = await this.client.listAll<InvoiceRecord>(
       "invoices",
       '(status="aberta" || status="fechada")',
+    );
+    const budgets = await this.client.listAll<BudgetRecord>(
+      "budgets",
+      'active=true && deleted_at=""',
+    );
+    const transactions = await this.client.listAll<TransactionRecord>(
+      "transactions",
+      'deleted_at=""',
     );
     const existingRecords = await this.client.listAll<DeliveryRecord>(
       "notification_deliveries",
@@ -197,7 +241,98 @@ export class Notifier {
     }
 
     const immediate = await this.processImmediate(targets);
-    return { jobs: jobs.length, sent, failed, immediate };
+    const budgetAlerts = await this.processBudgetAlerts({
+      entries,
+      targets,
+      budgets,
+      transactions,
+      bills,
+      now: { date, time },
+    });
+    return { jobs: jobs.length, sent, failed, immediate, budgetAlerts };
+  }
+
+  /** Alertas de orçamento (70/90/100%): 1 por limiar por período. */
+  private async processBudgetAlerts(input: {
+    entries: PreferenceEntry[];
+    targets: Map<string, PushTarget[]>;
+    budgets: BudgetRecord[];
+    transactions: TransactionRecord[];
+    bills: BillRecord[];
+    now: { date: string; time: string };
+  }): Promise<number> {
+    let sent = 0;
+    for (const entry of input.entries) {
+      if (!entry.pushEnabled || entry.subscriptions <= 0) continue;
+      const window = resolveSendWindow(
+        { date: input.now.date, time: input.now.time },
+        entry.preferences,
+      );
+      if (!window) continue;
+      const list = input.targets.get(entry.userId) ?? [];
+      if (list.length === 0) continue;
+      const householdBudgets = input.budgets.filter(
+        (budget) => budget.household === entry.household,
+      );
+      if (householdBudgets.length === 0) continue;
+      const householdTransactions = input.transactions.filter(
+        (tx) => tx.household === entry.household,
+      );
+      const householdBills = input.bills
+        .filter((bill) => bill.household === entry.household)
+        .map((bill) => ({
+          nature: bill.nature,
+          status: bill.status as "a_confirmar" | "pendente" | "pago" | "cancelado",
+          amount_cents: bill.amount_cents,
+          category: bill.category,
+          due_date: bill.due_date,
+        }));
+
+      for (const budget of householdBudgets) {
+        const range = budgetPeriodRange(budget.period, budget.reference_month);
+        if (input.now.date < range.start || input.now.date > range.end) continue;
+        const usage = computeBudgetUsage(budget, householdTransactions, householdBills);
+        const threshold = highestBudgetThreshold(usage.percent);
+        if (threshold === null) continue;
+        const key = budgetAlertKey(budget.id, threshold, budget.reference_month);
+        const existing = await this.client.listAll<DeliveryRecord>(
+          "notification_deliveries",
+          `user="${entry.userId}" && kind="orcamento" && entity_id="${key}"`,
+        );
+        if (existing.length > 0) continue;
+
+        const created = await this.client.create<{ id: string }>("notification_deliveries", {
+          household: entry.household,
+          user: entry.userId,
+          kind: "orcamento",
+          entity: "budgets",
+          entity_id: key,
+          scheduled_date: new Date().toISOString(),
+          title: budget.name,
+          amount_cents: usage.spentCents,
+          status: "pendente",
+          attempts: 0,
+        });
+        const payload = buildBudgetAlertPayload({
+          name: budget.name,
+          threshold,
+          spentCents: usage.spentCents,
+          totalCents: budget.total_cents,
+          budgetId: budget.id,
+        });
+        try {
+          for (const target of list) await this.push.sendNotification(target, payload);
+          await this.store.markSent(created.id);
+          sent += 1;
+        } catch (error) {
+          await this.store.markFailed(
+            created.id,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+    }
+    return sent;
   }
 
   /** Entrega imediata: notificação de teste e "pedir cobertura" do casal. */
