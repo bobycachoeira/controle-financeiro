@@ -72,3 +72,12 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - Cada item/marco fecha com `lint`, `typecheck` e testes verdes.
 - Commits pequenos e temáticos; deploy local ao fim de cada fase.
 - Ao fim de cada fase, anotar aqui o commit do marco.
+
+## Refinamentos pedidos após o plano
+
+- [x] H1. Metas: guardar/resgatar podem **mover o dinheiro** de/para uma conta
+      (cofrinho interno por meta; resgate obrigatório antes de excluir) — `75433a0`.
+- [x] I1. Investimentos: aporte com **origem opcional** (senão vira ajuste) e
+      ação **Retirar** com destino opcional — `b7a4597`.
+- [x] J1. Calendário: inclui **lançamentos** (inclusive compras do cartão) com
+      filtros de Contas/Faturas/Lançamentos — `bc8a064`.
