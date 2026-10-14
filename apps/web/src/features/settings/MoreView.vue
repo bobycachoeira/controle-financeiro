@@ -32,6 +32,7 @@ const groups: { title: string; links: MoreLink[] }[] = [
       { name: "settle", label: "Acerto do mês" },
       { name: "recurrences", label: "Recorrências" },
       { name: "budgets", label: "Orçamentos" },
+      { name: "goals", label: "Metas" },
       { name: "import", label: "Importar extrato" },
       { name: "currencies", label: "Moedas e cotações" },
       { name: "categories", label: "Categorias" },

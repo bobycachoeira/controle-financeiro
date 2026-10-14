@@ -9,6 +9,7 @@ export * from "./installments";
 export * from "./notifications";
 export * from "./recurrence";
 export * from "./budget";
+export * from "./goals";
 export * from "./settlement";
 export * from "./import";
 export * from "./currency";

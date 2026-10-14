@@ -17,6 +17,7 @@ export const SYNC_ENTITY_NAMES = [
   "bills",
   "recurrences",
   "budgets",
+  "goals",
   "exchange_rates",
 ] as const;
 export type SyncEntityName = (typeof SYNC_ENTITY_NAMES)[number];

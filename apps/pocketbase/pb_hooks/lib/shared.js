@@ -123,6 +123,9 @@ __export(src_exports, {
   formatISOMonth: () => formatISOMonth,
   fromCents: () => fromCents,
   generateInstallments: () => generateInstallments,
+  goalEntrySchema: () => goalEntrySchema,
+  goalProgress: () => goalProgress,
+  goalSchema: () => goalSchema,
   householdMemberSchema: () => householdMemberSchema,
   householdSchema: () => householdSchema,
   installmentSchema: () => installmentSchema,
@@ -248,6 +251,7 @@ var SYNC_ENTITY_NAMES = [
   "bills",
   "recurrences",
   "budgets",
+  "goals",
   "exchange_rates"
 ];
 var STEP_UP_ACTIONS = [
@@ -4606,6 +4610,25 @@ var billSchema = syncBaseSchema.extend({
   confirmed_at: isoDateTime.nullable().optional()
 });
 
+// src/entities/goals.ts
+var goalEntrySchema = external_exports.object({
+  id: external_exports.string().min(1).max(60),
+  /** Positivo = guardou; negativo = resgatou. */
+  amount_cents: cents,
+  date: isoDate,
+  note: external_exports.string().max(200).default("")
+});
+var goalSchema = syncBaseSchema.extend({
+  name: external_exports.string().min(1).max(80),
+  target_cents: cents.positive(),
+  deadline: isoDate.nullable().optional(),
+  color: external_exports.string().nullable().optional(),
+  icon: external_exports.string().nullable().optional(),
+  owner: attributionSchema.default("indefinido"),
+  active: external_exports.boolean().default(true),
+  entries: external_exports.array(goalEntrySchema).max(500).default([])
+});
+
 // src/entities/recurrences.ts
 var RECURRENCE_TARGETS = ["transaction", "bill"];
 var BUDGET_PERIODS = ["mensal", "trimestral", "anual"];
@@ -5269,6 +5292,19 @@ function projectBudgetSpending(input) {
     projectedCents,
     projectedPercent,
     onTrack: projectedCents <= input.totalCents
+  };
+}
+
+// src/domain/goals.ts
+function goalProgress(targetCents, entries) {
+  const savedCents = entries.reduce((sum, entry) => sum + entry.amount_cents, 0);
+  const remainingCents = Math.max(0, targetCents - savedCents);
+  const percent = targetCents > 0 ? Math.min(100, Math.max(0, Math.round(savedCents / targetCents * 100))) : 0;
+  return {
+    savedCents,
+    remainingCents,
+    percent,
+    completed: savedCents >= targetCents
   };
 }
 
