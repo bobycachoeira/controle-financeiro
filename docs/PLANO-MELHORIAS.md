@@ -56,11 +56,12 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - [x] E2. Calendário financeiro (contas, faturas e navegação por dia) — `7bf508b`.
 - [x] E3. Exportar lançamentos (CSV) e backup completo (JSON) — `9334f35`.
 
-### Fase F — Import e conveniência
-- [ ] F1. Regras de categorização por descrição no import.
-- [ ] F2. Atalhos PWA (novo lançamento direto).
-- [ ] F3. Onboarding com dados de exemplo.
-- [ ] F4. Ações na notificação (abrir item; marcar como paga).
+### Fase F — Import e conveniência ✅ (concluída)
+- [x] F1. Regras de categorização por descrição no import — regras no commit
+      “feat(import): regras por descricao…”.
+- [x] F2. Atalhos PWA (novo lançamento, lançamentos e calendário) — `ec01d5b`.
+- [x] F3. Onboarding com dados de exemplo no painel — “feat(onboarding)…”.
+- [x] F4. Tocar na notificação abre a tela do item — `4c421e3`.
 
 ### Fase G — Investimentos
 - [ ] G1. Contas de investimento por pessoa: aportes, rendimentos e evolução.
