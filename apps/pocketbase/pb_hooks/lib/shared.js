@@ -4837,7 +4837,7 @@ function totalNetForAttribution(transactions, attribution) {
   return net;
 }
 function totalToPay(transactions) {
-  return transactions.filter((tx) => isActive(tx) && tx.type === "despesa" && tx.status === "a_pagar").reduce((total, tx) => total + tx.amount_cents, 0);
+  return transactions.filter((tx) => isActive(tx) && tx.type === "despesa" && tx.status === "a_pagar").filter((tx) => !tx.invoice).reduce((total, tx) => total + tx.amount_cents, 0);
 }
 
 // src/domain/transfer.ts

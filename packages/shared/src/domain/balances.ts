@@ -4,6 +4,8 @@ export interface BalanceTransaction {
   amount_cents: number;
   attribution: string;
   account: string;
+  /** Preenchido quando a compra está vinculada a uma fatura de cartão. */
+  invoice?: string | null;
   deleted_at?: string | null;
 }
 
@@ -73,5 +75,8 @@ export function totalNetForAttribution(
 export function totalToPay(transactions: readonly BalanceTransaction[]): number {
   return transactions
     .filter((tx) => isActive(tx) && tx.type === "despesa" && tx.status === "a_pagar")
+    // Compras no cartão são um compromisso da fatura, não um "a pagar" solto
+    // (senão o mesmo valor apareceria duas vezes no painel).
+    .filter((tx) => !tx.invoice)
     .reduce((total, tx) => total + tx.amount_cents, 0);
 }

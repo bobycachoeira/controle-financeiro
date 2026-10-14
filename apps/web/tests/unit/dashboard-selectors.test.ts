@@ -97,6 +97,7 @@ describe("dashboard selectors", () => {
     const list = [
       tx({ id: "p1", amount_cents: 100, status: "a_pagar", date: "2024-03-15" }),
       tx({ id: "p2", amount_cents: 100, status: "a_pagar", date: "2024-06-15" }),
+      tx({ id: "p3", amount_cents: 200, status: "a_pagar", date: "2024-03-20", invoice: "inv1" }),
     ];
     expect(selectToPay30Days(list, "2024-03-10")).toBe(100);
   });

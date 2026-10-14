@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAccountBalance, totalBalance, totalsByAttribution } from "@cf/shared";
+import { computeAccountBalance, totalBalance, totalToPay, totalsByAttribution } from "@cf/shared";
 import type { AccountLike, BalanceTransaction } from "@cf/shared";
 
 const accounts: AccountLike[] = [
@@ -59,5 +59,20 @@ describe("balances", () => {
     const totals = totalsByAttribution(transactions);
     expect(totals.meu).toBe(2000);
     expect(totals.dela).toBe(9999);
+  });
+
+  it("excludes card purchases (invoice-linked) from the total to pay", () => {
+    const list: BalanceTransaction[] = [
+      ...transactions,
+      {
+        type: "despesa",
+        status: "a_pagar",
+        amount_cents: 5000,
+        attribution: "meu",
+        account: "a1",
+        invoice: "inv1",
+      },
+    ];
+    expect(totalToPay(list)).toBe(9999);
   });
 });

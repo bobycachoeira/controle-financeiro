@@ -90,6 +90,8 @@ export function selectToPay30Days(transactions: LocalTransaction[], today: strin
   const limitISO = limit.toISOString().slice(0, 10);
   return transactions
     .filter((tx) => !tx.deleted_at && tx.type === "despesa" && tx.status === "a_pagar")
+    // Compras do cartão entram na fatura (exibida em "Faturas abertas").
+    .filter((tx) => !tx.invoice)
     .filter((tx) => tx.date >= today && tx.date <= limitISO)
     .reduce((sum, tx) => sum + tx.amount_cents, 0);
 }
