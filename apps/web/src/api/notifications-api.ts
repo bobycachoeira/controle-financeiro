@@ -40,5 +40,10 @@ export const notificationsApi = {
     apiClient.post<SubscriptionResponse>("/notifications/subscriptions", input),
   unsubscribe: (id: string) => apiClient.del<void>(`/notifications/subscriptions/${id}`),
   sendTest: () => apiClient.post<{ ok: boolean; delivery_id: string }>("/notifications/test", {}),
+  coverage: (amountCents: number, note?: string) =>
+    apiClient.post<{ ok: boolean; sent_to: number }>("/notifications/coverage", {
+      amount_cents: amountCents,
+      note: note ?? "",
+    }),
   deliveries: () => apiClient.get<{ items: DeliveryRecord[] }>("/notifications/deliveries"),
 };

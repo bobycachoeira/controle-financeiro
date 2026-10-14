@@ -76,6 +76,9 @@ routerAdd("DELETE", "/api/notifications/subscriptions/{id}", (c) =>
 routerAdd("POST", "/api/notifications/test", (c) =>
   require(`${__hooks}/lib/handlers/notifications.js`).testNotification(c),
 );
+routerAdd("POST", "/api/notifications/coverage", (c) =>
+  require(`${__hooks}/lib/handlers/notifications.js`).coverageRequest(c),
+);
 routerAdd("GET", "/api/notifications/deliveries", (c) =>
   require(`${__hooks}/lib/handlers/notifications.js`).listDeliveries(c),
 );

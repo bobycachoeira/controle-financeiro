@@ -15,6 +15,7 @@ import { useSyncStore } from "@/stores/sync";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
+import { notificationsApi } from "@/api/notifications-api";
 import { formatBRL, parseAmountInput } from "@/lib/format-input";
 import { formatCentsToInput, formatMonth } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -42,6 +43,10 @@ const sourceAccount = ref("");
 const destinationAccount = ref("");
 const amountInput = ref("");
 const registering = ref(false);
+const coverageOpen = ref(false);
+const coverageAmount = ref("");
+const coverageNote = ref("");
+const sendingCoverage = ref(false);
 
 const realAccounts = computed(() =>
   accountsStore.items.filter((account) => account.type !== "cartao_credito"),
@@ -126,6 +131,36 @@ async function register(): Promise<void> {
   }
 }
 
+async function sendCoverage(): Promise<void> {
+  const cents = parseAmountInput(coverageAmount.value);
+  if (cents === null || cents <= 0) {
+    toast.error("Informe um valor válido.");
+    return;
+  }
+  sendingCoverage.value = true;
+  try {
+    const result = await notificationsApi.coverage(cents, coverageNote.value.trim());
+    toast.success(
+      result.sent_to > 1
+        ? `Pedido enviado para ${result.sent_to} pessoas.`
+        : "Pedido enviado para seu par.",
+    );
+    coverageOpen.value = false;
+    coverageAmount.value = "";
+    coverageNote.value = "";
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message.includes("no_partner")
+          ? "Ninguém além de você na família para receber o pedido."
+          : error.message
+        : "Falha ao enviar o pedido.";
+    toast.error(message);
+  } finally {
+    sendingCoverage.value = false;
+  }
+}
+
 async function loadAll(): Promise<void> {
   await Promise.all([
     people.load(),
@@ -170,6 +205,9 @@ watch(() => sync.dataVersion, loadAll);
         >
           <Users class="h-3.5 w-3.5" /> Mudar para “dividir e acertar”
         </RouterLink>
+        <Button size="sm" variant="secondary" data-testid="coverage-open" @click="coverageOpen = true">
+          <HandCoins class="h-3.5 w-3.5" /> Pedir cobertura
+        </Button>
       </CardContent>
     </Card>
 
@@ -273,6 +311,35 @@ watch(() => sync.dataVersion, loadAll);
         <div class="flex justify-end gap-2 pt-1">
           <Button variant="ghost" type="button" @click="payOpen = false">Cancelar</Button>
           <Button type="submit" :loading="registering">Registrar</Button>
+        </div>
+      </form>
+    </Modal>
+
+    <Modal
+      v-model="coverageOpen"
+      title="Pedir cobertura"
+      description="Seu par recebe um push com o pedido — sem cobrança, só um combinado."
+    >
+      <form class="space-y-4" @submit.prevent="sendCoverage">
+        <div class="space-y-2">
+          <Label for="coverage-amount">Quanto falta? (R$)</Label>
+          <Input id="coverage-amount" v-model="coverageAmount" inputmode="decimal" required />
+        </div>
+        <div class="space-y-2">
+          <Label for="coverage-note">Recado (opcional)</Label>
+          <Input
+            id="coverage-note"
+            v-model="coverageNote"
+            maxlength="200"
+            placeholder="Ex.: Segura o aluguel esse mês?"
+          />
+        </div>
+        <p class="text-xs text-muted-foreground">
+          Funciona melhor com as notificações ativadas no aparelho do seu par.
+        </p>
+        <div class="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" type="button" @click="coverageOpen = false">Cancelar</Button>
+          <Button type="submit" :loading="sendingCoverage">Enviar pedido</Button>
         </div>
       </form>
     </Modal>

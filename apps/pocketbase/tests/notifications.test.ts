@@ -1,5 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { api, operation, push, setupFamily, startHarness, type Family, type Harness } from "./harness";
+import {
+  api,
+  createUser,
+  operation,
+  push,
+  setupFamily,
+  startHarness,
+  type Family,
+  type Harness,
+} from "./harness";
 
 function subscription(endpoint: string) {
   return { endpoint, keys: { p256dh: "p256dh-key", auth: "auth-secret" }, label: "Teste" };
@@ -203,5 +212,47 @@ describe("notifications", () => {
     );
     expect(prefs.data.push_enabled).toBe(false);
     expect(prefs.data.preferences.horario_envio).toBe("08:30");
+  });
+
+  it("creates a coverage request delivery for the partner", async () => {
+    const partnerId = await createUser(harness, "parceiro-cobertura@example.com", "Parceiro");
+    const member = await api(harness, "/api/collections/household_members/records", {
+      token: harness.adminToken,
+      body: {
+        household: family.householdId,
+        user: partnerId,
+        role: "partner",
+        invite_status: "accepted",
+        permissions: {},
+      },
+    });
+    expect(member.status).toBeLessThan(400);
+
+    const invalid = await api(harness, "/api/notifications/coverage", {
+      token: family.token,
+      body: { amount_cents: 0 },
+    });
+    expect(invalid.status).toBe(400);
+
+    const sent = await api<{ ok: boolean; sent_to: number }>(harness, "/api/notifications/coverage", {
+      token: family.token,
+      body: { amount_cents: 5000, note: "Segura o aluguel" },
+    });
+    expect(sent.status).toBe(202);
+    expect(sent.data.sent_to).toBe(1);
+
+    const deliveries = await api<{
+      items: Array<{ kind: string; status: string; amount_cents: number; note?: string; title: string }>;
+    }>(
+      harness,
+      `/api/collections/notification_deliveries/records?filter=${encodeURIComponent(
+        `user="${partnerId}" && kind="cobertura"`,
+      )}`,
+      { token: harness.adminToken },
+    );
+    expect(deliveries.data.items).toHaveLength(1);
+    expect(deliveries.data.items[0]?.status).toBe("pendente");
+    expect(deliveries.data.items[0]?.amount_cents).toBe(5000);
+    expect(deliveries.data.items[0]?.note).toBe("Segura o aluguel");
   });
 });

@@ -217,6 +217,72 @@ function testNotification(c) {
   return http.ok(c, { ok: true, delivery_id: delivery.id }, 202);
 }
 
+/**
+ * "Pedir cobertura": manda um push para o par (ou demais adultos) pedindo uma
+ * ajudinha de valor X — sem cobrança, só combinado do casal.
+ */
+function coverageRequest(c) {
+  const user = http.authRecord(c);
+  if (!user) return http.fail(c, 401, "unauthorized", "Autenticação necessária");
+  const ctx = resolveContext(c, user);
+  if (ctx.error) return http.fail(c, ctx.error.status, ctx.error.code, ctx.error.message);
+
+  const body = http.requestBody(c);
+  const amount = Number(body.amount_cents);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return http.fail(c, 400, "invalid_amount", "Informe um valor válido");
+  }
+  const note = String(body.note || "").slice(0, 200);
+
+  let members = [];
+  try {
+    members = $app.findAllRecords(
+      $app.findCollectionByNameOrId("household_members"),
+      $dbx.hashExp({ household: ctx.household }),
+    );
+  } catch (err) {
+    members = [];
+  }
+  const targets = members.filter(
+    (member) =>
+      !http.isDeleted(member) &&
+      member.getString("invite_status") !== "pending" &&
+      member.getString("user") !== user.id &&
+      member.getString("role") !== "viewer",
+  );
+  if (targets.length === 0) {
+    return http.fail(c, 400, "no_partner", "Nenhum par disponível para receber o pedido");
+  }
+
+  const requester = String(user.getString("name") || user.getString("email") || "Seu par");
+  let created = 0;
+  for (const member of targets) {
+    const delivery = new Record($app.findCollectionByNameOrId("notification_deliveries"));
+    delivery.set("household", ctx.household);
+    delivery.set("user", member.getString("user"));
+    delivery.set("kind", "cobertura");
+    delivery.set("entity", "coverage");
+    delivery.set("entity_id", $security.randomString(15).toLowerCase());
+    delivery.set("scheduled_date", new Date().toISOString());
+    delivery.set("title", requester + " pediu uma cobertura");
+    delivery.set("amount_cents", amount);
+    delivery.set("note", note);
+    delivery.set("status", "pendente");
+    delivery.set("attempts", 0);
+    $app.save(delivery);
+    created += 1;
+  }
+
+  audit.writeAudit($app, {
+    household: ctx.household,
+    user: user.id,
+    action: "notifications.coverage",
+    entity: "notification_deliveries",
+    entityId: user.id,
+  });
+  return http.ok(c, { ok: true, sent_to: created }, 202);
+}
+
 function listDeliveries(c) {
   const user = http.authRecord(c);
   if (!user) return http.fail(c, 401, "unauthorized", "Autenticação necessária");
@@ -247,5 +313,6 @@ module.exports = {
   createSubscription,
   deleteSubscription,
   testNotification,
+  coverageRequest,
   listDeliveries,
 };

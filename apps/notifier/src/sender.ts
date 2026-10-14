@@ -37,6 +37,34 @@ export function buildPayload(job: ReminderJob): string {
   });
 }
 
+export interface ImmediatePayloadInput {
+  kind: string;
+  title?: string;
+  amountCents?: number;
+  note?: string;
+}
+
+/** Payload das entregas imediatas criadas na hora (teste e "pedir cobertura"). */
+export function buildImmediatePayload(input: ImmediatePayloadInput): string {
+  if (input.kind === "cobertura") {
+    const amount = ((input.amountCents ?? 0) / 100).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    const suffix = input.note ? ` · ${input.note}` : "";
+    return JSON.stringify({
+      title: input.title || "Seu par pediu uma cobertura",
+      body: `${amount}${suffix} · toque para abrir o app`,
+      data: { entity: "coverage", kind: "cobertura" },
+    });
+  }
+  return JSON.stringify({
+    title: "Notificação de teste",
+    body: "Tudo pronto! Você receberá seus lembretes.",
+    data: {},
+  });
+}
+
 export async function sendReminder(
   job: ReminderJob,
   targets: PushTarget[],

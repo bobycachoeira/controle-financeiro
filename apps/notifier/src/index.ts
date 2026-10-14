@@ -11,7 +11,7 @@ import {
   type PreferenceEntry,
   type ReminderJob,
 } from "./schedule.js";
-import { sendReminder, type DeliveryStore, type PushTarget } from "./sender.js";
+import { buildImmediatePayload, sendReminder, type DeliveryStore, type PushTarget } from "./sender.js";
 
 interface PrefRecord {
   id: string;
@@ -60,6 +60,9 @@ interface DeliveryRecord {
   entity_id: string;
   status: string;
   scheduled_date: string;
+  title?: string;
+  amount_cents?: number;
+  note?: string;
 }
 
 function nowInTz(timezone: string): { date: string; time: string } {
@@ -140,7 +143,7 @@ export class Notifier {
     this.store = makeStore(client);
   }
 
-  async runOnce(): Promise<{ jobs: number; sent: number; failed: number; tests: number }> {
+  async runOnce(): Promise<{ jobs: number; sent: number; failed: number; immediate: number }> {
     const { date, time } = nowInTz(this.timezone);
     const prefRecords = await this.client.listAll<PrefRecord>("notification_preferences");
     const subscriptions = await this.client.listAll<SubRecord>("push_subscriptions");
@@ -193,14 +196,15 @@ export class Notifier {
       failed += result.failed;
     }
 
-    const tests = await this.processTests(targets);
-    return { jobs: jobs.length, sent, failed, tests };
+    const immediate = await this.processImmediate(targets);
+    return { jobs: jobs.length, sent, failed, immediate };
   }
 
-  private async processTests(targets: Map<string, PushTarget[]>): Promise<number> {
+  /** Entrega imediata: notificação de teste e "pedir cobertura" do casal. */
+  private async processImmediate(targets: Map<string, PushTarget[]>): Promise<number> {
     const pending = await this.client.listAll<DeliveryRecord>(
       "notification_deliveries",
-      'kind="teste" && status="pendente"',
+      '(kind="teste" || kind="cobertura") && status="pendente"',
     );
     let count = 0;
     for (const record of pending) {
@@ -209,18 +213,12 @@ export class Notifier {
         await this.store.markFailed(record.id, "no_subscription");
         continue;
       }
-      const job: ReminderJob = {
-        user: record.user,
-        household: "",
-        kind: "contas_a_pagar",
-        entity: "teste",
-        entityId: record.id,
-        dueDate: record.scheduled_date.slice(0, 10),
-        title: "Notificação de teste",
-        amountCents: 0,
-        scheduledDate: record.scheduled_date.slice(0, 10),
-      };
-      const payload = JSON.stringify({ title: job.title, body: "Tudo pronto! Você receberá seus lembretes.", data: {} });
+      const payload = buildImmediatePayload({
+        kind: record.kind,
+        title: record.title,
+        amountCents: record.amount_cents,
+        note: record.note,
+      });
       try {
         for (const target of list) await this.push.sendNotification(target, payload);
         await this.store.markSent(record.id);
