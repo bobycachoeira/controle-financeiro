@@ -18,6 +18,8 @@ import { useCardsStore } from "@/stores/cards";
 import { useRatesStore } from "@/stores/rates";
 import { usePeopleStore } from "@/stores/people";
 import { useTransfersStore } from "@/stores/transfers";
+import { useToast } from "@/composables/useToast";
+import { seedSampleData } from "@/lib/sample-data";
 import { formatBRL, formatDate } from "@/lib/format";
 import { accountIconName } from "@/lib/icons";
 import {
@@ -37,6 +39,7 @@ import CategoryBars from "@/components/charts/CategoryBars.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
+import Button from "@/components/ui/Button.vue";
 import IconChip from "@/components/ui/IconChip.vue";
 
 const session = useSessionStore();
@@ -47,6 +50,25 @@ const cardsStore = useCardsStore();
 const ratesStore = useRatesStore();
 const people = usePeopleStore();
 const transfersStore = useTransfersStore();
+const toast = useToast();
+const seeding = ref(false);
+
+const showSample = computed(
+  () => !transactionsStore.loading && transactionsStore.items.length === 0,
+);
+
+async function createSample(): Promise<void> {
+  seeding.value = true;
+  try {
+    const result = await seedSampleData();
+    toast.success(`Dados de exemplo criados (${result.transactions} lançamentos).`);
+    await loadAll();
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao criar os dados.");
+  } finally {
+    seeding.value = false;
+  }
+}
 
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
@@ -184,6 +206,22 @@ watch(() => sync.dataVersion, loadAll);
             {{ sync.online ? (sync.pending > 0 ? `${sync.pending} pendente(s)` : "sincronizado") : "offline" }}
           </span>
         </div>
+      </CardContent>
+    </Card>
+
+    <Card v-if="showSample" data-testid="sample-card">
+      <CardContent class="space-y-2 p-4">
+        <div class="flex items-center gap-2">
+          <Sparkles class="h-4 w-4 text-primary" />
+          <h2 class="font-display text-base font-bold">Novo por aqui?</h2>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          Crie dados de exemplo para ver o app preenchido e entender como funciona. Você pode apagar
+          depois.
+        </p>
+        <Button size="sm" :loading="seeding" @click="createSample">
+          Criar dados de exemplo
+        </Button>
       </CardContent>
     </Card>
 
