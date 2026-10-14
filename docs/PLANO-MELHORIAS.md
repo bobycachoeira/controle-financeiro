@@ -31,13 +31,14 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - [x] A8. Histórico mensal de orçamento — `d45b30e`.
 - [x] A9. Pagamento parcial de fatura — `6be47bc`.
 
-### Fase B — Modo do casal (configurável)
-- [ ] B1. Config `split_mode` nas configurações da família (`junto` padrão ×
-      `dividir`).
-- [ ] B2. Modo `junto`: card “Contribuições do mês” (por pessoa) e ação
-      “Pedir cobertura” (push para o parceiro).
-- [ ] B3. Modo `dividir`: tela “Acerto do mês” (quem adiantou, sugestão de
-      transferência e registro do acerto).
+### Fase B — Modo do casal (configurável) ✅ (concluída)
+- [x] B1. Config `split_mode` na Família (`junto` padrão × `dividir`) — `cc7eecf`.
+- [x] B2. Cálculo do acerto (shared) — `76db383`; tela “Contribuições do mês”
+      no modo junto.
+- [x] B3. Tela “Acerto do mês” no modo dividir, com sugestões de
+      transferência e registro do acerto — `b8c6403`.
+- [x] B4. “Pedir cobertura” por push ao par (migração + endpoint + notifier +
+      tela) — `b1f5fbe`.
 
 ### Fase C — Busca, filtros e organização
 - [ ] C1. Busca por texto + filtros de categoria e tipo nos lançamentos.
