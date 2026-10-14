@@ -31,9 +31,24 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: "Novo Lançamento",
+            name: "Novo lançamento",
             short_name: "Novo",
+            description: "Registrar um gasto ou receita",
             url: "/?new=1",
+            icons: [{ src: "/pwa-192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Lançamentos",
+            short_name: "Lançamentos",
+            description: "Ver e buscar lançamentos",
+            url: "/transactions",
+            icons: [{ src: "/pwa-192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Calendário",
+            short_name: "Calendário",
+            description: "O que vence nos próximos dias",
+            url: "/calendar",
             icons: [{ src: "/pwa-192.png", sizes: "192x192" }],
           },
         ],

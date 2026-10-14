@@ -8,6 +8,14 @@ test.describe("PWA", () => {
     await expect(page.getByText("Novo lançamento")).toBeVisible({ timeout: 15_000 });
   });
 
+  test("os demais atalhos abrem as telas direto", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    await page.goto("/transactions");
+    await expect(page.getByRole("heading", { name: "Lançamentos" })).toBeVisible({ timeout: 15_000 });
+    await page.goto("/calendar");
+    await expect(page.getByRole("heading", { name: "Calendário" })).toBeVisible({ timeout: 15_000 });
+  });
+
   test("expõe o manifest instalável", async ({ page, loginAs }) => {
     await loginAs("titular");
     const response = await page.request.get("/manifest.webmanifest");
