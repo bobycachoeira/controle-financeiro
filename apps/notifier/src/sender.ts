@@ -25,6 +25,14 @@ export interface SendResult {
   skipped: boolean;
 }
 
+function urlFor(entity: string, kind: string): string {
+  if (kind === "orcamento" || entity === "budgets") return "/budgets";
+  if (entity === "invoices") return "/cards";
+  if (entity === "bills") return "/bills";
+  if (kind === "cobertura") return "/settle";
+  return "/";
+}
+
 export function buildPayload(job: ReminderJob): string {
   const amount = (job.amountCents / 100).toLocaleString("pt-BR", {
     style: "currency",
@@ -33,7 +41,12 @@ export function buildPayload(job: ReminderJob): string {
   return JSON.stringify({
     title: job.title,
     body: `${amount} · vence em ${job.dueDate}`,
-    data: { entity: job.entity, entityId: job.entityId, kind: job.kind },
+    data: {
+      entity: job.entity,
+      entityId: job.entityId,
+      kind: job.kind,
+      url: urlFor(job.entity, job.kind),
+    },
   });
 }
 
@@ -55,7 +68,7 @@ export function buildImmediatePayload(input: ImmediatePayloadInput): string {
     return JSON.stringify({
       title: input.title || "Seu par pediu uma cobertura",
       body: `${amount}${suffix} · toque para abrir o app`,
-      data: { entity: "coverage", kind: "cobertura" },
+      data: { entity: "coverage", kind: "cobertura", url: "/settle" },
     });
   }
   return JSON.stringify({
@@ -84,7 +97,7 @@ export function buildBudgetAlertPayload(input: {
   return JSON.stringify({
     title: `${input.name}: ${input.threshold}% do orçamento`,
     body: `Usou ${spent} de ${total}`,
-    data: { entity: "budgets", entityId: input.budgetId, kind: "orcamento" },
+    data: { entity: "budgets", entityId: input.budgetId, kind: "orcamento", url: "/budgets" },
   });
 }
 

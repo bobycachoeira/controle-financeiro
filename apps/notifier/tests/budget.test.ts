@@ -24,9 +24,10 @@ describe("alertas de orçamento", () => {
         totalCents: 100000,
         budgetId: "b1",
       }),
-    ) as { title: string; body: string };
+    ) as { title: string; body: string; data: { url?: string } };
     expect(payload.title).toBe("Alimentação: 90% do orçamento");
     expect(payload.body).toContain("900,00");
     expect(payload.body).toContain("1.000,00");
+    expect(payload.data.url).toBe("/budgets");
   });
 });
