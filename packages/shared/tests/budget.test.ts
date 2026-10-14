@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { budgetPeriodRange, computeBudgetUsage, type BudgetLike } from "../src/domain/budget";
+import {
+  budgetPeriodRange,
+  computeBudgetUsage,
+  projectBudgetSpending,
+  type BudgetLike,
+} from "../src/domain/budget";
 
 const budget: BudgetLike = {
   id: "b1",
@@ -69,5 +74,45 @@ describe("budget", () => {
     const usage = computeBudgetUsage(budget, [expense("food", 40000), expense("fun", 10000)]);
     expect(usage.perCategory.find((c) => c.category === "food")?.spentCents).toBe(40000);
     expect(usage.perCategory.find((c) => c.category === "fun")?.spentCents).toBe(10000);
+  });
+});
+
+describe("projectBudgetSpending", () => {
+  it("projeta o ritmo até o fim do mês", () => {
+    const projection = projectBudgetSpending({
+      spentCents: 50000,
+      totalCents: 100000,
+      period: "mensal",
+      referenceMonth: "2024-03",
+      today: "2024-03-15",
+    });
+    // 15 dias de 31, gastando 50% → projeção ~103,3% do limite
+    expect(projection?.projectedCents).toBe(103333);
+    expect(projection?.projectedPercent).toBe(103);
+    expect(projection?.onTrack).toBe(false);
+  });
+
+  it("fica dentro do limite quando o ritmo é baixo", () => {
+    const projection = projectBudgetSpending({
+      spentCents: 10000,
+      totalCents: 100000,
+      period: "mensal",
+      referenceMonth: "2024-03",
+      today: "2024-03-15",
+    });
+    expect(projection?.projectedPercent).toBe(21);
+    expect(projection?.onTrack).toBe(true);
+  });
+
+  it("devolve null fora do período", () => {
+    expect(
+      projectBudgetSpending({
+        spentCents: 0,
+        totalCents: 100000,
+        period: "mensal",
+        referenceMonth: "2024-03",
+        today: "2024-04-01",
+      }),
+    ).toBeNull();
   });
 });

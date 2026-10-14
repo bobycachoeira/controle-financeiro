@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { BudgetUsage, BudgetPeriod } from "@cf/shared";
-import { monthLabel, todayISO } from "@cf/shared";
+import { monthLabel, projectBudgetSpending, todayISO } from "@cf/shared";
 import { Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
 import { useBudgetsStore } from "@/stores/budgets";
@@ -27,6 +27,21 @@ const toast = useToast();
 
 const usage = ref<Record<string, BudgetUsage>>({});
 const history = ref<Record<string, { month: string; usage: BudgetUsage }[]>>({});
+const projection = computed(() => {
+  const result: Record<string, ReturnType<typeof projectBudgetSpending>> = {};
+  for (const budget of store.items) {
+    const row = usage.value[budget.id];
+    if (!row) continue;
+    result[budget.id] = projectBudgetSpending({
+      spentCents: row.spentCents,
+      totalCents: budget.total_cents,
+      period: budget.period,
+      referenceMonth: budget.reference_month,
+      today: todayISO(),
+    });
+  }
+  return result;
+});
 const editingId = ref<string | null>(null);
 const name = ref("");
 const period = ref<BudgetPeriod>("mensal");
@@ -260,6 +275,14 @@ watch(() => sync.dataVersion, loadAll);
             :style="{ width: Math.min(100, usage[budget.id]?.percent ?? 0) + '%' }"
           />
         </div>
+        <p
+          v-if="projection[budget.id]"
+          class="text-xs font-semibold"
+          :class="projection[budget.id]?.onTrack ? 'text-muted-foreground' : 'text-destructive'"
+        >
+          No ritmo atual: {{ formatBRL(projection[budget.id]?.projectedCents ?? 0) }} até o fim do
+          período ({{ projection[budget.id]?.projectedPercent }}% do limite)
+        </p>
         <ul class="space-y-1 text-xs text-muted-foreground">
           <li v-for="row in usage[budget.id]?.perCategory ?? []" :key="row.category">
             {{ categoryById.get(row.category)?.name ?? row.category }}:

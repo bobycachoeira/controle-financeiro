@@ -164,6 +164,7 @@ __export(src_exports, {
   parseRRule: () => parseRRule,
   parseStatement: () => parseStatement,
   pickRate: () => pickRate,
+  projectBudgetSpending: () => projectBudgetSpending,
   pullChangeSchema: () => pullChangeSchema,
   pullResponseSchema: () => pullResponseSchema,
   pushRequestSchema: () => pushRequestSchema,
@@ -5254,6 +5255,20 @@ function computeBudgetUsage(budget, transactions, bills = []) {
     percent: Math.round(percent),
     status,
     perCategory
+  };
+}
+function projectBudgetSpending(input) {
+  const range = budgetPeriodRange(input.period, input.referenceMonth);
+  if (input.today < range.start || input.today > range.end) return null;
+  const elapsedDays = diffInDays(range.start, input.today) + 1;
+  const totalDays = diffInDays(range.start, range.end) + 1;
+  if (elapsedDays <= 0 || totalDays <= 0) return null;
+  const projectedCents = Math.round(input.spentCents / elapsedDays * totalDays);
+  const projectedPercent = input.totalCents > 0 ? Math.round(projectedCents / input.totalCents * 100) : 0;
+  return {
+    projectedCents,
+    projectedPercent,
+    onTrack: projectedCents <= input.totalCents
   };
 }
 

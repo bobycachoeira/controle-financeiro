@@ -1,4 +1,4 @@
-import { addMonths, daysInMonth, pad2, parseISOMonth } from "./dates";
+import { addMonths, daysInMonth, diffInDays, pad2, parseISOMonth } from "./dates";
 
 export type BudgetPeriod = "mensal" | "trimestral" | "anual";
 
@@ -111,5 +111,38 @@ export function computeBudgetUsage(
     percent: Math.round(percent),
     status,
     perCategory,
+  };
+}
+
+export interface BudgetProjection {
+  projectedCents: number;
+  projectedPercent: number;
+  /** `true` se a projeção ainda cabe no limite do período. */
+  onTrack: boolean;
+}
+
+/**
+ * Projeção do gasto até o fim do período, no ritmo atual (média por dia desde
+ * o início do período). Devolve `null` quando hoje está fora do período.
+ */
+export function projectBudgetSpending(input: {
+  spentCents: number;
+  totalCents: number;
+  period: BudgetPeriod;
+  referenceMonth: string;
+  today: string;
+}): BudgetProjection | null {
+  const range = budgetPeriodRange(input.period, input.referenceMonth);
+  if (input.today < range.start || input.today > range.end) return null;
+  const elapsedDays = diffInDays(range.start, input.today) + 1;
+  const totalDays = diffInDays(range.start, range.end) + 1;
+  if (elapsedDays <= 0 || totalDays <= 0) return null;
+  const projectedCents = Math.round((input.spentCents / elapsedDays) * totalDays);
+  const projectedPercent =
+    input.totalCents > 0 ? Math.round((projectedCents / input.totalCents) * 100) : 0;
+  return {
+    projectedCents,
+    projectedPercent,
+    onTrack: projectedCents <= input.totalCents,
   };
 }
