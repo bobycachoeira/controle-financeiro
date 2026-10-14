@@ -28,6 +28,17 @@ test.describe("acerto do casal", () => {
       timeout: 10_000,
     });
 
+    // Zera qualquer resíduo de testes anteriores nesta família (backend do
+    // worker é compartilhado): registra o acerto pendente, se houver.
+    await page.goto("/settle");
+    await expect(page.getByRole("heading", { name: "Acerto do mês" })).toBeVisible({ timeout: 15_000 });
+    if ((await page.getByTestId("settle-suggestion").count()) > 0) {
+      await page.getByTestId("settle-suggestion").first().getByRole("button", { name: "Registrar" }).click();
+      const resetForm = page.locator("form", { has: page.locator("#settle-amount") });
+      await resetForm.getByRole("button", { name: "Registrar" }).click();
+      await expect(page.getByText("Tudo acertado neste mês.")).toBeVisible({ timeout: 15_000 });
+    }
+
     // Despesa do casal paga pelo titular.
     await page.goto("/transactions/new");
     await page.locator("#amount").fill("100,00");

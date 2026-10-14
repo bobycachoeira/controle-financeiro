@@ -61,6 +61,10 @@ test.describe("ordenação da carteira", () => {
 
     await page.goto("/wallet");
     await page.getByRole("button", { name: "Cartões" }).click();
-    await expect(page.getByTestId("card").first()).toContainText(bankSecond, { timeout: 15_000 });
+    await expect(async () => {
+      const boxFirst = await cardFirst.boundingBox();
+      const boxSecond = await cardSecond.boundingBox();
+      expect(boxSecond!.y).toBeLessThan(boxFirst!.y);
+    }).toPass({ timeout: 15_000 });
   });
 });
