@@ -225,7 +225,9 @@ watch(() => sync.dataVersion, () => cardsStore.load());
             <p class="text-[0.62rem] font-extrabold uppercase tracking-[0.25em] opacity-80">
               {{ card.bank || "Cartão" }}
             </p>
-            <p class="mt-1 font-display text-2xl font-black">•••• {{ card.closing_day }}/{{ card.due_day }}</p>
+            <p class="mt-1 font-display text-xl font-black">
+              fecha dia {{ card.closing_day }} · vence dia {{ card.due_day }}
+            </p>
             <p class="mt-2 text-xs font-semibold opacity-90">Limite {{ formatBRL(card.limit_cents) }}</p>
             <p v-if="card.owner && card.owner !== 'indefinido'" class="mt-0.5 text-[0.68rem] font-semibold opacity-80">
               Titular: {{ people.label(card.owner) }}
