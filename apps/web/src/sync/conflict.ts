@@ -1,5 +1,6 @@
 import type { SyncEntityName } from "@cf/shared";
-import { applyRemote, ENTITY_TABLES, type SyncableRecord } from "../db/repositories";
+import { db } from "../db/schema";
+import { applyRemote, ENTITY_TABLES, toPlain, type SyncableRecord } from "../db/repositories";
 
 export interface ConflictEntry {
   entity: SyncEntityName;
@@ -9,6 +10,56 @@ export interface ConflictEntry {
   /** Payload local que perdeu o conflito (para permitir reaplicar). */
   clientPayload?: Record<string, unknown>;
   clientUpdatedAt?: string;
+}
+
+/** Salva os conflitos no IndexedDB para sobreviverem a recarregamentos. */
+export async function saveConflicts(entries: ConflictEntry[]): Promise<void> {
+  for (const entry of entries) {
+    const existing = await db.conflicts
+      .where("entity")
+      .equals(entry.entity)
+      .filter((row) => row.recordId === entry.id)
+      .first();
+    const row = {
+      entity: entry.entity,
+      recordId: entry.id,
+      reason: entry.reason,
+      serverRecord: toPlain(entry.serverRecord) as unknown as Record<string, unknown>,
+      clientPayload: entry.clientPayload ? toPlain(entry.clientPayload) : undefined,
+      clientUpdatedAt: entry.clientUpdatedAt,
+      created: new Date().toISOString(),
+    };
+    if (existing?.id !== undefined) {
+      await db.conflicts.update(existing.id, row);
+    } else {
+      await db.conflicts.add(row);
+    }
+  }
+}
+
+export async function loadConflicts(): Promise<ConflictEntry[]> {
+  const rows = await db.conflicts.toArray();
+  rows.sort((a, b) => (a.created < b.created ? 1 : -1));
+  return rows.map((row) => ({
+    entity: row.entity,
+    id: row.recordId,
+    reason: row.reason,
+    serverRecord: row.serverRecord as unknown as SyncableRecord,
+    clientPayload: row.clientPayload,
+    clientUpdatedAt: row.clientUpdatedAt,
+  }));
+}
+
+export async function deleteStoredConflict(entity: SyncEntityName, recordId: string): Promise<void> {
+  await db.conflicts
+    .where("entity")
+    .equals(entity)
+    .filter((row) => row.recordId === recordId)
+    .delete();
+}
+
+export async function clearStoredConflicts(): Promise<void> {
+  await db.conflicts.clear();
 }
 
 const META_FIELDS = new Set([

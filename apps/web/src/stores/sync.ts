@@ -1,6 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { conflictDiff, type ConflictEntry } from "../sync/conflict";
+import {
+  clearStoredConflicts,
+  conflictDiff,
+  deleteStoredConflict,
+  loadConflicts,
+  saveConflicts,
+  type ConflictEntry,
+} from "../sync/conflict";
 import {
   countFailed,
   countPending,
@@ -68,6 +75,7 @@ export const useSyncStore = defineStore("sync", () => {
     failed.value = await countFailed();
     lastError.value = await readLastError();
     failedItems.value = await listFailed();
+    conflicts.value = await loadConflicts();
     const session = useSessionStore();
     if (session.currentHouseholdId) {
       cursor.value = await getCursor(session.currentHouseholdId);
@@ -107,7 +115,7 @@ export const useSyncStore = defineStore("sync", () => {
       await resetStaleSending();
       const summary = await pushOutbox(household);
       if (summary.conflicts.length > 0) {
-        conflicts.value = [...conflicts.value, ...summary.conflicts];
+        await saveConflicts(summary.conflicts);
       }
       await pullChanges(household);
       cursor.value = await getCursor(household);
@@ -122,8 +130,10 @@ export const useSyncStore = defineStore("sync", () => {
     }
   }
 
-  function acknowledgeConflict(id: string): void {
+  async function acknowledgeConflict(id: string): Promise<void> {
+    const entry = conflicts.value.find((conflict) => conflict.id === id);
     conflicts.value = conflicts.value.filter((conflict) => conflict.id !== id);
+    if (entry) await deleteStoredConflict(entry.entity, id);
   }
 
   async function recordConflictAudit(entry: ConflictEntry, action: string): Promise<void> {
@@ -151,32 +161,33 @@ export const useSyncStore = defineStore("sync", () => {
   async function keepServer(id: string): Promise<void> {
     const entry = conflicts.value.find((conflict) => conflict.id === id);
     if (entry) await recordConflictAudit(entry, "conflict.keep_server");
-    acknowledgeConflict(id);
+    await acknowledgeConflict(id);
   }
 
   /** Reaplica a versão local (cliente vence) e registra na auditoria. */
   async function reapplyClient(id: string): Promise<void> {
     const entry = conflicts.value.find((conflict) => conflict.id === id);
     if (!entry?.clientPayload) {
-      acknowledgeConflict(id);
+      await acknowledgeConflict(id);
       return;
     }
     const table = ENTITY_TABLES[entry.entity];
     const local = await table.get(entry.id);
     if (!local) {
       await recordConflictAudit(entry, "conflict.reapply_client");
-      acknowledgeConflict(id);
+      await acknowledgeConflict(id);
       return;
     }
     const merged = { ...local, ...entry.clientPayload, id: entry.id } as SyncableRecord;
     await updateLocal(entry.entity, merged);
     await recordConflictAudit(entry, "conflict.reapply_client");
-    acknowledgeConflict(id);
+    await acknowledgeConflict(id);
     await syncNow();
   }
 
-  function clearConflicts(): void {
+  async function clearConflicts(): Promise<void> {
     conflicts.value = [];
+    await clearStoredConflicts();
   }
 
   async function fullResync(): Promise<void> {

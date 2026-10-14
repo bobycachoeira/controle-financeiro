@@ -79,12 +79,12 @@ function diffsFor(entry: ConflictEntry) {
 <template>
   <Card v-if="sync.conflicts.length > 0" class="border-amber-300">
     <CardHeader>
-      <CardTitle>Conflitos de sincronização</CardTitle>
+      <CardTitle>Itens alterados em dois lugares</CardTitle>
     </CardHeader>
     <CardContent class="space-y-3">
       <p class="text-sm text-muted-foreground">
-        O mesmo item foi alterado em dois lugares. Por padrão o <strong>servidor vence</strong>. Revise a
-        diferença e escolha o que manter.
+        O mesmo item foi alterado aqui e em outro aparelho (ou pelo seu par). Revise a diferença e
+        escolha qual versão manter — sem certeza, mantenha a já sincronizada.
       </p>
       <div
         v-for="conflict in sync.conflicts"
@@ -96,7 +96,7 @@ function diffsFor(entry: ConflictEntry) {
           <span
             class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider text-muted-foreground"
           >
-            {{ conflict.reason }}
+            revisar
           </span>
         </div>
 
@@ -108,17 +108,19 @@ function diffsFor(entry: ConflictEntry) {
             <span class="font-semibold">{{ display(diff.field, diff.server) }}</span>
           </li>
         </ul>
-        <p v-else class="text-xs text-muted-foreground">Sem diferenças de campo visíveis.</p>
+        <p v-else class="text-xs text-muted-foreground">
+          Nenhuma diferença visível — pode manter qualquer uma das versões.
+        </p>
 
         <p class="text-[0.65rem] text-muted-foreground">
-          Servidor atualizado em {{ formatDateTime(conflict.serverRecord.updated ?? "") }}
+          Versão sincronizada em {{ formatDateTime(conflict.serverRecord.updated ?? "") }}
         </p>
 
         <div class="flex flex-wrap gap-2 pt-1">
-          <Button size="sm" variant="outline" @click="sync.keepServer(conflict.id)">
-            Manter do servidor
+          <Button size="sm" @click="sync.keepServer(conflict.id)">Usar a já sincronizada</Button>
+          <Button size="sm" variant="outline" @click="sync.reapplyClient(conflict.id)">
+            Manter minha edição
           </Button>
-          <Button size="sm" @click="sync.reapplyClient(conflict.id)">Reaplicar minha versão</Button>
         </div>
       </div>
     </CardContent>

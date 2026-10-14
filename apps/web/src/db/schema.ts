@@ -57,6 +57,17 @@ export interface MetaRow {
   value: string;
 }
 
+export interface StoredConflict {
+  id?: number;
+  entity: SyncEntityName;
+  recordId: string;
+  reason: string;
+  serverRecord: Record<string, unknown>;
+  clientPayload?: Record<string, unknown>;
+  clientUpdatedAt?: string;
+  created: string;
+}
+
 export class CfDatabase extends Dexie {
   households!: Table<LocalHousehold, string>;
   household_members!: Table<LocalHouseholdMember, string>;
@@ -73,6 +84,7 @@ export class CfDatabase extends Dexie {
   exchange_rates!: Table<LocalExchangeRate, string>;
   outbox!: Table<OutboxItem, number>;
   meta!: Table<MetaRow, string>;
+  conflicts!: Table<StoredConflict, number>;
 
   constructor(name = "cf") {
     super(name);
@@ -97,6 +109,9 @@ export class CfDatabase extends Dexie {
     });
     this.version(3).stores({
       exchange_rates: "id, household, currency, date, sync_id, updated, deleted_at",
+    });
+    this.version(4).stores({
+      conflicts: "++id, entity, recordId",
     });
   }
 }
