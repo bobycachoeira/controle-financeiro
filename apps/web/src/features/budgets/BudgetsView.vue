@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { BudgetUsage, BudgetPeriod } from "@cf/shared";
-import { todayISO } from "@cf/shared";
+import { monthLabel, todayISO } from "@cf/shared";
 import { Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
 import { useBudgetsStore } from "@/stores/budgets";
@@ -26,6 +26,7 @@ const sync = useSyncStore();
 const toast = useToast();
 
 const usage = ref<Record<string, BudgetUsage>>({});
+const history = ref<Record<string, { month: string; usage: BudgetUsage }[]>>({});
 const editingId = ref<string | null>(null);
 const name = ref("");
 const period = ref<BudgetPeriod>("mensal");
@@ -66,10 +67,13 @@ function toggleCategory(id: string): void {
 
 async function refreshUsage(): Promise<void> {
   const result: Record<string, BudgetUsage> = {};
+  const periods: Record<string, { month: string; usage: BudgetUsage }[]> = {};
   for (const budget of store.items) {
     result[budget.id] = await store.usageFor(budget);
+    periods[budget.id] = await store.historyFor(budget);
   }
   usage.value = result;
+  history.value = periods;
 }
 
 function resetForm(): void {
@@ -262,6 +266,37 @@ watch(() => sync.dataVersion, loadAll);
             {{ formatBRL(row.spentCents) }}
           </li>
         </ul>
+
+        <div class="border-t border-border/60 pt-3">
+          <p class="pb-2 text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Histórico
+          </p>
+          <div class="flex items-end gap-1.5">
+            <div
+              v-for="entry in history[budget.id] ?? []"
+              :key="entry.month"
+              class="flex min-w-0 flex-1 flex-col items-center gap-1"
+              :title="`${entry.month}: ${formatBRL(entry.usage.spentCents)} de ${formatBRL(budget.total_cents)}`"
+            >
+              <div class="flex h-14 w-full items-end overflow-hidden rounded-md bg-muted/60">
+                <div
+                  class="w-full rounded-md transition-all"
+                  :class="
+                    entry.usage.status === 'estouro'
+                      ? 'bg-red-500'
+                      : entry.usage.status === 'alerta'
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  "
+                  :style="{ height: Math.min(100, entry.usage.percent) + '%' }"
+                />
+              </div>
+              <span class="truncate text-[0.55rem] font-bold uppercase text-muted-foreground">
+                {{ monthLabel(entry.month) }}
+              </span>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   </div>

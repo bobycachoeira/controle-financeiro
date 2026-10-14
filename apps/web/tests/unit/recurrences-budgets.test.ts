@@ -50,6 +50,49 @@ describe("budgets store", () => {
     expect(usage.percent).toBe(90);
     expect(usage.status).toBe("alerta");
   });
+
+  it("computes history across the last periods", async () => {
+    const store = useBudgetsStore();
+    const budget = await store.create({
+      name: "Alimentação",
+      period: "mensal",
+      total_cents: 100000,
+      alert_pct: 80,
+      reference_month: "2024-03",
+      categories: [{ category: "food" }],
+    });
+
+    await createLocal("transactions", {
+      id: "th1",
+      household: "h1",
+      sync_id: newSyncId(),
+      account: "a1",
+      credit_card: null,
+      amount_cents: 50000,
+      currency: "BRL",
+      type: "despesa",
+      date: "2024-02-10",
+      attribution: "meu",
+      status: "pago",
+      category: "food",
+      description: "",
+      tags: [],
+      note: "",
+      deleted_at: null,
+    });
+
+    const history = await store.historyFor(budget);
+    expect(history.map((entry) => entry.month)).toEqual([
+      "2023-10",
+      "2023-11",
+      "2023-12",
+      "2024-01",
+      "2024-02",
+      "2024-03",
+    ]);
+    expect(history[4]?.usage.spentCents).toBe(50000);
+    expect(history[5]?.usage.spentCents).toBe(0);
+  });
 });
 
 describe("recurrences store", () => {

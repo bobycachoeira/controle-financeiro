@@ -1,6 +1,14 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { computeBudgetUsage, type BudgetCategory, type BudgetPeriod, type BudgetUsage } from "@cf/shared";
+import {
+  addMonths,
+  computeBudgetUsage,
+  formatISOMonth,
+  parseISOMonth,
+  type BudgetCategory,
+  type BudgetPeriod,
+  type BudgetUsage,
+} from "@cf/shared";
 import { db, type LocalBudget, type LocalTransaction } from "../db/schema";
 import { createLocal, newLocalId, newSyncId, softDeleteLocal, updateLocal } from "../db/repositories";
 import { useSessionStore } from "./session";
@@ -13,6 +21,17 @@ export interface BudgetInput {
   reference_month: string;
   categories: BudgetCategory[];
 }
+
+export interface BudgetHistoryEntry {
+  month: string;
+  usage: BudgetUsage;
+}
+
+const HISTORY_PERIODS: Record<BudgetPeriod, { count: number; stepMonths: number }> = {
+  mensal: { count: 6, stepMonths: 1 },
+  trimestral: { count: 4, stepMonths: 3 },
+  anual: { count: 3, stepMonths: 12 },
+};
 
 export const useBudgetsStore = defineStore("budgets", () => {
   const items = ref<LocalBudget[]>([]);
@@ -42,6 +61,29 @@ export const useBudgetsStore = defineStore("budgets", () => {
         )
       : [];
     return computeBudgetUsage(budget, await transactions(), bills);
+  }
+
+  /** Uso do orçamento nos últimos períodos (para o gráfico de histórico). */
+  async function historyFor(budget: LocalBudget): Promise<BudgetHistoryEntry[]> {
+    const session = useSessionStore();
+    const txs = await transactions();
+    const bills = session.currentHouseholdId
+      ? (await db.bills.where("household").equals(session.currentHouseholdId).toArray()).filter(
+          (bill) => !bill.deleted_at,
+        )
+      : [];
+    const config = HISTORY_PERIODS[budget.period];
+    const { year, month } = parseISOMonth(budget.reference_month);
+    const result: BudgetHistoryEntry[] = [];
+    for (let index = config.count - 1; index >= 0; index -= 1) {
+      const shifted = addMonths(year, month, -index * config.stepMonths);
+      const reference = formatISOMonth(shifted.year, shifted.month);
+      result.push({
+        month: reference,
+        usage: computeBudgetUsage({ ...budget, reference_month: reference }, txs, bills),
+      });
+    }
+    return result;
   }
 
   async function create(input: BudgetInput): Promise<LocalBudget> {
@@ -78,5 +120,5 @@ export const useBudgetsStore = defineStore("budgets", () => {
     await load();
   }
 
-  return { items, load, create, update, remove, usageFor };
+  return { items, load, create, update, remove, usageFor, historyFor };
 });
