@@ -39,4 +39,35 @@ test.describe("investimentos", () => {
     await retirarForm.getByRole("button", { name: "Retirar" }).click();
     await expect(card).toContainText("R$ 1.000,00", { timeout: 15_000 });
   });
+
+  test("cria tirando da conta e exclui depois de retirar tudo", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const name = `CDB ${stamp}`;
+
+    await page.goto("/investments");
+    await page.getByRole("button", { name: /^Novo$/ }).click();
+    await page.locator("#inv-name").fill(name);
+    await page.locator("#inv-initial").fill("300,00");
+    await page.locator("#inv-source").selectOption({ label: "Conta Principal" });
+    await page.getByRole("button", { name: "Salvar" }).click();
+
+    const card = page.getByTestId("investment").filter({ hasText: name });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByTestId("investment-balance")).toHaveText("R$ 300,00", { timeout: 15_000 });
+
+    // Com saldo, a exclusão é bloqueada.
+    await card.getByTestId("investment-delete").click();
+    await expect(card).toBeVisible();
+
+    await card.getByRole("button", { name: "Retirar" }).click();
+    await page.locator("#retirar-destination").selectOption({ label: "Conta Principal" });
+    await page.locator("#retirar-amount").fill("300,00");
+    const retirarForm = page.locator("form", { has: page.locator("#retirar-amount") });
+    await retirarForm.getByRole("button", { name: "Retirar" }).click();
+    await expect(card.getByTestId("investment-balance")).toHaveText("R$ 0,00", { timeout: 15_000 });
+
+    await card.getByTestId("investment-delete").click();
+    await expect(card).toHaveCount(0, { timeout: 15_000 });
+  });
 });

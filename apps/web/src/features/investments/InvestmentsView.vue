@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { LineChart, Minus, PiggyBank, Plus, TrendingUp } from "lucide-vue-next";
+import { LineChart, Minus, PiggyBank, Plus, Trash2, TrendingUp } from "lucide-vue-next";
 import { accountBalanceEvolution, computeAccountBalance, monthOf, todayISO } from "@cf/shared";
 import type { AccountLike } from "@cf/shared";
 import { db, type LocalAccount, type LocalCategory } from "@/db/schema";
@@ -47,6 +47,7 @@ const newOpen = ref(false);
 const newName = ref("");
 const newInitial = ref("");
 const newOwner = ref("indefinido");
+const newSource = ref("");
 const savingNew = ref(false);
 
 const aporteOpen = ref(false);
@@ -102,6 +103,7 @@ function openNew(): void {
   newName.value = "";
   newInitial.value = "";
   newOwner.value = "indefinido";
+  newSource.value = "";
   newOpen.value = true;
 }
 
@@ -117,19 +119,41 @@ async function createInvestment(): Promise<void> {
   }
   savingNew.value = true;
   try {
-    await accountsStore.create({
+    const account = await accountsStore.create({
       name: newName.value.trim(),
       type: "investimento",
-      initial_balance_cents: cents,
+      // Com origem, o valor sai da conta via transferência (saldo inicial 0).
+      initial_balance_cents: newSource.value ? 0 : cents,
       owner: newOwner.value,
     });
-    toast.success("Investimento criado.");
+    if (newSource.value && cents > 0) {
+      await transfersStore.create({
+        source_account: newSource.value,
+        destination_account: account.id,
+        amount_cents: cents,
+        date: todayISO(),
+        description: `Aporte · ${account.name}`,
+      });
+      toast.success("Investimento criado (o valor saiu da conta).");
+    } else {
+      toast.success("Investimento criado.");
+    }
     newOpen.value = false;
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Falha ao criar.");
   } finally {
     savingNew.value = false;
   }
+}
+
+async function removeInvestment(account: LocalAccount): Promise<void> {
+  const balance = balanceOf(account);
+  if (balance !== 0) {
+    toast.error("Retire o valor antes de excluir o investimento.");
+    return;
+  }
+  await accountsStore.remove(account.id);
+  toast.info("Investimento removido.");
 }
 
 function openAporte(account: LocalAccount): void {
@@ -317,7 +341,19 @@ watch(() => sync.dataVersion, loadAll);
                 <template v-else>Investimento</template>
               </p>
             </div>
-            <p class="font-display text-xl font-black">{{ formatBRL(balanceOf(account)) }}</p>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <p class="font-display text-xl font-black" data-testid="investment-balance">
+                {{ formatBRL(balanceOf(account)) }}
+              </p>
+              <button
+                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                aria-label="Excluir investimento"
+                data-testid="investment-delete"
+                @click="removeInvestment(account)"
+              >
+                <Trash2 class="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2 text-center">
@@ -363,6 +399,19 @@ watch(() => sync.dataVersion, loadAll);
         <div class="space-y-2">
           <Label for="inv-initial">Valor atual (R$)</Label>
           <Input id="inv-initial" v-model="newInitial" inputmode="decimal" placeholder="0,00" />
+        </div>
+        <div class="space-y-2">
+          <Label for="inv-source">Sai da conta (opcional)</Label>
+          <Select id="inv-source" v-model="newSource">
+            <option value="">Não (o valor já está investido)</option>
+            <option v-for="account in sourceAccounts" :key="account.id" :value="account.id">
+              {{ account.name }}
+            </option>
+          </Select>
+          <p class="text-xs text-muted-foreground">
+            Escolhendo a conta, o valor sai dela agora (ex.: comprando um CDB). Sem conta, é só o
+            registro do que já existe.
+          </p>
         </div>
         <div class="space-y-2">
           <Label for="inv-owner">De quem é</Label>
