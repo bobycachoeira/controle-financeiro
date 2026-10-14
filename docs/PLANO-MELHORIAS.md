@@ -45,10 +45,10 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - [x] C2. Etiquetas na UI (formulário, filtro e destaque na lista) — `8c84cbd`.
 - [x] C3. Anexo de foto (cupom) comprimido, offline-first — `9d05797`.
 
-### Fase D — Metas e orçamento proativo
-- [ ] D1. Metas/caixinhas compartilhadas (objetivo, aportes, progresso).
-- [ ] D2. Notificação push de orçamento (70/90/100% do limite).
-- [ ] D3. Projeção de gasto do mês (ritmo atual × limite).
+### Fase D — Metas e orçamento proativo ✅ (concluída)
+- [x] D1. Metas/caixinhas compartilhadas (aporte, resgate, histórico) — `6f5cfc4`.
+- [x] D2. Push de orçamento em 70/90/100% (1× por limiar por período) — `8911cbe`.
+- [x] D3. Projeção do gasto no ritmo atual × limite — `f602c18`.
 
 ### Fase E — Relatórios e calendário
 - [ ] E1. Fechamento do mês do casal (resumo por pessoa, categorias,
