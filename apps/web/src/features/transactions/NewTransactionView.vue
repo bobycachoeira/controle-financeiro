@@ -72,16 +72,30 @@ async function submit(): Promise<void> {
   saving.value = true;
   try {
     if (isEdit.value) {
-      await transactionsStore.update(String(route.params.id), {
-        account: account.value,
-        amount_cents: cents,
-        type: type.value,
-        date: date.value,
-        attribution: attribution.value,
-        category: category.value || null,
-        description: description.value,
-        status: status.value,
-      });
+      if (isCard.value && type.value === "despesa") {
+        await transactionsStore.updateCardPurchase(String(route.params.id), {
+          account: account.value,
+          amount_cents: cents,
+          type: type.value,
+          date: date.value,
+          attribution: attribution.value,
+          category: category.value || null,
+          description: description.value,
+          status: status.value,
+          credit_card: creditCard.value,
+        });
+      } else {
+        await transactionsStore.update(String(route.params.id), {
+          account: account.value,
+          amount_cents: cents,
+          type: type.value,
+          date: date.value,
+          attribution: attribution.value,
+          category: category.value || null,
+          description: description.value,
+          status: status.value,
+        });
+      }
       toast.success("Lançamento atualizado.");
     } else if (isCard.value && card.value) {
       await transactionsStore.createCardPurchase({
@@ -191,16 +205,18 @@ watch(
         <div class="grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
           <button
             type="button"
-            class="rounded-full py-2 text-sm font-extrabold transition"
+            class="rounded-full py-2 text-sm font-extrabold transition disabled:opacity-50"
             :class="type === 'despesa' ? 'bg-primary text-primary-foreground shadow-lift' : 'text-muted-foreground'"
+            :disabled="isEdit && isCard"
             @click="type = 'despesa'"
           >
             Despesa
           </button>
           <button
             type="button"
-            class="rounded-full py-2 text-sm font-extrabold transition"
+            class="rounded-full py-2 text-sm font-extrabold transition disabled:opacity-50"
             :class="type === 'receita' ? 'bg-leaf text-white shadow-lift' : 'text-muted-foreground'"
+            :disabled="isEdit && isCard"
             @click="type = 'receita'"
           >
             Receita
@@ -247,8 +263,8 @@ watch(
           <Label for="card" class="flex items-center gap-1">
             <CreditCard class="h-3.5 w-3.5" /> Cartão de crédito
           </Label>
-          <Select id="card" v-model="creditCard" :disabled="isEdit">
-            <option value="">Sem cartão</option>
+          <Select id="card" v-model="creditCard" :disabled="isEdit && !isCard">
+            <option v-if="!isEdit || !isCard" value="">Sem cartão</option>
             <option v-for="item in cardsStore.cards" :key="item.id" :value="item.id">
               {{ item.bank || "Cartão" }} •••• {{ item.closing_day }}/{{ item.due_day }}
             </option>

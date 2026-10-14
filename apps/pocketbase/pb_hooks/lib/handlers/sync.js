@@ -317,14 +317,21 @@ function applyOperation(household, userId, role, operation) {
       serverUpdatedAt: record.getString("updated") || "1970-01-01T00:00:00.000Z",
     });
     if (decision.winner === "client") {
+      const previousInvoice = entity === "transactions" ? record.getString("invoice") : "";
       setWhitelistedFields(record, collection, payload);
       record.set("updated_by", userId);
       $app.save(record);
       result.status = "applied";
       result.remote_id = record.id;
       result.record = serialize(record);
-      if (entity === "transactions" && record.get("invoice")) {
-        invoiceDomain.recalcInvoice($app, record.getString("invoice"));
+      if (entity === "transactions") {
+        const currentInvoice = record.getString("invoice");
+        if (previousInvoice && previousInvoice !== currentInvoice) {
+          invoiceDomain.recalcInvoice($app, previousInvoice);
+        }
+        if (currentInvoice) {
+          invoiceDomain.recalcInvoice($app, currentInvoice);
+        }
       }
       if (entity === "invoices") {
         // O total da fatura é sempre derivado das transações no servidor;

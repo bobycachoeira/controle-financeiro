@@ -1,7 +1,12 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
-import { closingDateForMonth, dueDateForMonth, generateInstallments } from "@cf/shared";
+import {
+  closingDateForMonth,
+  dueDateForMonth,
+  generateInstallments,
+  referenceMonthForPurchase,
+} from "@cf/shared";
 import { db, type LocalInstallment, type LocalInvoice, type LocalTransaction } from "../db/schema";
 import { createLocal, newSyncId, softDeleteLocal, updateLocal, updateLocalOnly, newLocalId } from "../db/repositories";
 import { useSessionStore } from "./session";
@@ -234,6 +239,53 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
+  /**
+   * Edita uma compra no cartão, incluindo a troca do cartão: a transação (e a
+   * parcela) passa para a fatura do novo cartão no ciclo da data da compra.
+   */
+  async function updateCardPurchase(
+    id: string,
+    changes: Partial<TransactionInput> & { credit_card?: string | null },
+  ): Promise<void> {
+    const existing = await db.transactions.get(id);
+    if (!existing) return;
+    const newCardId = changes.credit_card ?? existing.credit_card ?? "";
+    if (!newCardId || newCardId === existing.credit_card) {
+      await update(id, changes);
+      return;
+    }
+    const card = await db.credit_cards.get(newCardId);
+    if (!card) {
+      await update(id, changes);
+      return;
+    }
+    const referenceMonth = referenceMonthForPurchase(existing.date, card.closing_day);
+    const invoiceId = await ensureInvoice(
+      existing.household,
+      newCardId,
+      card.account,
+      referenceMonth,
+      card.closing_day,
+      card.due_day,
+    );
+    const updated: LocalTransaction = {
+      ...existing,
+      ...changes,
+      account: card.account,
+      credit_card: newCardId,
+      invoice: invoiceId,
+    } as LocalTransaction;
+    await updateLocal("transactions", updated);
+    if (existing.invoice && existing.invoice !== invoiceId) await recalcInvoice(existing.invoice);
+    await recalcInvoice(invoiceId);
+    const installments = await db.installments.where("root_transaction").equals(id).toArray();
+    for (const installment of installments) {
+      if (installment.deleted_at) continue;
+      await updateLocal("installments", { ...installment, invoice: invoiceId });
+    }
+    await load();
+  }
+
   async function remove(id: string): Promise<void> {
     const existing = await db.transactions.get(id);
     if (!existing) return;
@@ -242,5 +294,5 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
-  return { items, loading, load, create, createCardPurchase, update, remove, findByExternalRef };
+  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, findByExternalRef };
 });

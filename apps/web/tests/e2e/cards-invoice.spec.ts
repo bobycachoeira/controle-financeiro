@@ -59,4 +59,51 @@ test.describe("Cartão → fatura → pagamento", () => {
     await expect(page.locator("#card option:checked")).toHaveText(new RegExp(bank));
     await expect(page.locator("#account")).toBeDisabled();
   });
+
+  test("troca o cartão de uma compra e move a fatura", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const bankA = `BancoA${stamp}`;
+    const bankB = `BancoB${stamp}`;
+    const description = `Compra ${stamp}`;
+
+    for (const bank of [bankA, bankB]) {
+      await page.goto("/wallet");
+      await page.getByRole("button", { name: "Cartões" }).click();
+      await page.getByRole("button", { name: /^Novo$/ }).click();
+      await page.getByLabel("Nome").fill(`Cartão ${bank}`);
+      await page.getByLabel("Banco").fill(bank);
+      await page.getByRole("button", { name: "Salvar" }).click();
+      await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
+    }
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("25,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.locator("#card").selectOption({ label: `${bankA} •••• 15/25` });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    const cardA = page.getByTestId("card").filter({ hasText: bankA });
+    const cardB = page.getByTestId("card").filter({ hasText: bankB });
+    await expect(cardA.getByText("R$ 25,00")).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/transactions");
+    const row = page.locator("li", { hasText: description });
+    await row.getByLabel("Editar lançamento").click();
+    await expect(page.getByRole("heading", { name: "Editar lançamento" })).toBeVisible({ timeout: 15_000 });
+    await page.locator("#card").selectOption({ label: `${bankB} •••• 15/25` });
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    await expect(cardB.getByText("R$ 25,00")).toBeVisible({ timeout: 15_000 });
+    await expect(cardA.getByText("R$ 25,00")).toHaveCount(0);
+  });
 });

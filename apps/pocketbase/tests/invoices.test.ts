@@ -306,6 +306,88 @@ describe("invoice recalculation", () => {
     expect(afterFull?.status).toBe("paga");
   });
 
+  it("moves a card transaction between invoices and recalculates both", async () => {
+    const invoiceA = await pushAndGetId(harness, family, "invoices", {
+      id: crypto.randomUUID(),
+      household: "",
+      sync_id: crypto.randomUUID(),
+      credit_card: cardId,
+      account: accountId,
+      reference_month: "2024-06",
+      closing_date: "2024-06-15",
+      due_date: "2024-06-25",
+      total_cents: 0,
+      paid_cents: 0,
+      status: "aberta",
+    });
+    const invoiceB = await pushAndGetId(harness, family, "invoices", {
+      id: crypto.randomUUID(),
+      household: "",
+      sync_id: crypto.randomUUID(),
+      credit_card: cardId,
+      account: accountId,
+      reference_month: "2024-07",
+      closing_date: "2024-07-15",
+      due_date: "2024-07-25",
+      total_cents: 0,
+      paid_cents: 0,
+      status: "aberta",
+    });
+
+    const txLocalId = crypto.randomUUID();
+    const txSyncId = crypto.randomUUID();
+    const created = await push(harness, family.token, family.householdId, [
+      operation(
+        txSyncId,
+        "transactions",
+        "create",
+        {
+          id: txLocalId,
+          household: "",
+          sync_id: txSyncId,
+          account: accountId,
+          credit_card: cardId,
+          invoice: invoiceA,
+          amount_cents: 700,
+          type: "despesa",
+          date: "2024-06-10",
+          attribution: "meu",
+          category: categoryId,
+          status: "a_pagar",
+        },
+        txLocalId,
+      ),
+    ]);
+    const txRemoteId = String(created.data.results[0]?.remote_id ?? "");
+    expect((await invoiceRecord(invoiceA))?.total_cents).toBe(700);
+
+    const moved = operation(
+      crypto.randomUUID(),
+      "transactions",
+      "update",
+      {
+        id: txLocalId,
+        household: "",
+        sync_id: txSyncId,
+        account: accountId,
+        credit_card: cardId,
+        invoice: invoiceB,
+        amount_cents: 700,
+        type: "despesa",
+        date: "2024-06-10",
+        attribution: "meu",
+        category: categoryId,
+        status: "a_pagar",
+      },
+      txRemoteId,
+    );
+    moved.client_ts = new Date(Date.now() + 60_000).toISOString();
+    const result = await push(harness, family.token, family.householdId, [moved]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect((await invoiceRecord(invoiceA))?.total_cents).toBe(0);
+    expect((await invoiceRecord(invoiceB))?.total_cents).toBe(700);
+  });
+
   function invoiceCreatePayload(localId: string, syncId: string) {
     return {
       id: localId,
