@@ -55,6 +55,47 @@ export function selectSpendingByAttribution(
   return totalsByAttribution(transactions as unknown as BalanceTransaction[]);
 }
 
+export interface SpendingColumn {
+  key: string;
+  label: string;
+  totalCents: number;
+}
+
+/**
+ * Colunas de "Gastos do mês": pessoas configuradas + Ambos + Indefinido.
+ * Valores legados ("meu"/"dela") são mapeados para a 1ª/2ª pessoa quando as
+ * chaves configuradas são outras (ex.: id do usuário).
+ */
+export function selectSpendingColumns(
+  transactions: LocalTransaction[],
+  options: readonly { key: string; label: string }[],
+): SpendingColumn[] {
+  const totals = selectSpendingByAttribution(transactions);
+  const columns: SpendingColumn[] = options.map((option) => ({
+    key: option.key,
+    label: option.label,
+    totalCents: totals[option.key] ?? 0,
+  }));
+  const known = new Set(columns.map((column) => column.key));
+  let sharedCents = 0;
+  let undefinedCents = 0;
+  const legacy: Record<string, number> = { meu: 0, dela: 1 };
+  for (const [key, value] of Object.entries(totals)) {
+    if (known.has(key)) continue;
+    if (key === "ambos") {
+      sharedCents += value;
+      continue;
+    }
+    const legacyIndex = legacy[key];
+    const target = legacyIndex !== undefined ? columns[legacyIndex] : undefined;
+    if (target) target.totalCents += value;
+    else undefinedCents += value;
+  }
+  columns.push({ key: "ambos", label: "Ambos", totalCents: sharedCents });
+  columns.push({ key: "indefinido", label: "Indefinido", totalCents: undefinedCents });
+  return columns;
+}
+
 export function selectUpcomingBills(bills: LocalBill[], today: string, days = 7): LocalBill[] {
   const limit = new Date(`${today}T00:00:00Z`);
   limit.setUTCDate(limit.getUTCDate() + days);

@@ -5,6 +5,7 @@ import {
   selectOpenInvoices,
   selectRecentTransactions,
   selectSpendingByAttribution,
+  selectSpendingColumns,
   selectToPay30Days,
   selectTotalBalance,
   selectUpcomingBills,
@@ -65,6 +66,27 @@ describe("dashboard selectors", () => {
   it("aggregates spending by attribution", () => {
     const spending = selectSpendingByAttribution(transactions);
     expect(spending.meu).toBe(200);
+  });
+
+  it("builds spending columns with legacy mapping, Ambos and Indefinido", () => {
+    const options = [
+      { key: "u1", label: "Paulo" },
+      { key: "u2", label: "Maria" },
+    ];
+    const list = [
+      tx({ id: "s1", amount_cents: 100, attribution: "u1" }),
+      tx({ id: "s2", amount_cents: 200, attribution: "meu" }),
+      tx({ id: "s3", amount_cents: 300, attribution: "dela" }),
+      tx({ id: "s4", amount_cents: 400, attribution: "ambos" }),
+      tx({ id: "s5", amount_cents: 500, attribution: "indefinido" }),
+    ];
+    const columns = selectSpendingColumns(list, options);
+    expect(columns.map((column) => [column.key, column.totalCents])).toEqual([
+      ["u1", 300],
+      ["u2", 300],
+      ["ambos", 400],
+      ["indefinido", 500],
+    ]);
   });
 
   it("filters upcoming bills within 7 days", () => {

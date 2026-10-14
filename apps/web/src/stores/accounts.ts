@@ -68,7 +68,8 @@ export const useAccountsStore = defineStore("accounts", () => {
 
   /** Move a conta uma posição na lista (reordena os `order` afetados). */
   async function move(id: string, direction: -1 | 1): Promise<void> {
-    const list = [...items.value];
+    // Contas internas de cartão ficam na aba Cartões e não entram na ordenação.
+    const list = items.value.filter((account) => account.type !== "cartao_credito");
     const index = list.findIndex((account) => account.id === id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= list.length) return;

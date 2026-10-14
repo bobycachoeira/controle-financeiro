@@ -48,10 +48,13 @@ const typeLabels: Record<AccountType, string> = {
 };
 
 const balances = computed(() =>
-  accountsStore.items.map((account) => ({
-    account,
-    balance: computeAccountBalance(account, transactionsStore.items),
-  })),
+  accountsStore.items
+    // A conta interna do cartão é gerida na aba Cartões; aqui só contas reais.
+    .filter((account) => account.type !== "cartao_credito")
+    .map((account) => ({
+      account,
+      balance: computeAccountBalance(account, transactionsStore.items),
+    })),
 );
 
 async function loadAll(): Promise<void> {

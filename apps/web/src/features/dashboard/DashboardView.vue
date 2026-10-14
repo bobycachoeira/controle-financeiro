@@ -17,7 +17,7 @@ import {
   selectConsolidatedBalance,
   selectOpenInvoices,
   selectRecentTransactions,
-  selectSpendingByAttribution,
+  selectSpendingColumns,
   selectToPay30Days,
   selectTotalBalance,
   selectUpcomingBills,
@@ -72,12 +72,18 @@ const consolidated = computed(() =>
 const hasForeignCurrency = computed(() =>
   accountsStore.items.some((account) => (account.currency || "BRL") !== "BRL"),
 );
-const byAccount = computed(() => selectBalancesByAccount(accountsStore.items, transactionsStore.items));
-const spending = computed(() => selectSpendingByAttribution(transactionsStore.items));
-const spendingColumns = computed(() => [
-  ...people.options.map((option) => ({ key: option.key, label: option.label })),
-  { key: "ambos", label: "Ambos" },
-]);
+const byAccount = computed(() =>
+  selectBalancesByAccount(
+    accountsStore.items.filter((account) => account.type !== "cartao_credito"),
+    transactionsStore.items,
+  ),
+);
+const spendingColumns = computed(() =>
+  selectSpendingColumns(
+    transactionsStore.items,
+    people.options.map((option) => ({ key: option.key, label: option.label })),
+  ),
+);
 const upcoming = computed(() => selectUpcomingBills(bills.value, today));
 const openInvoices = computed(() => selectOpenInvoices(invoices.value));
 const recent = computed(() => selectRecentTransactions(transactionsStore.items));
@@ -192,7 +198,7 @@ watch(() => sync.dataVersion, loadAll);
             <p class="truncate text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
               {{ column.label }}
             </p>
-            <p class="font-display font-bold">{{ formatBRL(spending[column.key] ?? 0) }}</p>
+            <p class="font-display font-bold">{{ formatBRL(column.totalCents) }}</p>
           </div>
         </div>
       </CardContent>
