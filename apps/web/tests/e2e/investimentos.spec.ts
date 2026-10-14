@@ -30,5 +30,13 @@ test.describe("investimentos", () => {
     await yieldForm.getByRole("button", { name: "Registrar" }).click();
     await expect(card).toContainText("R$ 1.010,00", { timeout: 15_000 });
     await expect(card).toContainText("R$ 10,00");
+
+    // Resgatar parte do investimento de volta para a conta.
+    await card.getByRole("button", { name: "Retirar" }).click();
+    await page.locator("#retirar-destination").selectOption({ label: "Conta Principal" });
+    await page.locator("#retirar-amount").fill("10,00");
+    const retirarForm = page.locator("form", { has: page.locator("#retirar-amount") });
+    await retirarForm.getByRole("button", { name: "Retirar" }).click();
+    await expect(card).toContainText("R$ 1.000,00", { timeout: 15_000 });
   });
 });
