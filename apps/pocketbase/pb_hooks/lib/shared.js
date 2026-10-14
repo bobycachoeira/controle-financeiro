@@ -64,6 +64,7 @@ __export(src_exports, {
   REMINDER_DAYS_OPTIONS: () => REMINDER_DAYS_OPTIONS,
   REMINDER_TYPES: () => REMINDER_TYPES,
   ROLES: () => ROLES,
+  SETTLEMENT_TRANSFER_PREFIX: () => SETTLEMENT_TRANSFER_PREFIX,
   SHARED_ATTRIBUTION: () => SHARED_ATTRIBUTION,
   STEP_UP_ACTIONS: () => STEP_UP_ACTIONS,
   SYNC_ENTITY_NAMES: () => SYNC_ENTITY_NAMES,
@@ -103,6 +104,7 @@ __export(src_exports, {
   computeAccountBalance: () => computeAccountBalance,
   computeBillsTotals: () => computeBillsTotals,
   computeBudgetUsage: () => computeBudgetUsage,
+  computeSettlement: () => computeSettlement,
   consolidateToBRL: () => consolidateToBRL,
   convertCents: () => convertCents,
   creditCardSchema: () => creditCardSchema,
@@ -5253,6 +5255,88 @@ function computeBudgetUsage(budget, transactions, bills = []) {
     status,
     perCategory
   };
+}
+
+// src/domain/settlement.ts
+var SETTLEMENT_TRANSFER_PREFIX = "Acerto do m\xEAs";
+function splitEvenly(totalCents, count) {
+  const base = Math.floor(totalCents / count);
+  const remainder = totalCents - base * count;
+  return Array.from({ length: count }, (_, index) => base + (index < remainder ? 1 : 0));
+}
+function resolveBeneficiaries(attribution, people, legacyMap) {
+  if (people.length === 0) return [];
+  if (attribution === "ambos" || attribution === "indefinido") {
+    return people.map((person) => person.key);
+  }
+  const direct = people.find((person) => person.key === attribution);
+  if (direct) return [direct.key];
+  const legacyIndex = legacyMap == null ? void 0 : legacyMap[attribution];
+  if (legacyIndex !== void 0 && people[legacyIndex]) return [people[legacyIndex].key];
+  return people.map((person) => person.key);
+}
+function computeSettlement(input) {
+  var _a, _b;
+  const rows = new Map(
+    input.people.map((person) => [
+      person.key,
+      __spreadProps(__spreadValues({}, person), { paidCents: 0, shareCents: 0, netCents: 0 })
+    ])
+  );
+  let consideredCents = 0;
+  let ignoredCents = 0;
+  for (const tx of input.transactions) {
+    if (tx.deleted_at || tx.type !== "despesa" || tx.status !== "pago") continue;
+    if (monthOf(tx.date) !== input.month) continue;
+    const payer = tx.payer_user ? rows.get(tx.payer_user) : void 0;
+    if (!payer) {
+      ignoredCents += tx.amount_cents;
+      continue;
+    }
+    const beneficiaries = resolveBeneficiaries(tx.attribution, input.people, input.legacyMap);
+    if (beneficiaries.length === 0) continue;
+    payer.paidCents += tx.amount_cents;
+    const shares = splitEvenly(tx.amount_cents, beneficiaries.length);
+    beneficiaries.forEach((key, index) => {
+      var _a2;
+      const person = rows.get(key);
+      if (person) person.shareCents += (_a2 = shares[index]) != null ? _a2 : 0;
+    });
+    consideredCents += tx.amount_cents;
+  }
+  for (const transfer of (_a = input.transfers) != null ? _a : []) {
+    if (transfer.deleted_at) continue;
+    if (!((_b = transfer.description) != null ? _b : "").startsWith(SETTLEMENT_TRANSFER_PREFIX)) continue;
+    if (monthOf(transfer.date) !== input.month) continue;
+    const from = transfer.source_owner ? rows.get(transfer.source_owner) : void 0;
+    const to = transfer.destination_owner ? rows.get(transfer.destination_owner) : void 0;
+    if (!from || !to || from.key === to.key) continue;
+    from.paidCents += transfer.amount_cents;
+    to.shareCents += transfer.amount_cents;
+  }
+  const people = input.people.map((person) => {
+    const row = rows.get(person.key);
+    row.netCents = row.paidCents - row.shareCents;
+    return row;
+  });
+  const creditors = people.filter((person) => person.netCents > 0).map((person) => ({ key: person.key, value: person.netCents })).sort((a, b) => b.value - a.value);
+  const debtors = people.filter((person) => person.netCents < 0).map((person) => ({ key: person.key, value: -person.netCents })).sort((a, b) => b.value - a.value);
+  const suggestions = [];
+  let creditorIndex = 0;
+  let debtorIndex = 0;
+  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+    const creditor = creditors[creditorIndex];
+    const debtor = debtors[debtorIndex];
+    const amount = Math.min(creditor.value, debtor.value);
+    if (amount > 0) {
+      suggestions.push({ fromKey: debtor.key, toKey: creditor.key, amountCents: amount });
+    }
+    creditor.value -= amount;
+    debtor.value -= amount;
+    if (creditor.value === 0) creditorIndex += 1;
+    if (debtor.value === 0) debtorIndex += 1;
+  }
+  return { people, suggestions, consideredCents, ignoredCents };
 }
 
 // src/domain/import.ts
