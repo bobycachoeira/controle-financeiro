@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { LocalAccount, LocalBill, LocalInvoice, LocalTransaction } from "@/db/schema";
 import {
   selectBalancesByAccount,
+  selectCardUsage,
+  selectCategoryBreakdown,
   selectOpenInvoices,
   selectRecentTransactions,
   selectSpendingByAttribution,
@@ -122,5 +124,58 @@ describe("dashboard selectors", () => {
       tx({ id: "p3", amount_cents: 200, status: "a_pagar", date: "2024-03-20", invoice: "inv1" }),
     ];
     expect(selectToPay30Days(list, "2024-03-10")).toBe(100);
+  });
+
+  it("monta o breakdown por categoria com filtro de conta e variação", () => {
+    const categories = [{ id: "food", name: "Alimentação", color: "#f97316" }];
+    const list = [
+      tx({ id: "a1", amount_cents: 10000, category: "food", account: "a1", date: "2024-03-05" }),
+      tx({ id: "a2", amount_cents: 5000, category: "food", account: "a2", date: "2024-03-06" }),
+      tx({ id: "a3", amount_cents: 8000, category: "food", account: "a1", date: "2024-02-05" }),
+    ];
+    const all = selectCategoryBreakdown({
+      transactions: list,
+      categories,
+      month: "2024-03",
+      previousMonth: "2024-02",
+    });
+    expect(all.totalCents).toBe(15000);
+    expect(all.entries[0]).toMatchObject({
+      name: "Alimentação",
+      totalCents: 15000,
+      percentOfTotal: 100,
+      deltaPercent: 88,
+    });
+
+    const scoped = selectCategoryBreakdown({
+      transactions: list,
+      categories,
+      month: "2024-03",
+      previousMonth: "2024-02",
+      accountId: "a1",
+    });
+    expect(scoped.totalCents).toBe(10000);
+    expect(scoped.entries[0]?.deltaPercent).toBe(25);
+    expect(scoped.topIncrease?.deltaPercent).toBe(25);
+  });
+
+  it("resume o uso do cartão e o percentual dos gastos", () => {
+    const list = [
+      tx({ id: "c1", amount_cents: 6000, credit_card: "card1", account: "cardacc", date: "2024-03-10" }),
+      tx({ id: "c2", amount_cents: 4000, account: "a1", date: "2024-03-11" }),
+      tx({ id: "c3", amount_cents: 9999, credit_card: "card1", account: "cardacc", date: "2024-02-10" }),
+      tx({
+        id: "c4",
+        amount_cents: 1000,
+        credit_card: "card1",
+        account: "cardacc",
+        type: "receita",
+        date: "2024-03-12",
+      }),
+    ];
+    const usage = selectCardUsage(list, 5000, 1, "2024-03");
+    expect(usage.spentCents).toBe(6000);
+    expect(usage.percentOfSpending).toBe(60);
+    expect(usage.openInvoicesCents).toBe(5000);
   });
 });

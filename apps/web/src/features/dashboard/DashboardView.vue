@@ -5,7 +5,6 @@ import {
   balanceEvolution,
   computeSettlement,
   monthlyCashflow,
-  spendingByCategory,
   todayISO,
 } from "@cf/shared";
 import { Sparkles } from "lucide-vue-next";
@@ -24,6 +23,8 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { accountIconName } from "@/lib/icons";
 import {
   selectBalancesByAccount,
+  selectCardUsage,
+  selectCategoryBreakdown,
   selectConsolidatedBalance,
   selectOpenInvoices,
   selectRecentTransactions,
@@ -35,11 +36,11 @@ import {
 import ConflictPanel from "@/features/sync/ConflictPanel.vue";
 import AreaChart from "@/components/charts/AreaChart.vue";
 import BarsChart from "@/components/charts/BarsChart.vue";
-import CategoryBars from "@/components/charts/CategoryBars.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
+import Select from "@/components/ui/Select.vue";
 import IconChip from "@/components/ui/IconChip.vue";
 
 const session = useSessionStore();
@@ -91,8 +92,30 @@ const cashflowSeries = computed(() => [
 const hasCashflow = computed(() =>
   cashflow.value.some((point) => point.receitasCents > 0 || point.despesasCents > 0),
 );
-const topCategories = computed(() =>
-  spendingByCategory(transactionsStore.items, categories.value, currentMonth, 5),
+const currentBucket = computed(() => cashflow.value[cashflow.value.length - 1]);
+const previousMonthKey = computed(() => {
+  const date = new Date(`${currentMonth}-01T00:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  return date.toISOString().slice(0, 7);
+});
+const categoryAccount = ref("");
+const accountFilterOptions = computed(() => [
+  ...accountsStore.items
+    .filter((account) => account.type !== "cartao_credito")
+    .map((account) => ({ id: account.id, label: account.name })),
+  ...cardsStore.cards
+    .map((card) => ({ id: card.account, label: card.bank?.trim() || "Cartão" }))
+    .filter((option) => accountsStore.items.some((account) => account.id === option.id)),
+]);
+const categoryBreakdown = computed(() =>
+  selectCategoryBreakdown({
+    transactions: transactionsStore.items,
+    categories: categories.value,
+    month: currentMonth,
+    previousMonth: previousMonthKey.value,
+    accountId: categoryAccount.value || undefined,
+    limit: 4,
+  }),
 );
 
 const firstName = computed(() => (session.user?.name ?? "").split(" ")[0] || "olá");
@@ -117,6 +140,20 @@ const spendingColumns = computed(() =>
 );
 const upcoming = computed(() => selectUpcomingBills(bills.value, today));
 const openInvoices = computed(() => selectOpenInvoices(invoices.value));
+const openInvoicesTotal = computed(() =>
+  openInvoices.value.reduce(
+    (sum, invoice) => sum + Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0)),
+    0,
+  ),
+);
+const cardUsage = computed(() =>
+  selectCardUsage(
+    transactionsStore.items,
+    openInvoicesTotal.value,
+    cardsStore.cards.length,
+    currentMonth,
+  ),
+);
 const recent = computed(() => selectRecentTransactions(transactionsStore.items));
 const toPay = computed(() => selectToPay30Days(transactionsStore.items, today));
 const settleSummary = computed(() => {
@@ -290,14 +327,71 @@ watch(() => sync.dataVersion, loadAll);
             <h2 class="font-display text-lg font-bold">Receitas x despesas</h2>
           </div>
           <BarsChart :categories="cashflowLabels" :series="cashflowSeries" />
+          <div class="mt-2 flex items-center justify-center gap-3 text-xs font-bold">
+            <span class="text-leaf">+{{ formatBRL(currentBucket?.receitasCents ?? 0) }}</span>
+            <span class="text-primary">−{{ formatBRL(currentBucket?.despesasCents ?? 0) }}</span>
+            <span
+              :class="(currentBucket?.netCents ?? 0) >= 0 ? 'text-leaf' : 'text-destructive'"
+            >
+              sobra
+              {{ (currentBucket?.netCents ?? 0) >= 0 ? "+" : "−" }}{{ formatBRL(Math.abs(currentBucket?.netCents ?? 0)) }}
+            </span>
+          </div>
         </div>
 
-        <div v-if="topCategories.length > 0" class="border-t border-border/60 pt-4">
+        <div class="border-t border-border/60 pt-4">
           <div class="mb-3 flex items-center gap-2">
             <IconChip name="tag" color="#B0477E" size="sm" />
             <h2 class="font-display text-lg font-bold">Gastos por categoria</h2>
           </div>
-          <CategoryBars :items="topCategories" />
+          <Select
+            v-model="categoryAccount"
+            class="mb-3"
+            aria-label="Filtrar gastos por conta"
+            data-testid="category-filter"
+          >
+            <option value="">Todas as contas</option>
+            <option v-for="option in accountFilterOptions" :key="option.id" :value="option.id">
+              {{ option.label }}
+            </option>
+          </Select>
+          <p
+            v-if="categoryBreakdown.entries.length === 0"
+            class="text-sm text-muted-foreground"
+          >
+            Sem despesas nesse filtro.
+          </p>
+          <ul v-else class="space-y-2.5">
+            <li v-for="entry in categoryBreakdown.entries" :key="entry.name" class="space-y-1">
+              <div class="flex items-center justify-between gap-2 text-sm">
+                <span class="truncate font-semibold">{{ entry.name }}</span>
+                <span class="flex shrink-0 items-center gap-2">
+                  <span class="font-display font-bold">{{ formatBRL(entry.totalCents) }}</span>
+                  <span class="text-xs text-muted-foreground">{{ entry.percentOfTotal }}%</span>
+                  <span
+                    v-if="entry.deltaPercent !== null && entry.deltaPercent !== 0"
+                    class="text-[0.62rem] font-bold"
+                    :class="entry.deltaPercent > 0 ? 'text-destructive' : 'text-leaf'"
+                  >
+                    {{ entry.deltaPercent > 0 ? "↑" : "↓" }}{{ Math.abs(entry.deltaPercent) }}%
+                  </span>
+                </span>
+              </div>
+              <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
+                <div
+                  class="h-full rounded-full"
+                  :style="{ width: entry.percentOfTotal + '%', backgroundColor: entry.color }"
+                />
+              </div>
+            </li>
+          </ul>
+          <p
+            v-if="categoryBreakdown.topIncrease"
+            class="mt-3 rounded-2xl bg-sun/20 px-3 py-2 text-xs font-semibold text-accent-foreground"
+          >
+            {{ categoryBreakdown.topIncrease.name }} subiu
+            {{ categoryBreakdown.topIncrease.deltaPercent }}% vs mês passado — vale olhar.
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -340,6 +434,36 @@ watch(() => sync.dataVersion, loadAll);
         </CardContent>
       </Card>
     </div>
+
+    <Card v-if="cardUsage.cardsCount > 0 || cardUsage.spentCents > 0" data-testid="card-usage">
+      <CardContent class="p-4">
+        <div class="mb-2 flex items-center gap-2">
+          <IconChip name="credit-card" color="#B0477E" size="sm" />
+          <h2 class="font-display text-base font-bold">Cartões neste mês</h2>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="rounded-2xl bg-muted/60 p-2">
+            <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">
+              Gasto no cartão
+            </p>
+            <p class="font-display text-sm font-bold">{{ formatBRL(cardUsage.spentCents) }}</p>
+          </div>
+          <div class="rounded-2xl bg-muted/60 p-2">
+            <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">
+              % dos gastos
+            </p>
+            <p class="font-display text-sm font-bold">{{ cardUsage.percentOfSpending }}%</p>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-muted-foreground">
+          Faturas abertas: {{ formatBRL(cardUsage.openInvoicesCents) }} ·
+          <template v-if="cardUsage.percentOfSpending >= 50">
+            mais da metade do mês foi no cartão.
+          </template>
+          <template v-else>confira os detalhes em Cartões.</template>
+        </p>
+      </CardContent>
+    </Card>
 
     <Card>
       <CardContent class="p-4">
