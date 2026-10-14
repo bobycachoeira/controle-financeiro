@@ -57,6 +57,11 @@ const routes: RouteRecordRaw[] = [
       { path: "wallet", name: "wallet", component: () => import("@/features/wallet/WalletView.vue") },
       { path: "accounts", name: "accounts", component: () => import("@/features/accounts/AccountsView.vue") },
       { path: "cards", name: "cards", component: () => import("@/features/cards/CardsView.vue") },
+      {
+        path: "invoices/:id",
+        name: "invoice",
+        component: () => import("@/features/cards/InvoiceView.vue"),
+      },
       { path: "transfers", name: "transfers", component: () => import("@/features/transfers/TransferView.vue") },
       { path: "bills", name: "bills", component: () => import("@/features/bills/BillsView.vue") },
       {

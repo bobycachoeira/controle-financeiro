@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
-import { Banknote, Check, ChevronDown, ChevronUp, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-next";
-import { applyInvoicePayment, todayISO } from "@cf/shared";
-import { updateLocal } from "@/db/repositories";
+import { RouterLink } from "vue-router";
+import { Check, ChevronDown, ChevronUp, CreditCard, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useAccountsStore } from "@/stores/accounts";
-import { useTransfersStore } from "@/stores/transfers";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, parseAmountInput } from "@/lib/format-input";
@@ -20,14 +18,22 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Modal from "@/components/ui/Modal.vue";
+import InvoicePayModal from "./InvoicePayModal.vue";
 import type { LocalCreditCard, LocalInvoice } from "@/db/schema";
 
 const cardsStore = useCardsStore();
 const people = usePeopleStore();
 const accountsStore = useAccountsStore();
-const transfersStore = useTransfersStore();
 const sync = useSyncStore();
 const toast = useToast();
+const payModal = ref<InstanceType<typeof InvoicePayModal> | null>(null);
+const expandedCards = ref<Record<string, boolean>>({});
+
+/** Mantém à vista só a fatura atual e a anterior; o resto atrás de "Ver todas". */
+function visibleInvoices(cardId: string): LocalInvoice[] {
+  const list = cardsStore.invoicesFor(cardId);
+  return expandedCards.value[cardId] ? list : list.slice(0, 2);
+}
 
 const CARD_COLORS = [
   "#1B1B1F",
@@ -53,13 +59,6 @@ const color = ref<string>("#1B1B1F");
 const paymentAccount = ref("");
 const owner = ref("indefinido");
 const saving = ref(false);
-
-const payOpen = ref(false);
-const payingInvoice = ref<LocalInvoice | null>(null);
-const payingCard = ref<LocalCreditCard | null>(null);
-const payAccount = ref("");
-const payAmount = ref("");
-const paying = ref(false);
 
 const statusVariant: Record<string, "secondary" | "success" | "warning" | "destructive"> = {
   aberta: "secondary",
@@ -144,56 +143,26 @@ async function submit(): Promise<void> {
 }
 
 function openPay(card: LocalCreditCard, invoice: LocalInvoice): void {
-  payingCard.value = card;
-  payingInvoice.value = invoice;
-  payAccount.value = card.payment_account ?? "";
-  const remaining = Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0));
-  payAmount.value = remaining > 0 ? formatCentsToInput(remaining) : "";
-  payOpen.value = true;
+  payModal.value?.open(card, invoice);
 }
 
-async function confirmPay(): Promise<void> {
-  const card = payingCard.value;
-  const invoice = payingInvoice.value;
-  if (!card || !invoice || !payAccount.value) {
-    toast.error("Escolha a conta de pagamento.");
-    return;
-  }
-  const cents = parseAmountInput(payAmount.value);
-  if (cents === null || cents <= 0) {
-    toast.error("Informe o valor da fatura.");
-    return;
-  }
-  paying.value = true;
-  try {
-    await transfersStore.create({
-      source_account: payAccount.value,
-      destination_account: card.account,
-      amount_cents: cents,
-      date: todayISO(),
-      description: `Pagamento da fatura ${invoice.reference_month}`,
-    });
-    // Acumula pagamentos parciais; não sobrescreve o total da fatura.
-    const payment = applyInvoicePayment(invoice, cents, new Date().toISOString());
-    await updateLocal("invoices", { ...invoice, ...payment });
-    await cardsStore.load();
-    toast.success(
-      payment.status === "paga" ? "Fatura paga e transferência registrada." : "Pagamento parcial registrado.",
-    );
-    payOpen.value = false;
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Falha ao pagar a fatura.");
-  } finally {
-    paying.value = false;
-  }
+async function onPaid(): Promise<void> {
+  await cardsStore.load();
 }
 
 onMounted(async () => {
-  await Promise.all([cardsStore.load(), accountsStore.load(), transfersStore.load(), people.load()]);
+  await Promise.all([cardsStore.load(), accountsStore.load(), people.load()]);
   await cardsStore.ensureMonthlyInvoices();
   if (!editingId.value) color.value = CARD_COLORS[0]!;
 });
-watch(() => sync.dataVersion, () => cardsStore.load());
+watch(
+  () => sync.dataVersion,
+  async () => {
+    await cardsStore.load();
+    // Cartões criados em outro aparelho também ganham a fatura do ciclo.
+    await cardsStore.ensureMonthlyInvoices();
+  },
+);
 </script>
 
 <template>
@@ -272,16 +241,19 @@ watch(() => sync.dataVersion, () => cardsStore.load());
           <p class="pb-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Faturas</p>
           <ul class="divide-y">
             <li
-              v-for="invoice in cardsStore.invoicesFor(card.id)"
+              v-for="invoice in visibleInvoices(card.id)"
               :key="invoice.id"
               class="flex items-center justify-between gap-2 py-2.5 text-sm"
             >
-              <div class="min-w-0">
+              <RouterLink
+                :to="{ name: 'invoice', params: { id: invoice.id } }"
+                class="min-w-0 flex-1"
+              >
                 <p class="font-bold">{{ invoice.reference_month }}</p>
                 <p class="text-xs text-muted-foreground">
                   Fecha {{ formatDate(invoice.closing_date) }} · Vence {{ formatDate(invoice.due_date) }}
                 </p>
-              </div>
+              </RouterLink>
               <div class="flex items-center gap-2">
                 <div class="text-right">
                   <span class="font-display font-bold">{{ formatBRL(invoice.total_cents) }}</span>
@@ -309,6 +281,19 @@ watch(() => sync.dataVersion, () => cardsStore.load());
           <p v-if="cardsStore.invoicesFor(card.id).length === 0" class="text-xs text-muted-foreground">
             Sem faturas ainda.
           </p>
+          <button
+            v-if="cardsStore.invoicesFor(card.id).length > 2"
+            type="button"
+            data-testid="invoices-toggle"
+            class="mt-2 text-xs font-bold text-primary transition hover:underline"
+            @click="expandedCards[card.id] = !expandedCards[card.id]"
+          >
+            {{
+              expandedCards[card.id]
+                ? "Ver menos"
+                : `Ver todas (${cardsStore.invoicesFor(card.id).length})`
+            }}
+          </button>
         </CardContent>
       </Card>
     </div>
@@ -382,48 +367,6 @@ watch(() => sync.dataVersion, () => cardsStore.load());
       </form>
     </Modal>
 
-    <Modal
-      v-model="payOpen"
-      title="Pagar fatura"
-      description="Registra uma transferência da conta escolhida para o cartão."
-    >
-      <form class="space-y-4" @submit.prevent="confirmPay">
-        <div class="flex items-center gap-3 rounded-2xl bg-muted p-3">
-          <Banknote class="h-5 w-5 text-primary" />
-          <div>
-            <p class="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Fatura {{ payingInvoice?.reference_month ?? "" }}
-            </p>
-            <p v-if="payingInvoice" class="text-xs text-muted-foreground">
-              Vence {{ formatDate(payingInvoice.due_date) }} · Total {{ formatBRL(payingInvoice.total_cents) }}
-              <template v-if="(payingInvoice.paid_cents ?? 0) > 0">
-                · já pago {{ formatBRL(payingInvoice.paid_cents) }}
-              </template>
-            </p>
-          </div>
-        </div>
-        <div class="space-y-2">
-          <Label for="pay-amount">Valor da fatura (R$)</Label>
-          <Input id="pay-amount" v-model="payAmount" inputmode="decimal" placeholder="0,00" required />
-        </div>
-        <div class="space-y-2">
-          <Label for="pay-account">Pagar com a conta</Label>
-          <Select id="pay-account" v-model="payAccount" required>
-            <option value="">Selecione</option>
-            <option
-              v-for="item in accountsStore.items.filter((a) => a.type !== 'cartao_credito')"
-              :key="item.id"
-              :value="item.id"
-            >
-              {{ item.name }}
-            </option>
-          </Select>
-        </div>
-        <div class="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" type="button" @click="payOpen = false">Cancelar</Button>
-          <Button type="submit" :loading="paying">Confirmar pagamento</Button>
-        </div>
-      </form>
-    </Modal>
+    <InvoicePayModal ref="payModal" @paid="onPaid" />
   </div>
 </template>
