@@ -10,8 +10,11 @@ import { db } from "../db/schema";
 import { toPlain, updateLocal } from "../db/repositories";
 import { useSessionStore } from "./session";
 
+export type SplitMode = "junto" | "dividir";
+
 export const usePeopleStore = defineStore("people", () => {
   const options = ref<AttributionOption[]>([]);
+  const splitMode = ref<SplitMode>("junto");
   const loading = ref(false);
 
   async function load(): Promise<void> {
@@ -20,7 +23,11 @@ export const usePeopleStore = defineStore("people", () => {
     loading.value = true;
     try {
       const household = await db.households.get(session.currentHouseholdId);
-      const settings = (household?.settings ?? {}) as { attribution_options?: unknown };
+      const settings = (household?.settings ?? {}) as {
+        attribution_options?: unknown;
+        split_mode?: unknown;
+      };
+      splitMode.value = settings.split_mode === "dividir" ? "dividir" : "junto";
       let loaded: AttributionOption[];
       if (Array.isArray(settings.attribution_options) && settings.attribution_options.length > 0) {
         loaded = attributionOptions(household?.settings);
@@ -106,5 +113,33 @@ export const usePeopleStore = defineStore("people", () => {
     options.value = next;
   }
 
-  return { options, loading, label, load, save, selectable, currentKey };
+  /**
+   * Como o casal lida com o dinheiro:
+   * - "junto": dinheiro é dos dois; mostra contribuições, sem cobrança.
+   * - "dividir": ativa o Acerto do mês (quem adiantou × quem usou).
+   */
+  async function saveSplitMode(mode: SplitMode): Promise<void> {
+    const session = useSessionStore();
+    if (!session.currentHouseholdId) return;
+    const household = await db.households.get(session.currentHouseholdId);
+    if (!household) return;
+    const clean = toPlain({
+      ...household,
+      settings: { ...(household.settings ?? {}), split_mode: mode },
+    });
+    await updateLocal("households", clean);
+    splitMode.value = mode;
+  }
+
+  return {
+    options,
+    splitMode,
+    loading,
+    label,
+    load,
+    save,
+    saveSplitMode,
+    selectable,
+    currentKey,
+  };
 });

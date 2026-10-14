@@ -31,8 +31,22 @@ const toast = useToast();
 const email = ref("");
 const role = ref<Role>("partner");
 const sending = ref(false);
+const savingMode = ref(false);
 const stepUpOpen = ref(false);
 let pendingAfterStepUp: (() => Promise<void>) | null = null;
+
+async function chooseSplitMode(mode: "junto" | "dividir"): Promise<void> {
+  if (people.splitMode === mode) return;
+  savingMode.value = true;
+  try {
+    await people.saveSplitMode(mode);
+    toast.success(mode === "dividir" ? "Modo dividir ativado." : "Modo tudo junto ativado.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
+  } finally {
+    savingMode.value = false;
+  }
+}
 
 const approveTarget = ref<JoinRequest | null>(null);
 const approveRole = ref<Role>("child");
@@ -341,6 +355,48 @@ watch(
           <Button variant="outline" size="sm" @click="addPerson"><Plus class="h-4 w-4" /> Adicionar pessoa</Button>
           <Button @click="savePeople">Salvar</Button>
         </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Modo do casal</CardTitle>
+        <CardDescription>
+          Como vocês lidam com o dinheiro no dia a dia. Dá para mudar quando quiser.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-2">
+        <button
+          type="button"
+          class="w-full rounded-2xl border-2 p-3 text-left transition disabled:opacity-60"
+          :class="people.splitMode === 'junto' ? 'border-primary bg-primary/5' : 'border-border'"
+          data-testid="split-mode-junto"
+          :disabled="savingMode"
+          @click="chooseSplitMode('junto')"
+        >
+          <p class="font-bold">
+            Tudo junto
+            <span class="text-xs font-semibold text-primary">(recomendado)</span>
+          </p>
+          <p class="text-xs text-muted-foreground">
+            O dinheiro é dos dois. Mostramos quanto cada um contribuiu no mês e você pode pedir uma
+            cobertura ao par quando apertar — sem cobrança.
+          </p>
+        </button>
+        <button
+          type="button"
+          class="w-full rounded-2xl border-2 p-3 text-left transition disabled:opacity-60"
+          :class="people.splitMode === 'dividir' ? 'border-primary bg-primary/5' : 'border-border'"
+          data-testid="split-mode-dividir"
+          :disabled="savingMode"
+          @click="chooseSplitMode('dividir')"
+        >
+          <p class="font-bold">Dividir e acertar</p>
+          <p class="text-xs text-muted-foreground">
+            Cada um tem a sua parte; o app mostra o Acerto do mês (quem adiantou e quem deve) e
+            sugere a transferência.
+          </p>
+        </button>
       </CardContent>
     </Card>
 
