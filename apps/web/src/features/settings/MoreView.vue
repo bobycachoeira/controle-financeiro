@@ -57,7 +57,10 @@ const groups: { title: string; links: MoreLink[] }[] = [
   },
   {
     title: "Outros",
-    links: [{ name: "integrations", label: "Integrações" }],
+    links: [
+      { name: "integrations", label: "Integrações" },
+      { name: "export", label: "Exportar dados" },
+    ],
   },
 ];
 

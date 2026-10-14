@@ -95,6 +95,11 @@ const routes: RouteRecordRaw[] = [
         name: "categories",
         component: () => import("@/features/categories/CategoriesView.vue"),
       },
+      {
+        path: "export",
+        name: "export",
+        component: () => import("@/features/settings/ExportView.vue"),
+      },
       { path: "family", name: "family", component: () => import("@/features/household/FamilyView.vue") },
       { path: "people", name: "people", redirect: { name: "family" } },
       { path: "profile", name: "profile", component: () => import("@/features/settings/ProfileView.vue") },
