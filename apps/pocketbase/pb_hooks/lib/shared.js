@@ -74,6 +74,7 @@ __export(src_exports, {
   TRANSACTION_TYPES: () => TRANSACTION_TYPES,
   UNDEFINED_ATTRIBUTION: () => UNDEFINED_ATTRIBUTION,
   acceptedSchema: () => acceptedSchema,
+  accountBalanceEvolution: () => accountBalanceEvolution,
   accountSchema: () => accountSchema,
   accountTypeSchema: () => accountTypeSchema,
   addDays: () => addDays,
@@ -5612,6 +5613,20 @@ function balanceEvolution(accounts, transactions, endMonth, count = 6) {
       else if (tx.status === "pago") net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: initial + net };
+  });
+}
+function accountBalanceEvolution(account, transactions, endMonth, count = 6) {
+  const months = lastMonths(endMonth, count);
+  return months.map((month) => {
+    const end = `${month}-31`;
+    let balance = account.initial_balance_cents;
+    for (const tx of transactions) {
+      if (tx.deleted_at || tx.date > end) continue;
+      if (tx.account !== account.id) continue;
+      if (tx.type === "transferencia") balance += tx.amount_cents;
+      else if (tx.status === "pago") balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+    }
+    return { month, label: monthLabel(month), balanceCents: balance };
   });
 }
 function spendingByCategory(transactions, categories, month, limit = 5) {

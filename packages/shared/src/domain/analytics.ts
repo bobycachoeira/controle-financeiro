@@ -5,6 +5,7 @@ export interface AnalyticsTransaction {
   status: "pago" | "a_pagar";
   amount_cents: number;
   date: string;
+  account?: string;
   category?: string | null;
   deleted_at?: string | null;
 }
@@ -86,6 +87,27 @@ export function balanceEvolution(
       else if (tx.status === "pago") net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: initial + net };
+  });
+}
+
+/** Evolução do saldo de UMA conta (aportes, rendimentos, transações). */
+export function accountBalanceEvolution(
+  account: AnalyticsAccount & { id: string },
+  transactions: readonly AnalyticsTransaction[],
+  endMonth: string,
+  count = 6,
+): { month: string; label: string; balanceCents: number }[] {
+  const months = lastMonths(endMonth, count);
+  return months.map((month) => {
+    const end = `${month}-31`;
+    let balance = account.initial_balance_cents;
+    for (const tx of transactions) {
+      if (tx.deleted_at || tx.date > end) continue;
+      if (tx.account !== account.id) continue;
+      if (tx.type === "transferencia") balance += tx.amount_cents;
+      else if (tx.status === "pago") balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+    }
+    return { month, label: monthLabel(month), balanceCents: balance };
   });
 }
 

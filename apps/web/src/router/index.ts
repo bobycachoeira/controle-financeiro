@@ -110,6 +110,11 @@ const routes: RouteRecordRaw[] = [
         name: "closing",
         component: () => import("@/features/closing/ClosingView.vue"),
       },
+      {
+        path: "investments",
+        name: "investments",
+        component: () => import("@/features/investments/InvestmentsView.vue"),
+      },
       { path: "family", name: "family", component: () => import("@/features/household/FamilyView.vue") },
       { path: "people", name: "people", redirect: { name: "family" } },
       { path: "profile", name: "profile", component: () => import("@/features/settings/ProfileView.vue") },

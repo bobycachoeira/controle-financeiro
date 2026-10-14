@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountBalanceEvolution,
   balanceEvolution,
   monthlyCashflow,
   spendingByCategory,
@@ -59,5 +60,25 @@ describe("spendingByCategory", () => {
   it("groups categorized-less spending", () => {
     const result = spendingByCategory(transactions, [], "2024-01");
     expect(result[0]).toMatchObject({ categoryId: null, name: "Sem categoria", totalCents: 4000 });
+  });
+});
+
+describe("accountBalanceEvolution", () => {
+  it("considera apenas a conta, incluindo aportes e rendimentos", () => {
+    const series = accountBalanceEvolution(
+      { id: "inv1", initial_balance_cents: 100000, include_in_total: false },
+      [
+        tx({ date: "2024-01-05", amount_cents: 50000, type: "transferencia", account: "inv1" }),
+        tx({ date: "2024-01-20", amount_cents: 1500, type: "receita", account: "inv1" }),
+        tx({ date: "2024-02-10", amount_cents: 2000, type: "transferencia", account: "inv1" }),
+        tx({ date: "2024-02-15", amount_cents: 9999, type: "receita", account: "other" }),
+        tx({ date: "2024-02-20", amount_cents: 3000, type: "despesa", account: "inv1" }),
+      ],
+      "2024-02",
+      2,
+    );
+    expect(series.map((point) => point.month)).toEqual(["2024-01", "2024-02"]);
+    expect(series[0]?.balanceCents).toBe(151500);
+    expect(series[1]?.balanceCents).toBe(150500);
   });
 });
