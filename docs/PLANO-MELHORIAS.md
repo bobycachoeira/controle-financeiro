@@ -50,11 +50,11 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - [x] D2. Push de orçamento em 70/90/100% (1× por limiar por período) — `8911cbe`.
 - [x] D3. Projeção do gasto no ritmo atual × limite — `f602c18`.
 
-### Fase E — Relatórios e calendário
-- [ ] E1. Fechamento do mês do casal (resumo por pessoa, categorias,
-      comparativo e card compartilhável).
-- [ ] E2. Calendário financeiro (contas, faturas e recorrências).
-- [ ] E3. Exportar dados (CSV dos lançamentos + backup JSON) pela UI.
+### Fase E — Relatórios e calendário ✅ (concluída)
+- [x] E1. Fechamento do mês do casal (receitas/despesas/saldo, comparativo,
+      contribuições, maiores gastos e card PNG compartilhável) — `5e63b3c`.
+- [x] E2. Calendário financeiro (contas, faturas e navegação por dia) — `7bf508b`.
+- [x] E3. Exportar lançamentos (CSV) e backup completo (JSON) — `9334f35`.
 
 ### Fase F — Import e conveniência
 - [ ] F1. Regras de categorização por descrição no import.
