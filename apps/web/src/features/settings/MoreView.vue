@@ -29,6 +29,7 @@ const groups: { title: string; links: MoreLink[] }[] = [
     links: [
       { name: "transfers", label: "Transferências" },
       { name: "bills", label: "Contas a pagar/receber" },
+      { name: "settle", label: "Acerto do mês" },
       { name: "recurrences", label: "Recorrências" },
       { name: "budgets", label: "Orçamentos" },
       { name: "import", label: "Importar extrato" },

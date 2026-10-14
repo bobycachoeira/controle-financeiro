@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { balanceEvolution, monthlyCashflow, spendingByCategory, todayISO } from "@cf/shared";
+import { RouterLink } from "vue-router";
+import {
+  balanceEvolution,
+  computeSettlement,
+  monthlyCashflow,
+  spendingByCategory,
+  todayISO,
+} from "@cf/shared";
 import { Sparkles } from "lucide-vue-next";
 import { db, type LocalBill, type LocalCategory, type LocalInvoice } from "@/db/schema";
 import { useSessionStore } from "@/stores/session";
@@ -10,6 +17,7 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useCardsStore } from "@/stores/cards";
 import { useRatesStore } from "@/stores/rates";
 import { usePeopleStore } from "@/stores/people";
+import { useTransfersStore } from "@/stores/transfers";
 import { formatBRL, formatDate } from "@/lib/format";
 import { accountIconName } from "@/lib/icons";
 import {
@@ -38,6 +46,7 @@ const transactionsStore = useTransactionsStore();
 const cardsStore = useCardsStore();
 const ratesStore = useRatesStore();
 const people = usePeopleStore();
+const transfersStore = useTransfersStore();
 
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
@@ -88,6 +97,28 @@ const upcoming = computed(() => selectUpcomingBills(bills.value, today));
 const openInvoices = computed(() => selectOpenInvoices(invoices.value));
 const recent = computed(() => selectRecentTransactions(transactionsStore.items));
 const toPay = computed(() => selectToPay30Days(transactionsStore.items, today));
+const settleSummary = computed(() => {
+  const ownerByAccount = new Map(
+    accountsStore.items.map((account) => [account.id, account.owner ?? "indefinido"]),
+  );
+  return computeSettlement({
+    people: people.options.map((option) => ({ key: option.key, label: option.label })),
+    legacyMap: { meu: 0, dela: 1 },
+    month: currentMonth,
+    transactions: transactionsStore.items,
+    transfers: transfersStore.items.map((transfer) => ({
+      amount_cents: transfer.amount_cents,
+      date: transfer.date,
+      description: transfer.description,
+      source_owner: ownerByAccount.get(transfer.source_account) ?? null,
+      destination_owner: ownerByAccount.get(transfer.destination_account) ?? null,
+      deleted_at: transfer.deleted_at,
+    })),
+  });
+});
+const settleLabelByKey = computed(
+  () => new Map(settleSummary.value.people.map((person) => [person.key, person.label])),
+);
 
 async function loadExtras(): Promise<void> {
   if (!session.currentHouseholdId) return;
@@ -108,6 +139,7 @@ async function loadAll(): Promise<void> {
     cardsStore.load(),
     ratesStore.load(),
     people.load(),
+    transfersStore.load(),
     loadExtras(),
   ]);
 }
@@ -270,6 +302,50 @@ watch(() => sync.dataVersion, loadAll);
         </CardContent>
       </Card>
     </div>
+
+    <Card>
+      <CardContent class="p-4">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <IconChip name="hand-coins" color="#3F9A6A" size="sm" />
+            <h2 class="font-display text-base font-bold">
+              {{ people.splitMode === "dividir" ? "Acerto do mês" : "Contribuições do mês" }}
+            </h2>
+          </div>
+          <RouterLink :to="{ name: 'settle' }" class="text-xs font-bold text-primary">
+            Ver
+          </RouterLink>
+        </div>
+        <template v-if="people.splitMode === 'dividir'">
+          <p v-if="settleSummary.suggestions.length === 0" class="text-xs text-muted-foreground">
+            Tudo acertado neste mês.
+          </p>
+          <ul v-else class="space-y-1 text-sm">
+            <li
+              v-for="suggestion in settleSummary.suggestions.slice(0, 2)"
+              :key="`${suggestion.fromKey}-${suggestion.toKey}`"
+              class="flex items-center justify-between gap-2"
+            >
+              <span class="truncate font-semibold">
+                {{ settleLabelByKey.get(suggestion.fromKey) ?? suggestion.fromKey }} →
+                {{ settleLabelByKey.get(suggestion.toKey) ?? suggestion.toKey }}
+              </span>
+              <span class="font-display font-bold">{{ formatBRL(suggestion.amountCents) }}</span>
+            </li>
+          </ul>
+        </template>
+        <ul v-else class="space-y-1 text-sm">
+          <li
+            v-for="person in settleSummary.people"
+            :key="person.key"
+            class="flex items-center justify-between gap-2"
+          >
+            <span class="truncate font-semibold">{{ person.label }}</span>
+            <span class="text-muted-foreground">pagou {{ formatBRL(person.paidCents) }}</span>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
 
     <Card>
       <CardContent class="p-4">
