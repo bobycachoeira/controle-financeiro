@@ -63,8 +63,9 @@ Por isso a divisão/acerto entre o casal é **configurável**:
 - [x] F3. Onboarding com dados de exemplo no painel — “feat(onboarding)…”.
 - [x] F4. Tocar na notificação abre a tela do item — `4c421e3`.
 
-### Fase G — Investimentos
-- [ ] G1. Contas de investimento por pessoa: aportes, rendimentos e evolução.
+### Fase G — Investimentos ✅ (concluída)
+- [x] G1. Contas de investimento por pessoa: aportes, rendimentos e evolução —
+      `91d66b6`.
 
 ## Regras do processo
 
