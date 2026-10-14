@@ -4,6 +4,7 @@ import { computeAccountBalance, detectFormat, parseOfxMeta, parseStatement, type
 import type { AccountLike, BalanceTransaction } from "@cf/shared";
 import { db } from "../db/schema";
 import { updateLocal } from "../db/repositories";
+import { matchImportRule, type ImportRule } from "../lib/import-rules";
 import { useTransactionsStore } from "./transactions";
 
 export type ImportDecision = "import" | "ignore" | "link";
@@ -20,6 +21,8 @@ export interface ImportRow {
   row: ParsedImportRow;
   match: ImportMatch | null;
   decision: ImportDecision;
+  /** Categoria sugerida por regra de descrição (opcional). */
+  category: string | null;
 }
 
 export interface ImportPreview {
@@ -91,6 +94,7 @@ export const useImportStore = defineStore("import", () => {
       row,
       match: null,
       decision: "import" as ImportDecision,
+      category: null,
     }));
     const meta = detectFormat(text) === "ofx" ? parseOfxMeta(text) : { balanceCents: null, balanceDate: null };
     statementBalanceCents.value = meta.balanceCents;
@@ -158,6 +162,17 @@ export const useImportStore = defineStore("import", () => {
     rows.value = rows.value.map((item) => (item.match ? { ...item, decision } : item));
   }
 
+  /** Aplica as regras de descrição, sugerindo categoria por linha. */
+  function applyRules(rules: readonly ImportRule[]): number {
+    let matched = 0;
+    rows.value = rows.value.map((item) => {
+      const rule = item.row.error ? null : matchImportRule(item.row.description, rules);
+      if (rule) matched += 1;
+      return { ...item, category: rule?.category ?? null };
+    });
+    return matched;
+  }
+
   async function confirm(accountId: string, categoryId: string | null): Promise<ImportResult> {
     importing.value = true;
     try {
@@ -196,7 +211,7 @@ export const useImportStore = defineStore("import", () => {
           type: row.nature === "entrada" ? "receita" : "despesa",
           date: row.date,
           attribution: "indefinido",
-          category: categoryId,
+          category: item.category ?? categoryId,
           description: row.description,
           status: "pago",
           origin: "import",
@@ -231,6 +246,7 @@ export const useImportStore = defineStore("import", () => {
     reconcile,
     setDecision,
     setAllMatched,
+    applyRules,
     confirm,
     reset,
     summary,

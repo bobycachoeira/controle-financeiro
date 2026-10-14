@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { Plus, Trash2 } from "lucide-vue-next";
 import { useImportStore, type ImportDecision, type ImportPreview, type ImportRow } from "@/stores/import";
 import { useAccountsStore } from "@/stores/accounts";
+import { useSessionStore } from "@/stores/session";
 import { useToast } from "@/composables/useToast";
+import { db, type LocalCategory } from "@/db/schema";
 import { formatBRL, formatDate } from "@/lib/format";
+import { parseImportRules, type ImportRule } from "@/lib/import-rules";
+import { loadHouseholdSetting, saveHouseholdSetting } from "@/lib/household-settings";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
 import Badge from "@/components/ui/Badge.vue";
+import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
@@ -17,12 +23,18 @@ import Textarea from "@/components/ui/Textarea.vue";
 
 const store = useImportStore();
 const accountsStore = useAccountsStore();
+const session = useSessionStore();
 const toast = useToast();
 
 const text = ref("");
 const account = ref("");
 const category = ref("");
 const preview = ref<ImportPreview | null>(null);
+const rules = ref<ImportRule[]>([]);
+const categories = ref<LocalCategory[]>([]);
+const newPattern = ref("");
+const newRuleCategory = ref("");
+const matchedByRules = ref(0);
 
 const singleAccount = computed(() => accountsStore.items.length === 1);
 
@@ -33,6 +45,11 @@ const projectedAfterCents = computed(() =>
 function diffLabel(cents: number): string {
   const sign = cents > 0 ? "+" : "-";
   return `${sign}${formatBRL(Math.abs(cents))}`;
+}
+
+function categoryName(id: string | null): string {
+  if (!id) return "";
+  return categories.value.find((item) => item.id === id)?.name ?? id;
 }
 
 async function refresh(): Promise<void> {
@@ -46,7 +63,48 @@ async function doParse(): Promise<void> {
     toast.error("Nenhum lançamento reconhecido.");
     return;
   }
+  matchedByRules.value = store.applyRules(rules.value);
   await refresh();
+}
+
+async function loadRules(): Promise<void> {
+  if (!session.currentHouseholdId) return;
+  rules.value = parseImportRules(
+    await loadHouseholdSetting(session.currentHouseholdId, "import_rules", []),
+  );
+  categories.value = (
+    await db.categories.where("household").equals(session.currentHouseholdId).toArray()
+  ).filter((item) => !item.deleted_at);
+}
+
+async function persistRules(): Promise<void> {
+  if (!session.currentHouseholdId) return;
+  await saveHouseholdSetting(session.currentHouseholdId, "import_rules", rules.value);
+}
+
+async function addRule(): Promise<void> {
+  if (!newPattern.value.trim() || !newRuleCategory.value) {
+    toast.error("Informe o texto e a categoria da regra.");
+    return;
+  }
+  rules.value = [...rules.value, { pattern: newPattern.value.trim(), category: newRuleCategory.value }];
+  newPattern.value = "";
+  newRuleCategory.value = "";
+  await persistRules();
+  if (store.rows.length > 0) {
+    matchedByRules.value = store.applyRules(rules.value);
+    await refresh();
+  }
+  toast.success("Regra salva.");
+}
+
+async function removeRule(index: number): Promise<void> {
+  rules.value = rules.value.filter((_, itemIndex) => itemIndex !== index);
+  await persistRules();
+  if (store.rows.length > 0) {
+    matchedByRules.value = store.applyRules(rules.value);
+    await refresh();
+  }
 }
 
 async function onFile(event: Event): Promise<void> {
@@ -76,6 +134,7 @@ async function confirmImport(): Promise<void> {
 
 onMounted(async () => {
   await accountsStore.load();
+  await loadRules();
   if (singleAccount.value) account.value = accountsStore.items[0]?.id ?? "";
 });
 
@@ -122,6 +181,44 @@ watch(account, () => {
       </CardContent>
     </Card>
 
+    <Card>
+      <CardHeader>
+        <CardTitle>Regras por descrição</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <p class="text-xs text-muted-foreground">
+          Ex.: descrição contém “ifood” → Alimentação. São aplicadas ao analisar o arquivo.
+        </p>
+        <ul v-if="rules.length > 0" class="space-y-2">
+          <li
+            v-for="(rule, index) in rules"
+            :key="`${rule.pattern}-${index}`"
+            class="flex items-center justify-between gap-2 rounded-2xl border-2 border-border px-3 py-2 text-sm"
+          >
+            <span class="min-w-0 truncate">
+              <strong class="font-bold">{{ rule.pattern }}</strong>
+              <span class="text-muted-foreground"> → {{ categoryName(rule.category) }}</span>
+            </span>
+            <button
+              type="button"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+              aria-label="Remover regra"
+              @click="removeRule(index)"
+            >
+              <Trash2 class="h-3.5 w-3.5" />
+            </button>
+          </li>
+        </ul>
+        <div class="grid grid-cols-2 gap-2">
+          <Input v-model="newPattern" placeholder="Texto na descrição" aria-label="Texto da regra" />
+          <CategorySelect v-model="newRuleCategory" kind="all" allow-empty />
+        </div>
+        <Button size="sm" variant="outline" type="button" @click="addRule">
+          <Plus class="h-4 w-4" /> Adicionar regra
+        </Button>
+      </CardContent>
+    </Card>
+
     <Card v-if="preview">
       <CardHeader>
         <CardTitle>Prévia</CardTitle>
@@ -131,6 +228,9 @@ watch(account, () => {
         </p>
         <p v-if="preview.matchedCount > 0" class="text-xs font-bold text-amber-600">
           {{ preview.matchedCount }} possível(is) já lançado(s) — confira abaixo
+        </p>
+        <p v-if="matchedByRules > 0" class="text-xs font-bold text-primary">
+          {{ matchedByRules }} linha(s) categorizadas por regra
         </p>
       </CardHeader>
       <CardContent class="space-y-3">
@@ -204,6 +304,7 @@ watch(account, () => {
                 existente: {{ item.match.description || "(sem descrição)" }} ·
                 {{ formatDate(item.match.date) }}
               </span>
+              <Badge v-if="item.category" variant="secondary">{{ categoryName(item.category) }}</Badge>
             </div>
           </li>
         </ul>
