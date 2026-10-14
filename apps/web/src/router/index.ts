@@ -105,6 +105,11 @@ const routes: RouteRecordRaw[] = [
         name: "calendar",
         component: () => import("@/features/calendar/CalendarView.vue"),
       },
+      {
+        path: "closing",
+        name: "closing",
+        component: () => import("@/features/closing/ClosingView.vue"),
+      },
       { path: "family", name: "family", component: () => import("@/features/household/FamilyView.vue") },
       { path: "people", name: "people", redirect: { name: "family" } },
       { path: "profile", name: "profile", component: () => import("@/features/settings/ProfileView.vue") },
