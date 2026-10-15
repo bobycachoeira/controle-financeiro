@@ -89,3 +89,5 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       Cartões — `89b72c7`.
 - [x] K4. Parcelas em andamento (“já pagas”) pelo atalho do cartão e
       identificação “parcela 2/3” nos lançamentos e na fatura — `53b3815`.
+- [x] K5. Cartões mostram as **próximas faturas a pagar** (e não as mais
+      recentes), com “Ver todas” para o histórico.

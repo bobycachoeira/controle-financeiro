@@ -19,6 +19,7 @@ import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import Modal from "@/components/ui/Modal.vue";
 import InvoicePayModal from "./InvoicePayModal.vue";
+import { pickVisibleInvoices } from "./invoice-list";
 import type { LocalCreditCard, LocalInvoice } from "@/db/schema";
 
 const cardsStore = useCardsStore();
@@ -29,10 +30,9 @@ const toast = useToast();
 const payModal = ref<InstanceType<typeof InvoicePayModal> | null>(null);
 const expandedCards = ref<Record<string, boolean>>({});
 
-/** Mantém à vista só a fatura atual e a anterior; o resto atrás de "Ver todas". */
+/** Mostra só as próximas faturas a pagar; o resto atrás de "Ver todas". */
 function visibleInvoices(cardId: string): LocalInvoice[] {
-  const list = cardsStore.invoicesFor(cardId);
-  return expandedCards.value[cardId] ? list : list.slice(0, 2);
+  return pickVisibleInvoices(cardsStore.invoicesFor(cardId), Boolean(expandedCards.value[cardId]));
 }
 
 const CARD_COLORS = [

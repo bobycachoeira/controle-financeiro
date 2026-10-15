@@ -33,7 +33,7 @@ describe("compra no cartão com parcelas em andamento", () => {
     expect(transactions).toHaveLength(4);
     expect(transactions.map((tx) => tx.amount_cents)).toEqual([25000, 25000, 25000, 25000]);
 
-    const installments = await db.installments.toArray();
+    const installments = (await db.installments.toArray()).sort((a, b) => a.number - b.number);
     expect(installments.map((row) => `${row.number}/${row.total}`)).toEqual([
       "7/10",
       "8/10",
@@ -61,7 +61,7 @@ describe("compra no cartão com parcelas em andamento", () => {
       due_day: 25,
     });
 
-    const installments = await db.installments.toArray();
+    const installments = (await db.installments.toArray()).sort((a, b) => a.number - b.number);
     expect(installments.map((row) => `${row.number}/${row.total}`)).toEqual(["1/2", "2/2"]);
     expect(installments.reduce((sum, row) => sum + row.amount_cents, 0)).toBe(100000);
   });

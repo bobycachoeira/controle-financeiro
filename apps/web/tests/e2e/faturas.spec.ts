@@ -134,12 +134,16 @@ test.describe("faturas do cartão", () => {
     const card = page.getByTestId("card").filter({ hasText: bank });
     await expect(card).toBeVisible({ timeout: 15_000 });
 
-    // Só as duas últimas faturas ficam à vista.
+    // Só as duas próximas a pagar ficam à vista.
     await expect(card.locator("li")).toHaveCount(2);
+    await expect(card.getByText("2026-01")).toBeVisible();
+    await expect(card.getByText("2026-02")).toBeVisible();
+    await expect(card.getByText("2026-03")).toHaveCount(0);
     const toggle = card.getByTestId("invoices-toggle");
     await expect(toggle).toContainText("Ver todas");
     await toggle.click();
     await expect(card.locator("li")).toHaveCount(4);
+    await expect(card.getByText("2026-03")).toBeVisible();
 
     // Clicar na fatura abre os lançamentos.
     await card.getByText("2026-03").click();
