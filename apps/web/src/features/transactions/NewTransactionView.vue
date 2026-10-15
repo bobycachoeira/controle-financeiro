@@ -10,12 +10,12 @@ import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput } from "@/lib/format-input";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
-import { formatBRL, formatCentsToInput } from "@/lib/format";
+import { formatBRL } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -31,7 +31,7 @@ const router = useRouter();
 const toast = useToast();
 
 const isEdit = computed(() => Boolean(route.params.id));
-const amount = ref("");
+const amountCents = ref<number | null>(null);
 const type = ref<"receita" | "despesa">("despesa");
 const description = ref("");
 const date = ref(todayISO());
@@ -100,7 +100,7 @@ watch(installments, (value) => {
 });
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(amount.value);
+  const cents = amountCents.value;
   if (cents === null || cents <= 0) {
     toast.error("Informe um valor válido.");
     return;
@@ -189,7 +189,7 @@ onMounted(async () => {
   if (isEdit.value) {
     const tx = await db.transactions.get(String(route.params.id));
     if (tx) {
-      amount.value = formatCentsToInput(tx.amount_cents);
+      amountCents.value = tx.amount_cents;
       type.value = tx.type === "receita" ? "receita" : "despesa";
       description.value = tx.description;
       date.value = tx.date.slice(0, 10);
@@ -248,17 +248,15 @@ watch(
         </Label>
         <div class="mt-1 flex items-baseline justify-center gap-1 font-display">
           <span class="text-2xl font-bold text-muted-foreground">R$</span>
-          <input
+          <CurrencyInput
             id="amount"
-            v-model="amount"
-            inputmode="decimal"
-            placeholder="0,00"
-            class="w-40 bg-transparent text-center font-display text-4xl font-black tracking-tight outline-none placeholder:text-muted-foreground/40"
+            v-model="amountCents"
+            class="h-auto w-40 border-0 bg-transparent text-center font-display text-4xl font-black tracking-tight shadow-none"
             autofocus
           />
         </div>
         <p class="mt-1 text-xs font-bold text-muted-foreground">
-          {{ formatBRL(parseAmountInput(amount) ?? 0) }}
+          {{ formatBRL(amountCents ?? 0) }}
         </p>
       </div>
 

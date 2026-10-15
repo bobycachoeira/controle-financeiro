@@ -5,13 +5,14 @@ import { useTransfersStore } from "@/stores/transfers";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput, formatBRL } from "@/lib/format-input";
+import { formatBRL } from "@/lib/format-input";
 import { formatDate } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -25,7 +26,7 @@ const toast = useToast();
 
 const source = ref("");
 const destination = ref("");
-const amount = ref("");
+const amountCents = ref<number | null>(null);
 const date = ref(todayISO());
 const description = ref("");
 const saving = ref(false);
@@ -111,7 +112,7 @@ const history = computed(() => {
 });
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(amount.value);
+  const cents = amountCents.value;
   if (cents === null || cents <= 0) {
     toast.error("Valor inválido.");
     return;
@@ -126,7 +127,7 @@ async function submit(): Promise<void> {
       description: description.value || "Transferência",
     });
     toast.success("Transferência registrada.");
-    amount.value = "";
+    amountCents.value = null;
     description.value = "";
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Falha na transferência.");
@@ -213,7 +214,7 @@ watch(
           </div>
           <div class="space-y-2">
             <Label for="transfer-amount">Valor (R$)</Label>
-            <Input id="transfer-amount" v-model="amount" inputmode="decimal" placeholder="0,00" />
+            <CurrencyInput id="transfer-amount" v-model="amountCents" />
           </div>
           <div class="space-y-2">
             <Label for="transfer-date">Data</Label>

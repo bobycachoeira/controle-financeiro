@@ -8,14 +8,15 @@ import { useBudgetsStore } from "@/stores/budgets";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput, formatBRL } from "@/lib/format-input";
-import { formatCentsToInput } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
 import Badge from "@/components/ui/Badge.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -45,7 +46,7 @@ const projection = computed(() => {
 const editingId = ref<string | null>(null);
 const name = ref("");
 const period = ref<BudgetPeriod>("mensal");
-const total = ref("");
+const totalCents = ref<number | null>(null);
 const alertPct = ref(80);
 const referenceMonth = ref(todayISO().slice(0, 7));
 const selectedCategories = ref<string[]>([]);
@@ -94,7 +95,7 @@ async function refreshUsage(): Promise<void> {
 function resetForm(): void {
   editingId.value = null;
   name.value = "";
-  total.value = "";
+  totalCents.value = null;
   alertPct.value = 80;
   referenceMonth.value = todayISO().slice(0, 7);
   period.value = "mensal";
@@ -105,7 +106,7 @@ function openEdit(budget: (typeof store.items)[number]): void {
   editingId.value = budget.id;
   name.value = budget.name;
   period.value = budget.period;
-  total.value = formatCentsToInput(budget.total_cents);
+  totalCents.value = budget.total_cents || null;
   alertPct.value = budget.alert_pct;
   referenceMonth.value = budget.reference_month;
   selectedCategories.value = budget.categories.map((item) => item.category);
@@ -113,7 +114,7 @@ function openEdit(budget: (typeof store.items)[number]): void {
 }
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(total.value);
+  const cents = totalCents.value;
   if (!name.value || cents === null || cents <= 0 || selectedCategories.value.length === 0) {
     toast.error("Informe nome, valor e ao menos uma categoria.");
     return;
@@ -187,7 +188,7 @@ watch(() => sync.dataVersion, loadAll);
             </div>
             <div class="space-y-2">
               <Label for="budget-total">Limite (R$)</Label>
-              <Input id="budget-total" v-model="total" inputmode="decimal" placeholder="0,00" />
+              <CurrencyInput id="budget-total" v-model="totalCents" />
             </div>
           </div>
           <div class="grid grid-cols-2 gap-3">

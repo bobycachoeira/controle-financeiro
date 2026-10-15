@@ -6,14 +6,14 @@ import { useRecurrencesStore } from "@/stores/recurrences";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput, formatBRL } from "@/lib/format-input";
-import { formatCentsToInput } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
 import Badge from "@/components/ui/Badge.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -41,7 +41,7 @@ const rrule = ref("FREQ=MONTHLY;INTERVAL=1");
 const startDate = ref(todayISO());
 const target = ref<"transaction" | "bill">("bill");
 const createsStatus = ref<"pago" | "a_pagar">("a_pagar");
-const amount = ref("");
+const amountCents = ref<number | null>(null);
 const account = ref("");
 const category = ref("");
 const nature = ref<"entrada" | "saida">("saida");
@@ -72,7 +72,7 @@ function frequencyLabel(value: string): string {
 function resetForm(): void {
   editingId.value = null;
   name.value = "";
-  amount.value = "";
+  amountCents.value = null;
   frequency.value = "mensal";
   rrule.value = "FREQ=MONTHLY;INTERVAL=1";
   startDate.value = todayISO();
@@ -93,7 +93,7 @@ function openEdit(item: (typeof store.items)[number]): void {
   startDate.value = item.start_date.slice(0, 10);
   target.value = item.target;
   createsStatus.value = item.creates_status;
-  amount.value = formatCentsToInput(item.template.amount_cents);
+  amountCents.value = item.template.amount_cents || null;
   account.value = item.template.account ?? "";
   category.value = item.template.category ?? "";
   nature.value = item.template.nature ?? (item.template.type === "receita" ? "entrada" : "saida");
@@ -103,7 +103,7 @@ function openEdit(item: (typeof store.items)[number]): void {
 }
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(amount.value);
+  const cents = amountCents.value;
   const needsAmount = !(target.value === "bill" && confirmRequired.value);
   if (!name.value || cents === null || (needsAmount && cents <= 0)) {
     toast.error("Informe nome e valor.");
@@ -200,7 +200,7 @@ watch(() => sync.dataVersion, () => store.load());
             </div>
             <div class="space-y-2">
               <Label for="rec-amount">Valor (R$)</Label>
-              <Input id="rec-amount" v-model="amount" inputmode="decimal" placeholder="0,00" />
+              <CurrencyInput id="rec-amount" v-model="amountCents" />
             </div>
           </div>
           <div class="grid grid-cols-2 gap-3">

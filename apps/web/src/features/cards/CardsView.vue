@@ -7,13 +7,14 @@ import { usePeopleStore } from "@/stores/people";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { formatBRL, parseAmountInput } from "@/lib/format-input";
-import { formatCentsToInput, formatDate } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+import { formatDate } from "@/lib/format";
 import { colorForKey } from "@/lib/icons";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -52,7 +53,7 @@ const open = ref(false);
 const editingId = ref<string | null>(null);
 const name = ref("");
 const bank = ref("");
-const limit = ref("");
+const limitCents = ref<number | null>(null);
 const closingDay = ref(15);
 const dueDay = ref(25);
 const color = ref<string>("#1B1B1F");
@@ -81,7 +82,7 @@ function openCreate(): void {
   editingId.value = null;
   name.value = "";
   bank.value = "";
-  limit.value = "";
+  limitCents.value = null;
   closingDay.value = 15;
   dueDay.value = 25;
   color.value = CARD_COLORS[0]!;
@@ -93,7 +94,7 @@ function openCreate(): void {
 function openEdit(card: LocalCreditCard): void {
   editingId.value = card.id;
   bank.value = card.bank ?? "";
-  limit.value = card.limit_cents ? formatCentsToInput(card.limit_cents) : "";
+  limitCents.value = card.limit_cents || null;
   closingDay.value = card.closing_day;
   dueDay.value = card.due_day;
   color.value = card.color || colorForKey(card.bank || card.id);
@@ -103,7 +104,7 @@ function openEdit(card: LocalCreditCard): void {
 }
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(limit.value) ?? 0;
+  const cents = limitCents.value ?? 0;
   if (!editingId.value && !name.value) {
     toast.error("Informe um nome.");
     return;
@@ -316,7 +317,7 @@ watch(
         </div>
         <div class="space-y-2">
           <Label for="card-limit">Limite (R$)</Label>
-          <Input id="card-limit" v-model="limit" inputmode="decimal" placeholder="0,00" />
+          <CurrencyInput id="card-limit" v-model="limitCents" />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">

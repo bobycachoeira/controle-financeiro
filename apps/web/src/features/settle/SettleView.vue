@@ -16,13 +16,14 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
 import { notificationsApi } from "@/api/notifications-api";
-import { formatBRL, parseAmountInput } from "@/lib/format-input";
-import { formatCentsToInput, formatMonth } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+import { formatMonth } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Modal from "@/components/ui/Modal.vue";
@@ -41,10 +42,10 @@ const payOpen = ref(false);
 const activeSuggestion = ref<SuggestionWithLabels | null>(null);
 const sourceAccount = ref("");
 const destinationAccount = ref("");
-const amountInput = ref("");
+const amountCents = ref<number | null>(null);
 const registering = ref(false);
 const coverageOpen = ref(false);
-const coverageAmount = ref("");
+const coverageCents = ref<number | null>(null);
 const coverageNote = ref("");
 const sendingCoverage = ref(false);
 
@@ -102,12 +103,12 @@ function openRegister(suggestion: SuggestionWithLabels): void {
   activeSuggestion.value = suggestion;
   sourceAccount.value = accountFor(suggestion.fromKey);
   destinationAccount.value = accountFor(suggestion.toKey);
-  amountInput.value = formatCentsToInput(suggestion.amountCents);
+  amountCents.value = suggestion.amountCents;
   payOpen.value = true;
 }
 
 async function register(): Promise<void> {
-  const cents = parseAmountInput(amountInput.value);
+  const cents = amountCents.value;
   if (cents === null || cents <= 0 || !sourceAccount.value || !destinationAccount.value) {
     toast.error("Informe valor e contas.");
     return;
@@ -132,7 +133,7 @@ async function register(): Promise<void> {
 }
 
 async function sendCoverage(): Promise<void> {
-  const cents = parseAmountInput(coverageAmount.value);
+  const cents = coverageCents.value;
   if (cents === null || cents <= 0) {
     toast.error("Informe um valor válido.");
     return;
@@ -146,7 +147,7 @@ async function sendCoverage(): Promise<void> {
         : "Pedido enviado para seu par.",
     );
     coverageOpen.value = false;
-    coverageAmount.value = "";
+    coverageCents.value = null;
     coverageNote.value = "";
   } catch (error) {
     const message =
@@ -288,7 +289,7 @@ watch(() => sync.dataVersion, loadAll);
         </p>
         <div class="space-y-2">
           <Label for="settle-amount">Valor (R$)</Label>
-          <Input id="settle-amount" v-model="amountInput" inputmode="decimal" required />
+          <CurrencyInput id="settle-amount" v-model="amountCents" required />
         </div>
         <div class="space-y-2">
           <Label for="settle-source">Sai da conta de</Label>
@@ -323,7 +324,7 @@ watch(() => sync.dataVersion, loadAll);
       <form class="space-y-4" @submit.prevent="sendCoverage">
         <div class="space-y-2">
           <Label for="coverage-amount">Quanto falta? (R$)</Label>
-          <Input id="coverage-amount" v-model="coverageAmount" inputmode="decimal" required />
+          <CurrencyInput id="coverage-amount" v-model="coverageCents" required />
         </div>
         <div class="space-y-2">
           <Label for="coverage-note">Recado (opcional)</Label>

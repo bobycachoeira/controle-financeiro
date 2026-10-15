@@ -11,12 +11,13 @@ import { useSyncStore } from "@/stores/sync";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput } from "@/lib/format-input";
+
 import { formatBRL } from "@/lib/format";
 import AreaChart from "@/components/charts/AreaChart.vue";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -45,7 +46,7 @@ const sourceAccounts = computed(() =>
 
 const newOpen = ref(false);
 const newName = ref("");
-const newInitial = ref("");
+const newInitialCents = ref<number | null>(null);
 const newOwner = ref("indefinido");
 const newSource = ref("");
 const savingNew = ref(false);
@@ -53,13 +54,13 @@ const savingNew = ref(false);
 const aporteOpen = ref(false);
 const aporteAccount = ref<LocalAccount | null>(null);
 const aporteSource = ref("");
-const aporteAmount = ref("");
+const aporteCents = ref<number | null>(null);
 const aporteDate = ref(todayISO());
 const savingAporte = ref(false);
 
 const yieldOpen = ref(false);
 const yieldAccount = ref<LocalAccount | null>(null);
-const yieldAmount = ref("");
+const yieldCents = ref<number | null>(null);
 const yieldNote = ref("");
 const yieldDate = ref(todayISO());
 const savingYield = ref(false);
@@ -67,7 +68,7 @@ const savingYield = ref(false);
 const retirarOpen = ref(false);
 const retirarAccount = ref<LocalAccount | null>(null);
 const retirarDestination = ref("");
-const retirarAmount = ref("");
+const retirarCents = ref<number | null>(null);
 const retirarDate = ref(todayISO());
 const savingRetirar = ref(false);
 
@@ -101,7 +102,7 @@ function monthStats(account: LocalAccount): { contributions: number; yields: num
 
 function openNew(): void {
   newName.value = "";
-  newInitial.value = "";
+  newInitialCents.value = null;
   newOwner.value = "indefinido";
   newSource.value = "";
   newOpen.value = true;
@@ -112,7 +113,7 @@ async function createInvestment(): Promise<void> {
     toast.error("Informe um nome.");
     return;
   }
-  const cents = newInitial.value ? parseAmountInput(newInitial.value) : 0;
+  const cents = newInitialCents.value ?? 0;
   if (cents === null) {
     toast.error("Valor inicial inválido.");
     return;
@@ -159,14 +160,14 @@ async function removeInvestment(account: LocalAccount): Promise<void> {
 function openAporte(account: LocalAccount): void {
   aporteAccount.value = account;
   aporteSource.value = sourceAccounts.value[0]?.id ?? "";
-  aporteAmount.value = "";
+  aporteCents.value = null;
   aporteDate.value = todayISO();
   aporteOpen.value = true;
 }
 
 async function submitAporte(): Promise<void> {
   const account = aporteAccount.value;
-  const cents = parseAmountInput(aporteAmount.value);
+  const cents = aporteCents.value;
   if (!account || cents === null || cents <= 0) {
     toast.error("Informe o valor do aporte.");
     return;
@@ -208,14 +209,14 @@ async function submitAporte(): Promise<void> {
 function openRetirar(account: LocalAccount): void {
   retirarAccount.value = account;
   retirarDestination.value = "";
-  retirarAmount.value = "";
+  retirarCents.value = null;
   retirarDate.value = todayISO();
   retirarOpen.value = true;
 }
 
 async function submitRetirar(): Promise<void> {
   const account = retirarAccount.value;
-  const cents = parseAmountInput(retirarAmount.value);
+  const cents = retirarCents.value;
   if (!account || cents === null || cents <= 0) {
     toast.error("Informe o valor do resgate.");
     return;
@@ -256,7 +257,7 @@ async function submitRetirar(): Promise<void> {
 
 function openYield(account: LocalAccount): void {
   yieldAccount.value = account;
-  yieldAmount.value = "";
+  yieldCents.value = null;
   yieldNote.value = "";
   yieldDate.value = todayISO();
   yieldOpen.value = true;
@@ -264,7 +265,7 @@ function openYield(account: LocalAccount): void {
 
 async function submitYield(): Promise<void> {
   const account = yieldAccount.value;
-  const cents = parseAmountInput(yieldAmount.value);
+  const cents = yieldCents.value;
   if (!account || cents === null || cents <= 0) {
     toast.error("Informe um valor válido.");
     return;
@@ -398,7 +399,7 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <div class="space-y-2">
           <Label for="inv-initial">Valor atual (R$)</Label>
-          <Input id="inv-initial" v-model="newInitial" inputmode="decimal" placeholder="0,00" />
+          <CurrencyInput id="inv-initial" v-model="newInitialCents" />
         </div>
         <div class="space-y-2">
           <Label for="inv-source">Sai da conta (opcional)</Label>
@@ -445,7 +446,7 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <div class="space-y-2">
           <Label for="aporte-amount">Valor (R$)</Label>
-          <Input id="aporte-amount" v-model="aporteAmount" inputmode="decimal" required />
+          <CurrencyInput id="aporte-amount" v-model="aporteCents" required />
         </div>
         <div class="space-y-2">
           <Label for="aporte-date">Data</Label>
@@ -474,7 +475,7 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <div class="space-y-2">
           <Label for="retirar-amount">Valor (R$)</Label>
-          <Input id="retirar-amount" v-model="retirarAmount" inputmode="decimal" required />
+          <CurrencyInput id="retirar-amount" v-model="retirarCents" required />
         </div>
         <div class="space-y-2">
           <Label for="retirar-date">Data</Label>
@@ -491,7 +492,7 @@ watch(() => sync.dataVersion, loadAll);
       <form class="space-y-4" @submit.prevent="submitYield">
         <div class="space-y-2">
           <Label for="yield-amount">Valor (R$)</Label>
-          <Input id="yield-amount" v-model="yieldAmount" inputmode="decimal" required />
+          <CurrencyInput id="yield-amount" v-model="yieldCents" required />
         </div>
         <div class="space-y-2">
           <Label for="yield-date">Data</Label>

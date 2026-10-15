@@ -8,12 +8,13 @@ import { useAccountsStore } from "@/stores/accounts";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput } from "@/lib/format-input";
-import { formatBRL, formatCentsToInput, formatDate } from "@/lib/format";
+
+import { formatBRL, formatDate } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -30,7 +31,7 @@ const toast = useToast();
 const open = ref(false);
 const editingId = ref<string | null>(null);
 const name = ref("");
-const target = ref("");
+const targetCents = ref<number | null>(null);
 const deadline = ref("");
 const owner = ref("indefinido");
 const color = ref(GOAL_COLORS[0]!);
@@ -39,7 +40,7 @@ const saving = ref(false);
 const entryOpen = ref(false);
 const entryGoal = ref<LocalGoal | null>(null);
 const entryMode = ref<"guardar" | "resgatar">("guardar");
-const entryAmount = ref("");
+const entryCents = ref<number | null>(null);
 const entryNote = ref("");
 const entryDate = ref(todayISO());
 const entryAccount = ref("");
@@ -68,7 +69,7 @@ function historyOf(goal: LocalGoal) {
 function openCreate(): void {
   editingId.value = null;
   name.value = "";
-  target.value = "";
+  targetCents.value = null;
   deadline.value = "";
   owner.value = "indefinido";
   color.value = GOAL_COLORS[0]!;
@@ -78,7 +79,7 @@ function openCreate(): void {
 function openEdit(goal: LocalGoal): void {
   editingId.value = goal.id;
   name.value = goal.name;
-  target.value = formatCentsToInput(goal.target_cents);
+  targetCents.value = goal.target_cents;
   deadline.value = goal.deadline?.slice(0, 10) ?? "";
   owner.value = goal.owner ?? "indefinido";
   color.value = goal.color || GOAL_COLORS[0]!;
@@ -86,7 +87,7 @@ function openEdit(goal: LocalGoal): void {
 }
 
 async function submit(): Promise<void> {
-  const cents = parseAmountInput(target.value);
+  const cents = targetCents.value;
   if (!name.value || cents === null || cents <= 0) {
     toast.error("Informe nome e valor do objetivo.");
     return;
@@ -118,7 +119,7 @@ async function submit(): Promise<void> {
 function openEntry(goal: LocalGoal, mode: "guardar" | "resgatar"): void {
   entryGoal.value = goal;
   entryMode.value = mode;
-  entryAmount.value = "";
+  entryCents.value = null;
   entryNote.value = "";
   entryDate.value = todayISO();
   entryAccount.value = "";
@@ -135,7 +136,7 @@ async function refreshCofrinhos(): Promise<void> {
 
 async function submitEntry(): Promise<void> {
   const goal = entryGoal.value;
-  const cents = parseAmountInput(entryAmount.value);
+  const cents = entryCents.value;
   if (!goal || cents === null || cents <= 0) {
     toast.error("Informe um valor válido.");
     return;
@@ -311,7 +312,7 @@ watch(() => sync.dataVersion, loadAll);
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">
             <Label for="goal-target">Objetivo (R$)</Label>
-            <Input id="goal-target" v-model="target" inputmode="decimal" placeholder="0,00" required />
+            <CurrencyInput id="goal-target" v-model="targetCents" required />
           </div>
           <div class="space-y-2">
             <Label for="goal-deadline">Até (opcional)</Label>
@@ -356,7 +357,7 @@ watch(() => sync.dataVersion, loadAll);
       <form class="space-y-4" @submit.prevent="submitEntry">
         <div class="space-y-2">
           <Label for="entry-amount">Valor (R$)</Label>
-          <Input id="entry-amount" v-model="entryAmount" inputmode="decimal" required />
+          <CurrencyInput id="entry-amount" v-model="entryCents" required />
         </div>
         <div class="space-y-2">
           <Label for="entry-date">Data</Label>

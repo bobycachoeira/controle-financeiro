@@ -6,11 +6,11 @@ import { updateLocal } from "@/db/repositories";
 import { useAccountsStore } from "@/stores/accounts";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
-import { formatBRL, parseAmountInput } from "@/lib/format-input";
-import { formatCentsToInput, formatDate } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+import { formatDate } from "@/lib/format";
 import type { LocalCreditCard, LocalInvoice } from "@/db/schema";
 import Button from "@/components/ui/Button.vue";
-import Input from "@/components/ui/Input.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Label from "@/components/ui/Label.vue";
 import Modal from "@/components/ui/Modal.vue";
 import Select from "@/components/ui/Select.vue";
@@ -25,7 +25,7 @@ const open = ref(false);
 const invoice = ref<LocalInvoice | null>(null);
 const card = ref<LocalCreditCard | null>(null);
 const payAccount = ref("");
-const payAmount = ref("");
+const payCents = ref<number | null>(null);
 const paying = ref(false);
 
 function openPay(cardInput: LocalCreditCard, invoiceInput: LocalInvoice): void {
@@ -33,7 +33,7 @@ function openPay(cardInput: LocalCreditCard, invoiceInput: LocalInvoice): void {
   invoice.value = invoiceInput;
   payAccount.value = cardInput.payment_account ?? "";
   const remaining = Math.max(0, invoiceInput.total_cents - (invoiceInput.paid_cents ?? 0));
-  payAmount.value = remaining > 0 ? formatCentsToInput(remaining) : "";
+  payCents.value = remaining > 0 ? remaining : null;
   open.value = true;
 }
 
@@ -44,7 +44,7 @@ async function confirmPay(): Promise<void> {
     toast.error("Escolha a conta de pagamento.");
     return;
   }
-  const cents = parseAmountInput(payAmount.value);
+  const cents = payCents.value;
   if (cents === null || cents <= 0) {
     toast.error("Informe o valor da fatura.");
     return;
@@ -101,7 +101,7 @@ defineExpose({ open: openPay });
       </div>
       <div class="space-y-2">
         <Label for="pay-amount">Valor da fatura (R$)</Label>
-        <Input id="pay-amount" v-model="payAmount" inputmode="decimal" placeholder="0,00" required />
+        <CurrencyInput id="pay-amount" v-model="payCents" required />
       </div>
       <div class="space-y-2">
         <Label for="pay-account">Pagar com a conta</Label>

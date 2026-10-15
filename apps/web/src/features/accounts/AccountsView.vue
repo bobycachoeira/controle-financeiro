@@ -8,11 +8,12 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useSyncStore } from "@/stores/sync";
 import { usePeopleStore } from "@/stores/people";
 import { useToast } from "@/composables/useToast";
-import { formatBRL, parseAmountInput } from "@/lib/format-input";
-import { formatCentsToInput } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -32,7 +33,7 @@ const open = ref(false);
 const editingId = ref<string | null>(null);
 const name = ref("");
 const type = ref<AccountType>("corrente");
-const initial = ref("");
+const initialCents = ref<number | null>(null);
 const icon = ref<string | null>(null);
 const color = ref<string | null>(null);
 const owner = ref("indefinido");
@@ -65,7 +66,7 @@ function openCreate(): void {
   editingId.value = null;
   name.value = "";
   type.value = "corrente";
-  initial.value = "";
+  initialCents.value = null;
   icon.value = null;
   color.value = null;
   owner.value = "indefinido";
@@ -76,7 +77,7 @@ function openEdit(account: LocalAccount): void {
   editingId.value = account.id;
   name.value = account.name;
   type.value = account.type;
-  initial.value = formatCentsToInput(account.initial_balance_cents);
+  initialCents.value = account.initial_balance_cents || null;
   icon.value = account.icon ?? accountIconName(account.type);
   color.value = account.color ?? null;
   owner.value = account.owner ?? "indefinido";
@@ -84,11 +85,7 @@ function openEdit(account: LocalAccount): void {
 }
 
 async function submit(): Promise<void> {
-  const cents = initial.value ? parseAmountInput(initial.value) : 0;
-  if (cents === null) {
-    toast.error("Valor inicial inválido.");
-    return;
-  }
+  const cents = initialCents.value ?? 0;
   saving.value = true;
   try {
     const payload = {
@@ -221,7 +218,7 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <div class="space-y-2">
           <Label for="account-initial">Saldo inicial (R$)</Label>
-          <Input id="account-initial" v-model="initial" inputmode="decimal" placeholder="0,00" />
+          <CurrencyInput id="account-initial" v-model="initialCents" />
         </div>
         <div class="space-y-2">
           <Label for="account-owner">Titular (quem paga/recebe)</Label>

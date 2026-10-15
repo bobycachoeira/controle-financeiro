@@ -14,12 +14,13 @@ import { useAccountsStore } from "@/stores/accounts";
 import { usePeopleStore } from "@/stores/people";
 import { useCardsStore } from "@/stores/cards";
 import { useToast } from "@/composables/useToast";
-import { parseAmountInput, formatBRL } from "@/lib/format-input";
-import { formatCentsToInput, formatDate, formatDateShort } from "@/lib/format";
+import { formatBRL } from "@/lib/format-input";
+import { formatDate, formatDateShort } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
+import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -55,7 +56,7 @@ const chooserOpen = ref(false);
 const oneOpen = ref(false);
 const editingId = ref<string | null>(null);
 const title = ref("");
-const amount = ref("");
+const amountCents = ref<number | null>(null);
 const nature = ref<BillNature>("saida");
 const type = ref<BillType>("fixa");
 const dueDate = ref(todayISO());
@@ -70,7 +71,7 @@ const recNature = ref<BillNature>("saida");
 const recPeriodicity = ref("mensal");
 const recEmissionDay = ref(5);
 const recDueDay = ref(15);
-const recAmount = ref("");
+const recCents = ref<number | null>(null);
 const recVariable = ref(true);
 const recDuration = ref("sempre");
 const recMonths = ref(12);
@@ -81,7 +82,7 @@ const recSaving = ref(false);
 // confirm value
 const confirmOpen = ref(false);
 const confirming = ref<LocalBill | null>(null);
-const confirmAmount = ref("");
+const confirmCents = ref<number | null>(null);
 
 // pay
 const payOpen = ref(false);
@@ -238,7 +239,7 @@ function nextEmissionDate(day: number): string {
 function openOne(): void {
   editingId.value = null;
   title.value = "";
-  amount.value = "";
+  amountCents.value = null;
   nature.value = "saida";
   type.value = "variavel";
   dueDate.value = todayISO();
@@ -248,7 +249,7 @@ function openOne(): void {
 function openEdit(bill: LocalBill): void {
   editingId.value = bill.id;
   title.value = bill.title;
-  amount.value = formatCentsToInput(bill.amount_cents);
+  amountCents.value = bill.amount_cents || null;
   nature.value = bill.nature;
   type.value = bill.type;
   dueDate.value = bill.due_date.slice(0, 10);
@@ -256,7 +257,7 @@ function openEdit(bill: LocalBill): void {
 }
 
 async function submitOne(): Promise<void> {
-  const cents = parseAmountInput(amount.value);
+  const cents = amountCents.value;
   if (!title.value || cents === null || cents <= 0) {
     toast.error("Preencha título e valor.");
     return;
@@ -328,7 +329,7 @@ function openRecurring(): void {
   recPeriodicity.value = "mensal";
   recEmissionDay.value = 5;
   recDueDay.value = 15;
-  recAmount.value = "";
+  recCents.value = null;
   recVariable.value = true;
   recDuration.value = "sempre";
   recMonths.value = 12;
@@ -347,7 +348,7 @@ function openEditRecurring(recurrence: (typeof recurrencesStore.items)[number]):
   recDueDay.value = recurrence.template.due_day ?? Number(recurrence.start_date.slice(8, 10));
   recVariable.value = Boolean(recurrence.template.confirm_required);
   const reference = recurrence.template.default_amount_cents ?? recurrence.template.amount_cents ?? 0;
-  recAmount.value = reference > 0 ? formatCentsToInput(reference) : "";
+  recCents.value = reference > 0 ? reference : null;
   const countMatch = recurrence.rrule.match(/COUNT=(\d+)/i);
   recDuration.value = countMatch ? "meses" : "sempre";
   recMonths.value = countMatch ? Number(countMatch[1]) : 12;
@@ -367,7 +368,7 @@ async function submitRecurring(): Promise<void> {
     toast.error("Informe o nome da conta recorrente.");
     return;
   }
-  const defaultCents = recVariable.value ? (parseAmountInput(recAmount.value) ?? 0) : parseAmountInput(recAmount.value);
+  const defaultCents = recCents.value;
   if (!recVariable.value && (defaultCents === null || defaultCents <= 0)) {
     toast.error("Informe o valor da conta.");
     return;
@@ -434,13 +435,13 @@ async function removeRecurring(id: string): Promise<void> {
 function openConfirm(bill: LocalBill): void {
   confirming.value = bill;
   confirmEarly.value = (bill.emission_date ?? "").slice(0, 10) > todayISO();
-  confirmAmount.value = bill.amount_cents > 0 ? formatCentsToInput(bill.amount_cents) : "";
+  confirmCents.value = bill.amount_cents > 0 ? bill.amount_cents : null;
   confirmOpen.value = true;
 }
 
 async function confirmValue(): Promise<void> {
   const bill = confirming.value;
-  const cents = parseAmountInput(confirmAmount.value);
+  const cents = confirmCents.value;
   if (!bill || cents === null || cents <= 0) {
     toast.error("Informe o valor correto.");
     return;
@@ -894,7 +895,7 @@ watch(() => sync.dataVersion, async () => {
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">
             <Label for="bill-amount">Valor (R$)</Label>
-            <Input id="bill-amount" v-model="amount" inputmode="decimal" placeholder="0,00" />
+            <CurrencyInput id="bill-amount" v-model="amountCents" />
           </div>
           <div class="space-y-2">
             <Label for="bill-due">Vencimento</Label>
@@ -971,7 +972,7 @@ watch(() => sync.dataVersion, async () => {
           <Label for="rec-amount">
             {{ recVariable ? "Valor de referência (opcional)" : "Valor" }}
           </Label>
-          <Input id="rec-amount" v-model="recAmount" inputmode="decimal" placeholder="0,00" />
+          <CurrencyInput id="rec-amount" v-model="recCents" />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">
@@ -1030,7 +1031,7 @@ watch(() => sync.dataVersion, async () => {
         <p class="text-sm font-bold">{{ confirming?.title }}</p>
         <div class="space-y-2">
           <Label for="confirm-amount">Valor (R$)</Label>
-          <Input id="confirm-amount" v-model="confirmAmount" inputmode="decimal" placeholder="0,00" autofocus />
+          <CurrencyInput id="confirm-amount" v-model="confirmCents" autofocus />
         </div>
         <div class="flex justify-end gap-2 pt-1">
           <Button variant="ghost" type="button" @click="confirmOpen = false">Cancelar</Button>
