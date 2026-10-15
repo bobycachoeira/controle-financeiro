@@ -1,13 +1,36 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ArrowLeftRight, CreditCard, Wallet } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import AccountsView from "@/features/accounts/AccountsView.vue";
 import CardsView from "@/features/cards/CardsView.vue";
 
+type Tab = "contas" | "cartoes";
+
+function tabFromQuery(value: unknown): Tab {
+  return value === "cartoes" ? "cartoes" : "contas";
+}
+
+const route = useRoute();
 const router = useRouter();
-const tab = ref<"contas" | "cartoes">("contas");
+const tab = ref<Tab>(tabFromQuery(route.query.tab));
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    tab.value = tabFromQuery(value);
+  },
+);
+
+/** Mantém a aba na URL — voltar de uma fatura cai na aba certa. */
+function setTab(value: Tab): void {
+  tab.value = value;
+  const query = { ...route.query };
+  if (value === "cartoes") query.tab = "cartoes";
+  else delete query.tab;
+  void router.replace({ query });
+}
 </script>
 
 <template>
@@ -27,7 +50,7 @@ const tab = ref<"contas" | "cartoes">("contas");
         type="button"
         class="flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
         :class="tab === 'contas' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
-        @click="tab = 'contas'"
+        @click="setTab('contas')"
       >
         <Wallet class="h-4 w-4" /> Contas
       </button>
@@ -35,7 +58,7 @@ const tab = ref<"contas" | "cartoes">("contas");
         type="button"
         class="flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
         :class="tab === 'cartoes' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
-        @click="tab = 'cartoes'"
+        @click="setTab('cartoes')"
       >
         <CreditCard class="h-4 w-4" /> Cartões
       </button>

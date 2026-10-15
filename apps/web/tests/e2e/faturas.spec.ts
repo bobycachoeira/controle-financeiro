@@ -154,5 +154,9 @@ test.describe("faturas do cartão", () => {
     const payForm = page.locator("form", { has: page.locator("#pay-amount") });
     await payForm.getByRole("button", { name: "Confirmar pagamento" }).click();
     await expect(page.getByText("paga", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Voltar cai na aba Cartões (e não em Contas).
+    await page.getByLabel("Voltar").click();
+    await expect(page.getByRole("heading", { name: "Cartões" })).toBeVisible({ timeout: 15_000 });
   });
 });

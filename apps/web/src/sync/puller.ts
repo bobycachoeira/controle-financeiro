@@ -46,3 +46,24 @@ export async function pullChanges(household: string, limit = 200): Promise<PullS
 export async function resetCursor(household: string): Promise<void> {
   await db.meta.delete(cursorKey(household));
 }
+
+/**
+ * Remove faturas locais que não existem mais no servidor (órfãs de creates
+ * que falharam/foram descartados). Faturas com outbox pendente são mantidas.
+ */
+export async function reconcileOrphanInvoices(household: string): Promise<number> {
+  const response = await apiClient.get<PullResponse>("/sync/pull?since=0&limit=2000");
+  const parsed = pullResponseSchema.parse(response);
+  const serverIds = new Set(
+    parsed.changes.filter((change) => change.entity === "invoices").map((change) => change.id),
+  );
+  const local = await db.invoices.where("household").equals(household).toArray();
+  let removed = 0;
+  for (const invoice of local) {
+    if (invoice._pendingOutboxId !== undefined) continue;
+    if (serverIds.has(invoice.id)) continue;
+    await db.invoices.delete(invoice.id);
+    removed += 1;
+  }
+  return removed;
+}

@@ -17,9 +17,9 @@ import {
   resetStaleSending,
   resetToPending,
 } from "../sync/outbox";
-import { db, type OutboxItem } from "../db/schema";
+import { db, getMeta, setMeta, type OutboxItem } from "../db/schema";
 import { clearPendingFlag, ENTITY_TABLES, updateLocal, type SyncableRecord } from "../db/repositories";
-import { getCursor, pullChanges, resetCursor } from "../sync/puller";
+import { getCursor, pullChanges, reconcileOrphanInvoices, resetCursor } from "../sync/puller";
 import { pushOutbox } from "../sync/pusher";
 import { auditApi } from "../api/audit-api";
 import { useSessionStore } from "./session";
@@ -118,6 +118,16 @@ export const useSyncStore = defineStore("sync", () => {
         await saveConflicts(summary.conflicts);
       }
       await pullChanges(household);
+      // Limpeza única: faturas órfãs (creates que falharam e foram descartados).
+      try {
+        const cleanupKey = `cleanup:invoice-orphans:${household}`;
+        if (!(await getMeta(cleanupKey))) {
+          await reconcileOrphanInvoices(household);
+          await setMeta(cleanupKey, "1");
+        }
+      } catch {
+        // limpeza é best-effort (não bloqueia o sync)
+      }
       cursor.value = await getCursor(household);
       lastSyncedAt.value = new Date().toISOString();
       lastError.value = null;
