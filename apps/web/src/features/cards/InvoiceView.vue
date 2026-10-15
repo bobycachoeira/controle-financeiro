@@ -29,6 +29,7 @@ const invoice = ref<LocalInvoice | null>(null);
 const card = ref<LocalCreditCard | null>(null);
 const transactions = ref<LocalTransaction[]>([]);
 const categories = ref<LocalCategory[]>([]);
+const installmentsByRoot = ref<Map<string, { number: number; total: number }>>(new Map());
 
 const id = computed(() => String(route.params.id));
 const cardLabel = computed(() => card.value?.bank?.trim() || "Cartão");
@@ -43,6 +44,11 @@ const remainingCents = computed(() =>
   invoice.value ? Math.max(0, invoice.value.total_cents - paidCents.value) : 0,
 );
 
+function installmentLabel(tx: LocalTransaction): string | null {
+  const info = installmentsByRoot.value.get(tx.id);
+  return info && info.total > 1 ? `${info.number}/${info.total}` : null;
+}
+
 async function load(): Promise<void> {
   await accountsStore.load();
   const record = await db.invoices.get(id.value);
@@ -53,6 +59,15 @@ async function load(): Promise<void> {
   categories.value = (
     await db.categories.where("household").equals(record.household).toArray()
   ).filter((category) => !category.deleted_at);
+  const installmentRows = await db.installments
+    .where("household")
+    .equals(record.household)
+    .toArray();
+  const byRoot = new Map<string, { number: number; total: number }>();
+  for (const row of installmentRows) {
+    if (!row.deleted_at) byRoot.set(row.root_transaction, { number: row.number, total: row.total });
+  }
+  installmentsByRoot.value = byRoot;
 }
 
 function openPay(): void {
@@ -145,7 +160,12 @@ watch(() => sync.dataVersion, load);
                 :to="{ name: 'transaction-edit', params: { id: tx.id } }"
                 class="min-w-0 flex-1"
               >
-                <p class="truncate font-bold">{{ tx.description || "Compra" }}</p>
+                <p class="truncate font-bold">
+                  {{ tx.description || "Compra" }}
+                  <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
+                    parcela {{ installmentLabel(tx) }}
+                  </Badge>
+                </p>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDateShort(tx.date) }}
                   <template v-if="tx.category && categoryById.get(tx.category)">

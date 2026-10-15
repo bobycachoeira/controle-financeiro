@@ -106,4 +106,51 @@ test.describe("Cartão → fatura → pagamento", () => {
     await expect(cardB.getByText("R$ 25,00")).toBeVisible({ timeout: 15_000 });
     await expect(cardA.getByText("R$ 25,00")).toHaveCount(0);
   });
+
+  test("lança parcelas em andamento pelo atalho do cartão", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const bank = `BancoAntigo${stamp}`;
+    const description = `TV ${stamp}`;
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    await page.getByRole("button", { name: /^Novo$/ }).click();
+    await page.getByLabel("Nome").fill(`Cartão ${bank}`);
+    await page.getByLabel("Banco").fill(bank);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    const card = page.getByTestId("card").filter({ hasText: bank });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    // Atalho já abre o formulário com o cartão escolhido.
+    await card.getByRole("link", { name: /Lançar compras anteriores/ }).click();
+    await expect(page.getByText("Novo lançamento")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#card option:checked")).toHaveText(new RegExp(bank), {
+      timeout: 15_000,
+    });
+
+    await page.locator("#amount").fill("100,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.locator("#installments").selectOption({ label: "3x" });
+    await page.locator("#paid-installments").fill("2");
+    await expect(page.getByText(/valor digitado é cada parcela/i)).toBeVisible();
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    // A lista de lançamentos mostra a parcela.
+    const row = page.locator("li", { hasText: description });
+    await expect(row).toContainText("parcela 3/3");
+
+    // E o detalhe da fatura também.
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    await expect(card.getByText("R$ 100,00")).toBeVisible({ timeout: 15_000 });
+    await card.getByRole("link").filter({ hasText: "2026-" }).first().click();
+    await expect(page.locator("li", { hasText: description })).toContainText("parcela 3/3", {
+      timeout: 15_000,
+    });
+  });
 });

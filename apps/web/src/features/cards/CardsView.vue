@@ -294,6 +294,12 @@ watch(
                 : `Ver todas (${cardsStore.invoicesFor(card.id).length})`
             }}
           </button>
+          <RouterLink
+            :to="{ name: 'transaction-new', query: { card: card.id } }"
+            class="mt-2 block text-xs font-bold text-primary transition hover:underline"
+          >
+            Lançar compras anteriores (parcelas em andamento)
+          </RouterLink>
         </CardContent>
       </Card>
     </div>

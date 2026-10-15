@@ -45,7 +45,13 @@ const attachment = ref<string | null>(null);
 const attachmentBusy = ref(false);
 const photoInput = ref<HTMLInputElement | null>(null);
 const installments = ref(1);
+const paidInstallments = ref(0);
+const installmentInfo = ref<{ number: number; total: number } | null>(null);
 const saving = ref(false);
+
+const remainingInstallments = computed(() =>
+  Math.max(1, installments.value - paidInstallments.value),
+);
 
 function parseTags(): string[] {
   const list = tagsInput.value
@@ -85,6 +91,12 @@ watch([account, creditCard], () => {
   if (isEdit.value) return;
   const owner = accountOwner.value !== "indefinido" ? accountOwner.value : people.currentKey;
   if (owner && owner !== "indefinido") attribution.value = owner;
+});
+
+watch(installments, (value) => {
+  if (paidInstallments.value > value - 1) {
+    paidInstallments.value = Math.max(0, value - 1);
+  }
 });
 
 async function submit(): Promise<void> {
@@ -142,6 +154,7 @@ async function submit(): Promise<void> {
         tags: parseTags(),
         attachment: attachment.value,
         installments: installments.value,
+        paid_installments: paidInstallments.value,
         closing_day: card.value.closing_day,
         due_day: card.value.due_day,
       });
@@ -187,6 +200,14 @@ onMounted(async () => {
       category.value = tx.category ?? "";
       tagsInput.value = (tx.tags ?? []).join(", ");
       attachment.value = tx.attachment ?? null;
+      const rows = await db.installments.where("root_transaction").equals(tx.id).toArray();
+      const row = rows.find((item) => !item.deleted_at);
+      installmentInfo.value = row ? { number: row.number, total: row.total } : null;
+    }
+  } else {
+    const queryCard = route.query.card;
+    if (typeof queryCard === "string" && cardsStore.cards.some((item) => item.id === queryCard)) {
+      creditCard.value = queryCard;
     }
   }
 });
@@ -222,7 +243,9 @@ watch(
 
     <Card class="overflow-hidden">
       <div class="bg-secondary/60 px-5 py-6 text-center">
-        <Label for="amount" class="text-secondary-foreground/70">Valor</Label>
+        <Label for="amount" class="text-secondary-foreground/70">
+          {{ isCard && !isEdit && paidInstallments > 0 ? "Valor de cada parcela" : "Valor" }}
+        </Label>
         <div class="mt-1 flex items-baseline justify-center gap-1 font-display">
           <span class="text-2xl font-bold text-muted-foreground">R$</span>
           <input
@@ -350,11 +373,24 @@ watch(
           </Select>
         </div>
 
-        <div v-if="isCard && !isEdit" class="space-y-2">
-          <Label for="installments">Parcelas</Label>
-          <Select id="installments" v-model.number="installments">
-            <option v-for="n in 12" :key="n" :value="n">{{ n }}x</option>
-          </Select>
+        <div v-if="isCard && !isEdit" class="grid grid-cols-2 gap-3">
+          <div class="space-y-2">
+            <Label for="installments">Parcelas (total)</Label>
+            <Select id="installments" v-model.number="installments">
+              <option v-for="n in 12" :key="n" :value="n">{{ n }}x</option>
+            </Select>
+          </div>
+          <div class="space-y-2">
+            <Label for="paid-installments">Já pagas</Label>
+            <Input
+              id="paid-installments"
+              v-model.number="paidInstallments"
+              type="number"
+              :min="0"
+              :max="Math.max(0, installments - 1)"
+              :disabled="installments === 1"
+            />
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -376,7 +412,18 @@ watch(
         </div>
 
         <p v-if="isCard && card && !isEdit" class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
-          Cai na fatura pelo fechamento (dia {{ card.closing_day }}), em {{ installments }}x.
+          <template v-if="paidInstallments > 0">
+            Compra em andamento: o valor digitado é <strong>cada parcela</strong>. Entram as parcelas
+            {{ paidInstallments + 1 }} a {{ installments }} ({{ remainingInstallments }}x), a partir
+            da fatura pelo fechamento (dia {{ card.closing_day }}).
+          </template>
+          <template v-else>
+            Cai na fatura pelo fechamento (dia {{ card.closing_day }}), em {{ installments }}x.
+          </template>
+        </p>
+
+        <p v-if="isEdit && installmentInfo" class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+          Parcela {{ installmentInfo.number }} de {{ installmentInfo.total }} desta compra.
         </p>
 
         <div class="flex justify-end gap-2 pt-1">

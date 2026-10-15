@@ -5,6 +5,7 @@ import {
   closingDateForMonth,
   dueDateForMonth,
   generateInstallments,
+  generateOngoingInstallments,
   referenceMonthForPurchase,
 } from "@cf/shared";
 import { db, type LocalInstallment, type LocalInvoice, type LocalTransaction } from "../db/schema";
@@ -46,6 +47,11 @@ export interface CardPurchaseInput extends Omit<TransactionInput, "type"> {
   installments: number;
   closing_day: number;
   due_day: number;
+  /**
+   * Parcelas já pagas antes de usar o app (0 = compra nova). Quando > 0, o
+   * valor em `amount_cents` é o valor de CADA parcela e só as restantes entram.
+   */
+  paid_installments?: number;
 }
 
 export const useTransactionsStore = defineStore("transactions", () => {
@@ -146,12 +152,25 @@ export const useTransactionsStore = defineStore("transactions", () => {
     }
     const session = useSessionStore();
     const household = session.currentHouseholdId ?? "";
-    const installments = generateInstallments(
-      input.date,
-      input.amount_cents,
-      input.installments,
-      input.closing_day,
+    const paid = Math.max(
+      0,
+      Math.min(Math.floor(input.paid_installments ?? 0), Math.max(0, input.installments - 1)),
     );
+    const installments =
+      paid > 0
+        ? generateOngoingInstallments(
+            input.date,
+            input.amount_cents,
+            input.installments - paid,
+            paid,
+            input.closing_day,
+          )
+        : generateInstallments(
+            input.date,
+            input.amount_cents,
+            input.installments,
+            input.closing_day,
+          );
 
     const root = baseRecord({ ...input, type: "despesa" });
     const groupId = newSyncId();

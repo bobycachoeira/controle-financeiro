@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { generateInstallments, sumInstallments } from "../src/domain/installments";
+import {
+  generateInstallments,
+  generateOngoingInstallments,
+  sumInstallments,
+} from "../src/domain/installments";
 
 describe("installments", () => {
   it("distributes one installment per cycle and sums to the purchase total", () => {
@@ -30,5 +34,42 @@ describe("installments", () => {
 
   it("returns an empty list for invalid counts", () => {
     expect(generateInstallments("2024-01-01", 1000, 0, 10)).toEqual([]);
+  });
+});
+
+describe("generateOngoingInstallments", () => {
+  it("gera só as parcelas restantes com numeração correta", () => {
+    const installments = generateOngoingInstallments("2024-03-10", 25000, 4, 6, 15);
+    expect(installments.map((item) => `${item.number}/${item.total}`)).toEqual([
+      "7/10",
+      "8/10",
+      "9/10",
+      "10/10",
+    ]);
+    expect(installments.map((item) => item.amount_cents)).toEqual([25000, 25000, 25000, 25000]);
+    expect(installments.map((item) => item.reference_month)).toEqual([
+      "2024-03",
+      "2024-04",
+      "2024-05",
+      "2024-06",
+    ]);
+  });
+
+  it("funciona com uma única parcela restante", () => {
+    const installments = generateOngoingInstallments("2024-03-10", 10000, 1, 2, 15);
+    expect(installments).toEqual([
+      {
+        number: 3,
+        total: 3,
+        amount_cents: 10000,
+        expected_date: "2024-03-10",
+        reference_month: "2024-03",
+      },
+    ]);
+  });
+
+  it("ignora valores/quantidades inválidos", () => {
+    expect(generateOngoingInstallments("2024-03-10", 0, 3, 1, 15)).toEqual([]);
+    expect(generateOngoingInstallments("2024-03-10", 1000, 0, 1, 15)).toEqual([]);
   });
 });

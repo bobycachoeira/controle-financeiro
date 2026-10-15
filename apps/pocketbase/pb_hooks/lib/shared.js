@@ -124,6 +124,7 @@ __export(src_exports, {
   formatISOMonth: () => formatISOMonth,
   fromCents: () => fromCents,
   generateInstallments: () => generateInstallments,
+  generateOngoingInstallments: () => generateOngoingInstallments,
   goalEntrySchema: () => goalEntrySchema,
   goalProgress: () => goalProgress,
   goalSchema: () => goalSchema,
@@ -5050,6 +5051,15 @@ function generateInstallments(purchaseDate, totalCents, count, closingDay) {
 }
 function sumInstallments(installments) {
   return installments.reduce((total, item) => total + item.amount_cents, 0);
+}
+function generateOngoingInstallments(purchaseDate, perParcelCents, remaining, paidCount, closingDay) {
+  if (!Number.isInteger(remaining) || remaining < 1) return [];
+  if (!Number.isInteger(perParcelCents) || perParcelCents <= 0) return [];
+  const paid = Math.max(0, Math.floor(paidCount));
+  const total = paid + remaining;
+  return generateInstallments(purchaseDate, perParcelCents * remaining, remaining, closingDay).map(
+    (item) => __spreadProps(__spreadValues({}, item), { number: item.number + paid, total })
+  );
 }
 function isValidPurchaseDate(value) {
   const parsed = parseISODate(value);

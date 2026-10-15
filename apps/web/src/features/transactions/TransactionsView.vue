@@ -41,6 +41,7 @@ const query = ref("");
 const viewingPhoto = ref<string | null>(null);
 const categories = ref<LocalCategory[]>([]);
 const allTags = ref<string[]>([]);
+const installmentsByRoot = ref<Map<string, { number: number; total: number }>>(new Map());
 
 const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item])));
 const categoryById = computed(() => new Map(categories.value.map((item) => [item.id, item])));
@@ -78,6 +79,21 @@ async function loadFiltersData(): Promise<void> {
     for (const item of tx.tags ?? []) tags.add(item);
   }
   allTags.value = [...tags].sort((a, b) => a.localeCompare(b));
+
+  const installmentRows = await db.installments
+    .where("household")
+    .equals(session.currentHouseholdId)
+    .toArray();
+  const byRoot = new Map<string, { number: number; total: number }>();
+  for (const row of installmentRows) {
+    if (!row.deleted_at) byRoot.set(row.root_transaction, { number: row.number, total: row.total });
+  }
+  installmentsByRoot.value = byRoot;
+}
+
+function installmentLabel(tx: LocalTransaction): string | null {
+  const info = installmentsByRoot.value.get(tx.id);
+  return info && info.total > 1 ? `${info.number}/${info.total}` : null;
 }
 
 async function reload(): Promise<void> {
@@ -256,7 +272,12 @@ watch(() => sync.dataVersion, loadAll);
               <img :src="tx.attachment" alt="" class="h-full w-full object-cover" />
             </button>
             <div class="min-w-0 flex-1">
-              <p class="truncate font-bold">{{ tx.description || "Lançamento" }}</p>
+              <p class="truncate font-bold">
+                {{ tx.description || "Lançamento" }}
+                <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
+                  parcela {{ installmentLabel(tx) }}
+                </Badge>
+              </p>
               <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
                 {{ formatDateShort(tx.date) }}
                 <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
