@@ -153,4 +153,44 @@ test.describe("Cartão → fatura → pagamento", () => {
       timeout: 15_000,
     });
   });
+
+  test("remover a compra parcelada apaga todas as parcelas e as faturas futuras", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const bank = `BancoRemover${stamp}`;
+    const description = `Fone ${stamp}`;
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    await page.getByRole("button", { name: /^Novo$/ }).click();
+    await page.getByLabel("Nome").fill(`Cartão ${bank}`);
+    await page.getByLabel("Banco").fill(bank);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    const card = page.getByTestId("card").filter({ hasText: bank });
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    await card.getByRole("link", { name: /Lançar compras anteriores/ }).click();
+    await page.locator("#amount").fill("100,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.locator("#installments").selectOption({ label: "3x" });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    // Excluir qualquer parcela pergunta se é só ela ou a compra toda.
+    const row = page.locator("li", { hasText: description });
+    await row.getByLabel("Excluir lançamento").click();
+    await expect(page.getByText(/parcela 1 de 3/)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: /Remover todas \(3\)/ }).click();
+    await expect(page.getByText(description)).toHaveCount(0, { timeout: 10_000 });
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    await expect(card.getByText("R$ 100,00")).toHaveCount(0, { timeout: 15_000 });
+  });
 });

@@ -330,5 +330,41 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
-  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, findByExternalRef };
+  /**
+   * Remove a compra parcelada inteira: todas as transações do grupo, os
+   * registros de parcelas e recalcula todas as faturas afetadas.
+   */
+  async function removePurchase(id: string): Promise<number> {
+    const tx = await db.transactions.get(id);
+    if (!tx) return 0;
+    const record = await db.installments.where("root_transaction").equals(id).first();
+    if (!record) {
+      await remove(id);
+      return 1;
+    }
+    const group = await db.installments
+      .where("household")
+      .equals(tx.household)
+      .filter((row) => row.installment_group_id === record.installment_group_id)
+      .toArray();
+    const invoiceIds = new Set<string>();
+    let removed = 0;
+    for (const row of group) {
+      if (row.invoice) invoiceIds.add(row.invoice);
+      const rootTx = await db.transactions.get(row.root_transaction);
+      if (rootTx) {
+        if (rootTx.invoice) invoiceIds.add(rootTx.invoice);
+        if (!rootTx.deleted_at) {
+          await softDeleteLocal("transactions", rootTx.id);
+          removed += 1;
+        }
+      }
+      if (!row.deleted_at) await softDeleteLocal("installments", row.id);
+    }
+    for (const invoiceId of invoiceIds) await recalcInvoice(invoiceId);
+    await load();
+    return removed;
+  }
+
+  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, removePurchase, findByExternalRef };
 });

@@ -119,6 +119,43 @@ async function removeTransaction(id: string): Promise<void> {
   toast.info("Lançamento removido.");
 }
 
+const deleteTarget = ref<LocalTransaction | null>(null);
+const deleteInfo = ref<{ number: number; total: number } | null>(null);
+const deleteBusy = ref(false);
+
+function askRemove(tx: LocalTransaction): void {
+  const info = installmentsByRoot.value.get(tx.id);
+  if (info && info.total > 1) {
+    deleteTarget.value = tx;
+    deleteInfo.value = info;
+    return;
+  }
+  void removeTransaction(tx.id);
+}
+
+async function confirmRemoveOne(): Promise<void> {
+  if (!deleteTarget.value) return;
+  deleteBusy.value = true;
+  try {
+    await removeTransaction(deleteTarget.value.id);
+    deleteTarget.value = null;
+  } finally {
+    deleteBusy.value = false;
+  }
+}
+
+async function confirmRemoveAll(): Promise<void> {
+  if (!deleteTarget.value) return;
+  deleteBusy.value = true;
+  try {
+    const removed = await transactionsStore.removePurchase(deleteTarget.value.id);
+    toast.info(removed > 1 ? `Compra removida (${removed} parcelas).` : "Compra removida.");
+    deleteTarget.value = null;
+  } finally {
+    deleteBusy.value = false;
+  }
+}
+
 function accountName(id: string): string {
   return accountById.value.get(id)?.name ?? "";
 }
@@ -319,7 +356,7 @@ watch(() => sync.dataVersion, loadAll);
               <button
                 class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
                 aria-label="Excluir lançamento"
-                @click="removeTransaction(tx.id)"
+                @click="askRemove(tx)"
               >
                 <Trash2 class="h-3.5 w-3.5" />
               </button>
@@ -340,6 +377,28 @@ watch(() => sync.dataVersion, loadAll);
         alt="Comprovante"
         class="max-h-[70vh] w-full rounded-2xl object-contain"
       />
+    </Modal>
+
+    <Modal
+      :model-value="Boolean(deleteTarget)"
+      title="Remover compra parcelada"
+      :description="deleteTarget?.description || 'Compra'"
+      @update:model-value="deleteTarget = null"
+    >
+      <div class="space-y-4 text-sm">
+        <p class="text-muted-foreground">
+          Esta é a parcela {{ deleteInfo?.number }} de {{ deleteInfo?.total }}. Você pode remover só
+          esta ou a compra inteira (todas as parcelas e faturas futuras).
+        </p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" :loading="deleteBusy" @click="confirmRemoveOne">
+            Remover só esta parcela
+          </Button>
+          <Button variant="destructive" :loading="deleteBusy" @click="confirmRemoveAll">
+            Remover todas ({{ deleteInfo?.total }})
+          </Button>
+        </div>
+      </div>
     </Modal>
   </div>
 </template>

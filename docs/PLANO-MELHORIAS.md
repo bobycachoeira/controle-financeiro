@@ -91,3 +91,5 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       identificação “parcela 2/3” nos lançamentos e na fatura — `53b3815`.
 - [x] K5. Cartões mostram as **próximas faturas a pagar** (e não as mais
       recentes), com “Ver todas” para o histórico.
+- [x] K6. Excluir parcela pergunta “só esta” ou **a compra toda** (todas as
+      parcelas, registros e recálculo das faturas).
