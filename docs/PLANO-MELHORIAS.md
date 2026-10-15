@@ -81,3 +81,11 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       ação **Retirar** com destino opcional — `b7a4597`.
 - [x] J1. Calendário: inclui **lançamentos** (inclusive compras do cartão) com
       filtros de Contas/Faturas/Lançamentos — `bc8a064`.
+- [x] K1. Painel: filtro por conta nos gastos por categoria, variação vs mês
+      anterior e card de uso do cartão — `d4b2d7d`.
+- [x] K2. Faturas: só as 2 últimas + “Ver todas”, detalhe da fatura com
+      lançamentos e pagamento compartilhado — `31cbd2a`.
+- [x] K3. Limpeza automática de faturas órfãs + voltar da fatura para a aba
+      Cartões — `89b72c7`.
+- [x] K4. Parcelas em andamento (“já pagas”) pelo atalho do cartão e
+      identificação “parcela 2/3” nos lançamentos e na fatura — `53b3815`.
