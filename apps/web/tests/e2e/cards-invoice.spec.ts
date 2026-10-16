@@ -148,7 +148,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.goto("/wallet");
     await page.getByRole("button", { name: "Cartões" }).click();
     await expect(card.getByText("R$ 100,00")).toBeVisible({ timeout: 15_000 });
-    await card.getByRole("link").filter({ hasText: "2026-" }).first().click();
+    await card.getByRole("link").filter({ hasText: "de 2026" }).first().click();
     await expect(page.locator("li", { hasText: description })).toContainText("parcela 3/3", {
       timeout: 15_000,
     });

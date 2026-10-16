@@ -8,7 +8,7 @@
     --foreground: 200 30% 14%;
     --card: 165 40% 99%;
     --card-foreground: 200 30% 14%;
-    --primary: 170 62% 33%;
+    --primary: 170 62% 30%;
     --primary-foreground: 160 40% 98%;
     --secondary: 172 26% 88%;
     --secondary-foreground: 200 34% 18%;
@@ -16,7 +16,7 @@
     --muted-foreground: 200 14% 40%;
     --accent: 198 78% 45%;
     --accent-foreground: 200 60% 12%;
-    --destructive: 358 68% 54%;
+    --destructive: 358 68% 50%;
     --destructive-foreground: 40 70% 98%;
     --border: 176 22% 85%;
     --input: 176 22% 85%;
@@ -25,7 +25,7 @@
 
     --ink: 200 30% 13%;
     --sun: 45 92% 60%;
-    --leaf: 152 48% 40%;
+    --leaf: 152 48% 34%;
     --sky: 198 78% 52%;
     --plum: 285 42% 50%;
 
@@ -45,7 +45,7 @@
     --muted-foreground: 168 12% 66%;
     --accent: 198 72% 58%;
     --accent-foreground: 200 45% 10%;
-    --destructive: 358 68% 60%;
+    --destructive: 358 68% 62%;
     --destructive-foreground: 40 60% 96%;
     --border: 200 14% 24%;
     --input: 200 14% 24%;

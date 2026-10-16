@@ -40,6 +40,8 @@ test.describe("lançamentos", () => {
     await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
     await page.locator("#filter-query").fill("");
 
+    await page.getByTestId("filters-toggle").click();
+    await expect(page.getByTestId("filters-panel")).toBeVisible();
     await page.locator("#filter-tag").selectOption({ label: "viagem" });
     await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
   });

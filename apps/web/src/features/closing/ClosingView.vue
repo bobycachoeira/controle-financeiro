@@ -170,7 +170,7 @@ watch(() => sync.dataVersion, loadAll);
           </div>
           <div class="rounded-2xl bg-muted/60 p-3">
             <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">Despesas</p>
-            <p class="font-display text-sm font-bold text-primary">{{ formatBRL(expense) }}</p>
+            <p class="font-display text-sm font-bold text-foreground">{{ formatBRL(expense) }}</p>
           </div>
           <div class="rounded-2xl bg-muted/60 p-3">
             <p class="text-[0.6rem] font-extrabold uppercase tracking-wider text-muted-foreground">Sobrou</p>

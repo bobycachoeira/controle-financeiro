@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { todayISO } from "@cf/shared";
-import { Pencil, Plus, Receipt, Search, Trash2, X } from "lucide-vue-next";
+import { Pencil, Plus, Receipt, Search, SlidersHorizontal, Trash2, X } from "lucide-vue-next";
 import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
@@ -30,6 +30,7 @@ const people = usePeopleStore();
 const sync = useSyncStore();
 const quickAdd = useQuickAddStore();
 const toast = useToast();
+const route = useRoute();
 
 const month = ref(todayISO().slice(0, 7));
 const account = ref("");
@@ -40,6 +41,18 @@ const category = ref("");
 const type = ref<"" | TransactionType>("");
 const tag = ref("");
 const query = ref("");
+const filtersOpen = ref(false);
+
+// Deep link (ex.: alerta do Início): /transactions?month=2026-10&category=abc
+const queryCategory = route.query.category;
+const queryMonth = route.query.month;
+if (typeof queryCategory === "string" && queryCategory) {
+  category.value = queryCategory;
+  filtersOpen.value = true;
+}
+if (typeof queryMonth === "string" && /^\d{4}-\d{2}$/.test(queryMonth)) {
+  month.value = queryMonth;
+}
 const viewingPhoto = ref<string | null>(null);
 const categories = ref<LocalCategory[]>([]);
 const allTags = ref<string[]>([]);
@@ -55,6 +68,18 @@ const hasFilters = computed(
     status.value !== "" ||
     reconciled.value !== "all",
 );
+
+const activeFilterCount = computed(() => {
+  let count = 0;
+  if (type.value) count += 1;
+  if (account.value) count += 1;
+  if (category.value) count += 1;
+  if (attribution.value) count += 1;
+  if (status.value) count += 1;
+  if (reconciled.value !== "all") count += 1;
+  if (tag.value) count += 1;
+  return count;
+});
 
 function clearFilters(): void {
   query.value = "";
@@ -212,11 +237,28 @@ watch(() => sync.dataVersion, loadAll);
             placeholder="Buscar por descrição, nota ou etiqueta…"
           />
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-1">
+        <div class="flex items-end gap-2">
+          <div class="min-w-0 flex-1 space-y-1">
             <Label for="filter-month">Mês</Label>
             <Input id="filter-month" v-model="month" type="month" />
           </div>
+          <Button
+            variant="outline"
+            data-testid="filters-toggle"
+            :aria-expanded="filtersOpen"
+            aria-controls="filters-panel"
+            @click="filtersOpen = !filtersOpen"
+          >
+            <SlidersHorizontal class="h-4 w-4" aria-hidden="true" />
+            Filtros{{ activeFilterCount > 0 ? ` (${activeFilterCount})` : "" }}
+          </Button>
+        </div>
+        <div
+          v-if="filtersOpen"
+          id="filters-panel"
+          data-testid="filters-panel"
+          class="grid grid-cols-2 gap-3"
+        >
           <div class="space-y-1">
             <Label for="filter-type">Tipo</Label>
             <Select id="filter-type" v-model="type">
@@ -348,7 +390,7 @@ watch(() => sync.dataVersion, loadAll);
             <div class="flex flex-col items-end gap-1">
               <span
                 class="font-display font-bold"
-                :class="tx.amount_cents < 0 ? 'text-primary' : 'text-leaf'"
+                :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'"
               >
                 {{ amountLabel(tx) }}
               </span>

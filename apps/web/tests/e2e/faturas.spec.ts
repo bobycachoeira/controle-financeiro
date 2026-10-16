@@ -136,17 +136,17 @@ test.describe("faturas do cartão", () => {
 
     // Só as duas próximas a pagar ficam à vista.
     await expect(card.locator("li")).toHaveCount(2);
-    await expect(card.getByText("2026-01")).toBeVisible();
-    await expect(card.getByText("2026-02")).toBeVisible();
-    await expect(card.getByText("2026-03")).toHaveCount(0);
+    await expect(card.getByText("janeiro de 2026")).toBeVisible();
+    await expect(card.getByText("fevereiro de 2026")).toBeVisible();
+    await expect(card.getByText("março de 2026")).toHaveCount(0);
     const toggle = card.getByTestId("invoices-toggle");
     await expect(toggle).toContainText("Ver todas");
     await toggle.click();
     await expect(card.locator("li")).toHaveCount(4);
-    await expect(card.getByText("2026-03")).toBeVisible();
+    await expect(card.getByText("março de 2026")).toBeVisible();
 
     // Clicar na fatura abre os lançamentos.
-    await card.getByText("2026-03").click();
+    await card.getByText("março de 2026").click();
     await expect(page).toHaveURL(/\/invoices\//);
     await expect(page.getByText("Lançamentos (1)")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Livro Fatura")).toBeVisible();

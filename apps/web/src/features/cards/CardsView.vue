@@ -8,7 +8,7 @@ import { useAccountsStore } from "@/stores/accounts";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { formatBRL } from "@/lib/format-input";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatMonth } from "@/lib/format";
 import { colorForKey } from "@/lib/icons";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
@@ -250,7 +250,7 @@ watch(
                 :to="{ name: 'invoice', params: { id: invoice.id } }"
                 class="min-w-0 flex-1"
               >
-                <p class="font-bold">{{ invoice.reference_month }}</p>
+                <p class="font-bold first-letter:uppercase">{{ formatMonth(invoice.reference_month) }}</p>
                 <p class="text-xs text-muted-foreground">
                   Fecha {{ formatDate(invoice.closing_date) }} · Vence {{ formatDate(invoice.due_date) }}
                 </p>

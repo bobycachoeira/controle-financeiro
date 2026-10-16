@@ -72,7 +72,7 @@ const itemsByDate = computed(() => {
       push(invoice.due_date.slice(0, 10), {
         id: invoice.id,
         kind: "invoice",
-        title: `Fatura ${bank} ${invoice.reference_month}`,
+        title: `Fatura ${bank} ${formatMonth(invoice.reference_month)}`,
         amountCents: Math.max(0, invoice.total_cents - (invoice.paid_cents ?? 0)),
         nature: "saida",
         status: invoice.status,
@@ -162,7 +162,7 @@ watch(() => sync.dataVersion, loadAll);
           >
             <ChevronLeft class="h-4 w-4" />
           </button>
-          <p class="font-display text-lg font-bold capitalize">{{ formatMonth(month) }}</p>
+          <p class="font-display text-lg font-bold first-letter:uppercase">{{ formatMonth(month) }}</p>
           <button
             class="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
             aria-label="Próximo mês"

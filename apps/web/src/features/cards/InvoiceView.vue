@@ -12,7 +12,7 @@ import {
 import { useSyncStore } from "@/stores/sync";
 import { useAccountsStore } from "@/stores/accounts";
 import { formatBRL } from "@/lib/format-input";
-import { formatDate, formatDateShort } from "@/lib/format";
+import { formatDate, formatDateShort, formatMonth } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -95,8 +95,8 @@ watch(() => sync.dataVersion, load);
       </button>
       <div class="min-w-0">
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Fatura</p>
-        <h1 class="truncate font-display text-2xl font-black tracking-tight">
-          {{ cardLabel }} · {{ invoice?.reference_month ?? "" }}
+        <h1 class="truncate font-display text-2xl font-black tracking-tight first-letter:uppercase">
+          {{ cardLabel }} · {{ invoice ? formatMonth(invoice.reference_month) : "" }}
         </h1>
       </div>
     </div>
