@@ -1,3 +1,9 @@
+<script lang="ts">
+// Estado compartilhado entre instâncias (modais empilhados, ver onPopState).
+let modalSeq = 0;
+let ignoreNextPop = false;
+</script>
+
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { X } from "lucide-vue-next";
@@ -15,8 +21,8 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:modelValue": [boolean] }>();
 
 const panel = ref<HTMLElement | null>(null);
-let pushedState = false;
-let ignoreNextPop = false;
+const modalId = ++modalSeq;
+let pushed = false;
 
 function close(): void {
   emit("update:modelValue", false);
@@ -29,14 +35,18 @@ function onKeydown(event: KeyboardEvent): void {
 /**
  * Gesto/botão de voltar do Android: com o modal aberto, um pushState garante
  * que o "voltar" fecha o modal em vez de sair da tela por baixo dele.
+ * Modais empilhados: só fecha o que está no topo (o estado "de baixo" volta a
+ * ser o atual no popstate).
  */
-function onPopState(): void {
+function onPopState(event: PopStateEvent): void {
   if (ignoreNextPop) {
     ignoreNextPop = false;
     return;
   }
+  const state = event.state as { cfModal?: number } | null;
+  if (state?.cfModal === modalId) return;
   if (!props.modelValue) return;
-  pushedState = false;
+  pushed = false;
   close();
 }
 
@@ -44,15 +54,15 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      history.pushState({ cfModal: true }, "");
-      pushedState = true;
+      history.pushState({ cfModal: modalId }, "");
+      pushed = true;
       window.addEventListener("popstate", onPopState);
       requestAnimationFrame(() => panel.value?.focus());
       document.body.style.overflow = "hidden";
     } else {
       window.removeEventListener("popstate", onPopState);
-      if (pushedState) {
-        pushedState = false;
+      if (pushed) {
+        pushed = false;
         ignoreNextPop = true;
         history.back();
       }

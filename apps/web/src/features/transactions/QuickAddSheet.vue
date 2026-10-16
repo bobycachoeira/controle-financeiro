@@ -29,6 +29,7 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
+import PayerPickerModal from "./PayerPickerModal.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -107,6 +108,49 @@ const recentAccounts = computed(() => {
   }
   return ordered.slice(0, 3);
 });
+
+const accountsOnly = computed(() =>
+  accountsStore.items.filter((item) => item.type !== "cartao_credito"),
+);
+
+const pickerOpen = ref(false);
+
+/** Até 2 contas à mão; o resto vai para o seletor (evita parede de chips). */
+const visibleAccounts = computed(() => {
+  const shown = recentAccounts.value.slice(0, 2);
+  if (!isCard.value && account.value && !shown.some((item) => item.id === account.value)) {
+    const selected = accountsOnly.value.find((item) => item.id === account.value);
+    if (selected) {
+      if (shown.length >= 2) shown.splice(shown.length - 1, 1, selected);
+      else shown.push(selected);
+    }
+  }
+  return shown;
+});
+
+const hiddenAccountsCount = computed(() =>
+  Math.max(0, accountsOnly.value.length - visibleAccounts.value.length),
+);
+
+/** Até 3 cartões à mão; o resto vai para o seletor. */
+const visibleCards = computed(() => {
+  const shown = cardsStore.cards.slice(0, 3);
+  if (creditCard.value && !shown.some((item) => item.id === creditCard.value)) {
+    const selected = cardsStore.cards.find((item) => item.id === creditCard.value);
+    if (selected) {
+      if (shown.length >= 3) shown.splice(shown.length - 1, 1, selected);
+      else shown.push(selected);
+    }
+  }
+  return shown;
+});
+
+const hiddenCardsCount = computed(() => Math.max(0, cardsStore.cards.length - visibleCards.value.length));
+
+function onPayerPick(event: { kind: "account" | "card"; id: string }): void {
+  if (event.kind === "card") selectCard(event.id);
+  else selectAccount(event.id);
+}
 
 const ruleMatch = computed(() =>
   description.value ? matchImportRule(description.value, rules.value) : null,
@@ -451,43 +495,78 @@ watch(
         />
       </div>
 
-      <div class="space-y-2">
+      <div class="space-y-3">
         <Label>Pagar com</Label>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="item in recentAccounts"
-            :key="item.id"
-            type="button"
-            data-testid="qa-payer-chip"
-            data-compact
-            class="rounded-full border px-3 py-1.5 text-xs font-bold transition"
-            :class="
-              !isCard && account === item.id
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'
-            "
-            @click="selectAccount(item.id)"
-          >
-            {{ item.name }}
-          </button>
-          <button
-            v-for="item in cardsStore.cards"
-            :key="item.id"
-            type="button"
-            data-testid="qa-payer-chip"
-            data-compact
-            class="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition"
-            :class="
-              creditCard === item.id
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'
-            "
-            @click="selectCard(item.id)"
-          >
-            <CreditCard class="h-3 w-3" aria-hidden="true" />
-            {{ item.bank || "Cartão" }}
-          </button>
+
+        <div class="space-y-1.5">
+          <p class="text-[0.62rem] font-extrabold uppercase tracking-wide text-muted-foreground">
+            Contas
+          </p>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="item in visibleAccounts"
+              :key="item.id"
+              type="button"
+              data-testid="qa-payer-chip"
+              data-compact
+              class="rounded-full border px-3 py-1.5 text-xs font-bold transition"
+              :class="
+                !isCard && account === item.id
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'
+              "
+              @click="selectAccount(item.id)"
+            >
+              {{ item.name }}
+            </button>
+            <button
+              v-if="hiddenAccountsCount > 0"
+              type="button"
+              data-testid="qa-more-payers"
+              data-compact
+              class="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
+              @click="pickerOpen = true"
+            >
+              Mais contas ({{ hiddenAccountsCount }})…
+            </button>
+          </div>
         </div>
+
+        <div v-if="cardsStore.cards.length > 0" class="space-y-1.5">
+          <p class="text-[0.62rem] font-extrabold uppercase tracking-wide text-muted-foreground">
+            Cartões
+          </p>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="item in visibleCards"
+              :key="item.id"
+              type="button"
+              data-testid="qa-payer-chip"
+              data-compact
+              class="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition"
+              :class="
+                creditCard === item.id
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'
+              "
+              @click="selectCard(item.id)"
+            >
+              <CreditCard class="h-3 w-3" aria-hidden="true" />
+              {{ item.bank || "Cartão" }}
+            </button>
+            <button
+              v-if="hiddenCardsCount > 0"
+              type="button"
+              data-testid="qa-more-payers"
+              data-compact
+              class="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
+              @click="pickerOpen = true"
+            >
+              Mais cartões ({{ hiddenCardsCount }})…
+            </button>
+          </div>
+        </div>
+
         <p
           v-if="isCard && card"
           class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground"
@@ -621,6 +700,15 @@ watch(
           </Button>
         </div>
       </div>
+
+      <PayerPickerModal
+        v-model="pickerOpen"
+        :accounts="accountsOnly"
+        :cards="cardsStore.cards"
+        :selected-account="account"
+        :selected-card="creditCard"
+        @pick="onPayerPick"
+      />
     </div>
   </Modal>
 </template>

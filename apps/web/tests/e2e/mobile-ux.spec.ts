@@ -54,6 +54,33 @@ test.describe("mobile/Android", () => {
     await expect(page.getByText("Saldo total")).toBeVisible();
   });
 
+  test("voltar fecha só o modal de cima quando empilhados", async ({ page, loginAs }) => {
+    await loginAs("titular");
+
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: /^Nova$/ }).click();
+    await page.locator("#account-name").fill("Conta Extra");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Conta Extra")).toBeVisible({ timeout: 10_000 });
+
+    await page.goto("/");
+    await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("quick-add-fab").click();
+    await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId("qa-more-payers").click();
+    await expect(page.getByTestId("payer-picker")).toBeVisible({ timeout: 5_000 });
+
+    // 1º voltar: fecha só o seletor.
+    await page.goBack();
+    await expect(page.getByTestId("payer-picker")).toHaveCount(0, { timeout: 5_000 });
+    await expect(page.getByTestId("quick-add-sheet")).toBeVisible();
+
+    // 2º voltar: fecha o quick add.
+    await page.goBack();
+    await expect(page.getByTestId("quick-add-sheet")).toHaveCount(0, { timeout: 5_000 });
+    await expect(page.getByText("Saldo total")).toBeVisible();
+  });
+
   test("em tela estreita (320px) o rodapé não cobre o último campo", async ({ page, loginAs }) => {
     await loginAs("titular");
     await page.setViewportSize({ width: 320, height: 568 });
