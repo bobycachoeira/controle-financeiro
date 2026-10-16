@@ -8,7 +8,10 @@ import { test, expect } from "./fixtures";
  */
 
 test.describe("métricas de UX", () => {
-  test("baseline: lançar gasto pelo formulário completo", async ({ page, loginAs }) => {
+  test("baseline: lançar gasto pelo formulário completo (atalho /?new=1)", async ({
+    page,
+    loginAs,
+  }) => {
     await loginAs("titular");
     await page.goto("/");
     await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
@@ -17,10 +20,7 @@ test.describe("métricas de UX", () => {
     const description = `Métrica completa ${Date.now()}`;
     const t0 = Date.now();
 
-    await page.getByRole("link", { name: "Lançamentos" }).click();
-    interactions += 1;
-    await page.getByRole("link", { name: /Novo/ }).click();
-    interactions += 1;
+    await page.goto("/?new=1");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     const formVisibleMs = Date.now() - t0;
 
@@ -40,11 +40,24 @@ test.describe("métricas de UX", () => {
       `[métricas] formulário completo: interações=${interactions} formVisível=${formVisibleMs}ms total=${totalMs}ms`,
     );
     expect(formVisibleMs).toBeLessThan(3_000);
-    expect(interactions).toBeLessThanOrEqual(8);
+    expect(interactions).toBeLessThanOrEqual(6);
   });
 
   test("meta: lançar gasto pelo quick add em até 5 interações", async ({ page, loginAs }) => {
     await loginAs("titular");
+
+    // Uso real: a família já tem histórico — é dele que saem os chips.
+    await page.goto("/?new=1");
+    await page.locator("#amount").waitFor({ timeout: 15_000 });
+    await page.locator("#amount").fill("10,00");
+    await page.locator("#description").fill("Mercado aquecimento");
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill("Supermercado");
+    await page.locator("li button", { hasText: "Supermercado" }).first().click();
+    await page.locator("#account").selectOption({ index: 1 });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await page.getByText("Mercado aquecimento").first().waitFor({ timeout: 10_000 });
+
     await page.goto("/");
     await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
 
@@ -62,7 +75,7 @@ test.describe("métricas de UX", () => {
     interactions += 1;
     await page.locator("#qa-description").fill(description);
     interactions += 1;
-    await page.getByTestId("qa-category-chip").first().click();
+    await page.getByTestId("qa-category-chip").filter({ hasText: "Supermercado" }).first().click();
     interactions += 1;
     await page.getByTestId("qa-save").click();
     interactions += 1;
@@ -71,7 +84,8 @@ test.describe("métricas de UX", () => {
 
     // O lançamento precisa existir de verdade.
     await page.goto("/transactions");
-    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+    const row = page.locator("li", { hasText: description });
+    await expect(row).toContainText("Supermercado", { timeout: 10_000 });
 
     console.log(
       `[métricas] quick add: interações=${interactions} formVisível=${formVisibleMs}ms total=${totalMs}ms`,

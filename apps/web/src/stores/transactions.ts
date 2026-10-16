@@ -146,7 +146,7 @@ export const useTransactionsStore = defineStore("transactions", () => {
     return record;
   }
 
-  async function createCardPurchase(input: CardPurchaseInput): Promise<void> {
+  async function createCardPurchase(input: CardPurchaseInput): Promise<LocalTransaction> {
     if (!Number.isInteger(input.amount_cents) || input.amount_cents <= 0) {
       throw new Error("Valor deve ser maior que zero.");
     }
@@ -174,6 +174,7 @@ export const useTransactionsStore = defineStore("transactions", () => {
 
     const root = baseRecord({ ...input, type: "despesa" });
     const groupId = newSyncId();
+    let firstTransaction: LocalTransaction | null = null;
 
     for (const installment of installments) {
       const referenceMonth = installment.reference_month;
@@ -214,8 +215,11 @@ export const useTransactionsStore = defineStore("transactions", () => {
       await createLocal("transactions", tx);
       await createLocal("installments", installmentRecord);
       await recalcInvoice(invoiceId);
+      if (!firstTransaction) firstTransaction = tx;
     }
     await load();
+    if (!firstTransaction) throw new Error("Falha ao criar as parcelas da compra.");
+    return firstTransaction;
   }
 
   async function ensureInvoice(

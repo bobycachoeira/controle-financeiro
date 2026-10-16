@@ -2,11 +2,16 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { X } from "lucide-vue-next";
 
-const props = defineProps<{
-  modelValue: boolean;
-  title: string;
-  description?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    title: string;
+    description?: string;
+    /** Fecha ao tocar fora do painel (desligue quando houver dados não salvos). */
+    closeOnOutside?: boolean;
+  }>(),
+  { description: undefined, closeOnOutside: true },
+);
 const emit = defineEmits<{ "update:modelValue": [boolean] }>();
 
 const panel = ref<HTMLElement | null>(null);
@@ -50,7 +55,7 @@ onBeforeUnmount(() => {
         v-if="modelValue"
         class="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
         role="presentation"
-        @click.self="close"
+        @click.self="closeOnOutside && close()"
       >
         <div
           ref="panel"

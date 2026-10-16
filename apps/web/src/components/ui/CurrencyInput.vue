@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { cn } from "@/lib/utils";
 import { centsToInput, digitsToCents } from "@/lib/format-input";
 
@@ -27,19 +27,28 @@ const props = withDefaults(
 
 const emit = defineEmits<{ "update:modelValue": [number | null] }>();
 
+const input = ref<HTMLInputElement | null>(null);
+
 const display = computed(() => centsToInput(props.modelValue));
 
 function onInput(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const cents = digitsToCents(input.value);
+  const el = event.target as HTMLInputElement;
+  const cents = digitsToCents(el.value);
   emit("update:modelValue", cents);
-  input.value = centsToInput(cents);
+  el.value = centsToInput(cents);
 }
+
+function focus(): void {
+  input.value?.focus();
+}
+
+defineExpose({ focus });
 </script>
 
 <template>
   <input
     :id="id"
+    ref="input"
     type="text"
     inputmode="numeric"
     :value="display"

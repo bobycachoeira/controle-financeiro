@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
-import { ClipboardList, LayoutDashboard, Menu, Moon, Receipt, Sun, Wallet } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Menu, Moon, Plus, Receipt, Sun, Wallet } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
+import { useQuickAddStore } from "@/stores/quick-add";
 import { useTheme } from "@/composables/useTheme";
+import QuickAddSheet from "@/features/transactions/QuickAddSheet.vue";
 import SyncStatus from "@/features/sync/SyncStatus.vue";
 import TopProgress from "@/components/TopProgress.vue";
 
 const session = useSessionStore();
 const sync = useSyncStore();
+const quickAdd = useQuickAddStore();
 const route = useRoute();
 const { theme, toggle: toggleTheme } = useTheme();
 
@@ -102,6 +105,18 @@ onMounted(async () => {
         </Transition>
       </RouterView>
     </main>
+
+    <button
+      type="button"
+      data-testid="quick-add-fab"
+      class="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-sun text-accent-foreground shadow-lift transition-transform active:scale-95"
+      aria-label="Novo lançamento"
+      @click="quickAdd.show()"
+    >
+      <Plus class="h-7 w-7" aria-hidden="true" />
+    </button>
+
+    <QuickAddSheet v-model="quickAdd.open" :prefill="quickAdd.prefill" />
 
     <nav
       class="fixed inset-x-0 bottom-3 z-40 mx-auto flex w-[calc(100%-1.5rem)] max-w-2xl items-stretch justify-between gap-1 rounded-[1.6rem] border border-border bg-card/90 p-1.5 shadow-lift backdrop-blur-lg"

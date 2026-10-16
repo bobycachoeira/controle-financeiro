@@ -10,6 +10,7 @@ import { useAccountsStore } from "@/stores/accounts";
 import { useSessionStore } from "@/stores/session";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
+import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDateShort } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -27,6 +28,7 @@ const accountsStore = useAccountsStore();
 const session = useSessionStore();
 const people = usePeopleStore();
 const sync = useSyncStore();
+const quickAdd = useQuickAddStore();
 const toast = useToast();
 
 const month = ref(todayISO().slice(0, 7));
@@ -184,9 +186,7 @@ watch(() => sync.dataVersion, loadAll);
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Movimento</p>
         <h1 class="font-display text-3xl font-black tracking-tight">Lançamentos</h1>
       </div>
-      <RouterLink :to="{ name: 'transaction-new' }">
-        <Button size="sm"><Plus class="h-4 w-4" /> Novo</Button>
-      </RouterLink>
+      <Button size="sm" @click="quickAdd.show()"><Plus class="h-4 w-4" /> Novo</Button>
     </div>
 
     <Card>
