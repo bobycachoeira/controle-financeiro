@@ -47,6 +47,7 @@ test.describe("acerto do casal", () => {
     await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
     await page.getByRole("button", { name: /^Criar/ }).click();
     await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByTestId("tx-more").click();
     await page.locator("#attribution").selectOption({ label: "Ambos" });
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByText(`Jantar ${stamp}`)).toBeVisible({ timeout: 10_000 });

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { todayISO } from "@cf/shared";
-import { ArrowLeft, CreditCard } from "lucide-vue-next";
+import { ArrowLeft, ChevronDown, CreditCard } from "lucide-vue-next";
 import { db } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
@@ -75,6 +75,7 @@ const photoInput = ref<HTMLInputElement | null>(null);
 const installments = ref(1);
 const paidInstallments = ref(0);
 const installmentInfo = ref<{ number: number; total: number } | null>(null);
+const showMore = ref(false);
 const saving = ref(false);
 
 const remainingInstallments = computed(() =>
@@ -374,66 +375,24 @@ watch(
         </div>
 
         <div class="space-y-2">
-          <Label for="tags">Etiquetas (opcional)</Label>
-          <Input
-            id="tags"
-            v-model="tagsInput"
-            placeholder="Ex.: viagem, trabalho (separadas por vírgula)"
-          />
+          <Label for="date">Data</Label>
+          <Input id="date" v-model="date" type="date" required />
         </div>
 
         <div class="space-y-2">
-          <Label for="photo">Comprovante (foto, opcional)</Label>
-          <input
-            id="photo"
-            ref="photoInput"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            class="hidden"
-            @change="onPhotoChange"
+          <Label for="category">Categoria</Label>
+          <CategorySelect
+            id="category"
+            v-model="category"
+            :kind="type === 'receita' ? 'entrada' : 'saida'"
+            allow-empty
           />
-          <div v-if="!attachment" class="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              :loading="attachmentBusy"
-              @click="photoInput?.click()"
-            >
-              Anexar foto
-            </Button>
-            <span class="text-xs text-muted-foreground">A imagem é comprimida antes de salvar.</span>
-          </div>
-          <div v-else class="flex items-center gap-3 rounded-2xl border-2 border-border p-2">
-            <img :src="attachment" alt="Comprovante" class="h-16 w-16 rounded-xl object-cover" />
-            <p class="min-w-0 flex-1 text-xs text-muted-foreground">
-              Foto anexada · {{ dataUrlSizeLabel(attachment) }}
-            </p>
-            <Button variant="ghost" size="sm" type="button" @click="attachment = null">Remover</Button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-2">
-            <Label for="date">Data</Label>
-            <Input id="date" v-model="date" type="date" required />
-          </div>
-          <div class="space-y-2">
-            <Label for="category">Categoria</Label>
-            <CategorySelect
-              id="category"
-              v-model="category"
-              :kind="type === 'receita' ? 'entrada' : 'saida'"
-              allow-empty
-            />
-            <p
-              v-if="ruleMatch && category === ruleMatch.category"
-              class="text-[0.62rem] font-semibold text-primary"
-            >
-              Sugerida pela regra “{{ ruleMatch.pattern }}”
-            </p>
-          </div>
+          <p
+            v-if="ruleMatch && category === ruleMatch.category"
+            class="text-[0.62rem] font-semibold text-primary"
+          >
+            Sugerida pela regra “{{ ruleMatch.pattern }}”
+          </p>
         </div>
 
         <div class="space-y-2">
@@ -496,21 +455,77 @@ watch(
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-2">
-            <Label for="attribution">Atribuição</Label>
-            <Select id="attribution" v-model="attribution">
-              <option v-for="option in people.selectable" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </Select>
-          </div>
-          <div v-if="!isCard" class="space-y-2">
-            <Label for="status">Status</Label>
-            <Select id="status" v-model="status">
-              <option value="pago">Pago</option>
-              <option value="a_pagar">A pagar</option>
-            </Select>
+        <div>
+          <button
+            type="button"
+            data-testid="tx-more"
+            class="flex min-h-11 w-full items-center justify-between rounded-2xl bg-muted px-4 text-sm font-extrabold text-muted-foreground transition hover:text-foreground"
+            :aria-expanded="showMore"
+            @click="showMore = !showMore"
+          >
+            Mais opções
+            <ChevronDown class="h-4 w-4 transition-transform" :class="showMore && 'rotate-180'" />
+          </button>
+
+          <div
+            v-if="showMore"
+            data-testid="tx-more-fields"
+            class="mt-3 space-y-4 rounded-2xl border-2 border-border p-4"
+          >
+            <div class="space-y-2">
+              <Label for="attribution">Atribuição</Label>
+              <Select id="attribution" v-model="attribution">
+                <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </Select>
+            </div>
+            <div v-if="!isCard" class="space-y-2">
+              <Label for="status">Status</Label>
+              <Select id="status" v-model="status">
+                <option value="pago">Pago</option>
+                <option value="a_pagar">A pagar</option>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label for="tags">Etiquetas (opcional)</Label>
+              <Input
+                id="tags"
+                v-model="tagsInput"
+                placeholder="Ex.: viagem, trabalho (separadas por vírgula)"
+              />
+            </div>
+            <div class="space-y-2">
+              <Label for="photo">Comprovante (foto, opcional)</Label>
+              <input
+                id="photo"
+                ref="photoInput"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                class="hidden"
+                @change="onPhotoChange"
+              />
+              <div v-if="!attachment" class="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  :loading="attachmentBusy"
+                  @click="photoInput?.click()"
+                >
+                  Anexar foto
+                </Button>
+                <span class="text-xs text-muted-foreground">A imagem é comprimida antes de salvar.</span>
+              </div>
+              <div v-else class="flex items-center gap-3 rounded-2xl border-2 border-border p-2">
+                <img :src="attachment" alt="Comprovante" class="h-16 w-16 rounded-xl object-cover" />
+                <p class="min-w-0 flex-1 text-xs text-muted-foreground">
+                  Foto anexada · {{ dataUrlSizeLabel(attachment) }}
+                </p>
+                <Button variant="ghost" size="sm" type="button" @click="attachment = null">Remover</Button>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -24,6 +24,7 @@ test.describe("lançamentos", () => {
     await page.goto("/transactions/new");
     await page.locator("#amount").fill("10,00");
     await page.locator("#description").fill(description);
+    await page.getByTestId("tx-more").click();
     await page.locator("#tags").fill("viagem, trabalho");
     await page.locator("#category").click();
     await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
@@ -60,6 +61,7 @@ test.describe("lançamentos", () => {
     await page.getByPlaceholder(/Filtrar categoria/).fill(`Categoria ${stamp}`);
     await page.getByRole("button", { name: /^Criar/ }).click();
     await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByTestId("tx-more").click();
     await page.locator("#photo").setInputFiles({
       name: "cupom.png",
       mimeType: "image/png",
