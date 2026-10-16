@@ -57,17 +57,18 @@ test.describe("mobile/Android", () => {
   test("voltar fecha só o modal de cima quando empilhados", async ({ page, loginAs }) => {
     await loginAs("titular");
 
+    const extra = `Conta Extra ${Date.now()}`;
     await page.goto("/wallet");
     await page.getByRole("button", { name: /^Nova$/ }).click();
-    await page.locator("#account-name").fill("Conta Extra");
+    await page.locator("#account-name").fill(extra);
     await page.getByRole("button", { name: "Salvar" }).click();
-    await expect(page.getByText("Conta Extra")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(extra)).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/");
     await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("quick-add-fab").click();
     await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 5_000 });
-    await page.getByTestId("qa-more-payers").click();
+    await page.getByTestId("qa-more-payers").first().click();
     await expect(page.getByTestId("payer-picker")).toBeVisible({ timeout: 5_000 });
 
     // 1º voltar: fecha só o seletor.
@@ -79,6 +80,36 @@ test.describe("mobile/Android", () => {
     await page.goBack();
     await expect(page.getByTestId("quick-add-sheet")).toHaveCount(0, { timeout: 5_000 });
     await expect(page.getByText("Saldo total")).toBeVisible();
+  });
+
+  test("swipe revela editar/excluir na lista (celular)", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const description = `Swipe ${Date.now()}`;
+
+    await page.goto("/?new=1");
+    await page.locator("#amount").waitFor({ timeout: 15_000 });
+    await page.locator("#amount").fill("9,90");
+    await page.locator("#description").fill(description);
+    await page.locator("#account").selectOption({ index: 1 });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator("li", { hasText: description });
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    expect(box).toBeTruthy();
+    const y = box!.y + box!.height / 2;
+    await page.mouse.move(box!.x + box!.width - 24, y);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width - 160, y, { steps: 8 });
+    await page.mouse.up();
+
+    await row.getByLabel("Excluir lançamento").click();
+    await expect(page.getByRole("button", { name: "Desfazer", exact: true })).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(page.getByText(description)).toHaveCount(0);
   });
 
   test("em tela estreita (320px) o rodapé não cobre o último campo", async ({ page, loginAs }) => {

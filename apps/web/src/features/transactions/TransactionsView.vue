@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { useMediaQuery } from "@vueuse/core";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Receipt, Search, SlidersHorizontal, Trash2, X } from "lucide-vue-next";
@@ -42,6 +43,65 @@ const type = ref<"" | TransactionType>("");
 const tag = ref("");
 const query = ref("");
 const filtersOpen = ref(false);
+
+// Swipe para revelar ações no celular (no desktop os botões ficam visíveis).
+const isMobile = useMediaQuery("(max-width: 767px)");
+const swipedId = ref<string | null>(null);
+let pointerStart: { x: number; y: number; id: string } | null = null;
+let pointerMoved = false;
+let suppressClick = false;
+
+function onRowPointerDown(event: PointerEvent, id: string): void {
+  if (!isMobile.value) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  pointerStart = { x: event.clientX, y: event.clientY, id };
+  pointerMoved = false;
+}
+
+function onRowPointerMove(event: PointerEvent): void {
+  if (!isMobile.value || !pointerStart) return;
+  const dx = event.clientX - pointerStart.x;
+  const dy = event.clientY - pointerStart.y;
+  if (!pointerMoved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) pointerMoved = true;
+}
+
+function onRowPointerUp(event: PointerEvent, id: string): void {
+  if (!isMobile.value || !pointerStart || pointerStart.id !== id) {
+    pointerStart = null;
+    return;
+  }
+  const dx = event.clientX - pointerStart.x;
+  const dy = event.clientY - pointerStart.y;
+  const horizontal = pointerMoved && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40;
+  pointerStart = null;
+  pointerMoved = false;
+  if (!horizontal) return;
+  // O navegador dispara um click ao soltar: não deixe ele fechar o swipe.
+  suppressClick = true;
+  setTimeout(() => {
+    suppressClick = false;
+  }, 350);
+  if (dx < 0) swipedId.value = id;
+  else if (swipedId.value === id) swipedId.value = null;
+}
+
+function onRowPointerCancel(): void {
+  pointerStart = null;
+  pointerMoved = false;
+}
+
+/** Com a linha aberta, um toque no conteúdo só fecha as ações. */
+function onRowClick(id: string, event: MouseEvent): void {
+  if (suppressClick) {
+    event.stopPropagation();
+    event.preventDefault();
+    return;
+  }
+  if (swipedId.value !== id) return;
+  event.stopPropagation();
+  event.preventDefault();
+  swipedId.value = null;
+}
 
 // Deep link (ex.: alerta do Início): /transactions?month=2026-10&category=abc
 const queryCategory = route.query.category;
@@ -344,75 +404,115 @@ watch(() => sync.dataVersion, loadAll);
           <li
             v-for="tx in transactionsStore.items"
             :key="tx.id"
-            class="group flex items-center gap-3 rounded-[1.3rem] px-2 py-3 transition hover:bg-muted/70"
+            class="group relative overflow-hidden rounded-[1.3rem]"
           >
-            <IconChip
-              :name="categoryById.get(tx.category ?? '')?.icon ?? (tx.type === 'receita' ? 'hand-coins' : 'tag')"
-              :color="categoryById.get(tx.category ?? '')?.color"
-              :seed="tx.category ?? tx.type"
-            />
-            <button
-              v-if="tx.attachment"
-              type="button"
-              data-testid="tx-photo"
-              class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border"
-              aria-label="Ver comprovante"
-              @click="viewingPhoto = tx.attachment ?? null"
-            >
-              <img :src="tx.attachment" alt="" class="h-full w-full object-cover" />
-            </button>
-            <div class="min-w-0 flex-1">
-              <p class="line-clamp-2 break-words font-bold">
-                {{ tx.description || "Lançamento" }}
-                <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
-                  parcela {{ installmentLabel(tx) }}
-                </Badge>
-              </p>
-              <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
-                {{ formatDateShort(tx.date) }}
-                <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
-                <template v-if="categoryById.get(tx.category ?? '')">
-                  · {{ categoryById.get(tx.category ?? '')?.name }}</template
-                >
-                <template v-if="attributionLabel(tx.attribution)">
-                  · {{ attributionLabel(tx.attribution) }}</template
-                >
-              </p>
-              <div v-if="(tx.tags ?? []).length > 0" class="mt-1 flex flex-wrap gap-1">
-                <span
-                  v-for="item in tx.tags.slice(0, 3)"
-                  :key="item"
-                  class="rounded-full bg-muted px-2 py-0.5 text-[0.58rem] font-bold text-muted-foreground"
-                >
-                  #{{ item }}
-                </span>
-              </div>
-            </div>
-            <div class="flex flex-col items-end gap-1">
-              <span
-                class="font-display font-bold"
-                :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'"
-              >
-                {{ amountLabel(tx) }}
-              </span>
-              <Badge v-if="tx.status === 'a_pagar'" variant="warning">a pagar</Badge>
-              <Badge v-if="tx.external_ref" variant="success">conciliado</Badge>
-            </div>
-            <div class="flex gap-0.5 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+            <div v-if="isMobile" class="absolute inset-y-0 right-0 flex">
               <RouterLink
                 :to="{ name: 'transaction-edit', params: { id: tx.id } }"
-                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                class="flex w-[4.5rem] flex-col items-center justify-center gap-0.5 bg-primary/15 text-xs font-bold text-primary"
                 aria-label="Editar lançamento"
+                @click="swipedId = null"
               >
-                <Pencil class="h-3.5 w-3.5" />
+                <Pencil class="h-4 w-4" />
+                Editar
               </RouterLink>
               <button
-                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                type="button"
+                class="flex w-[4.5rem] flex-col items-center justify-center gap-0.5 bg-destructive/15 text-xs font-bold text-destructive"
                 aria-label="Excluir lançamento"
-                @click="askRemove(tx)"
+                @click="
+                  () => {
+                    swipedId = null;
+                    askRemove(tx);
+                  }
+                "
               >
-                <Trash2 class="h-3.5 w-3.5" />
+                <Trash2 class="h-4 w-4" />
+                Excluir
               </button>
+            </div>
+
+            <div
+              class="relative flex items-center gap-3 bg-card px-2 py-3 transition-transform duration-200 hover:bg-muted/70"
+              :class="swipedId === tx.id ? '-translate-x-36' : 'translate-x-0'"
+              style="touch-action: pan-y"
+              @pointerdown="onRowPointerDown($event, tx.id)"
+              @pointermove="onRowPointerMove"
+              @pointerup="onRowPointerUp($event, tx.id)"
+              @pointercancel="onRowPointerCancel"
+              @click.capture="onRowClick(tx.id, $event)"
+            >
+              <IconChip
+                :name="categoryById.get(tx.category ?? '')?.icon ?? (tx.type === 'receita' ? 'hand-coins' : 'tag')"
+                :color="categoryById.get(tx.category ?? '')?.color"
+                :seed="tx.category ?? tx.type"
+              />
+              <button
+                v-if="tx.attachment"
+                type="button"
+                data-testid="tx-photo"
+                class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border"
+                aria-label="Ver comprovante"
+                @click="viewingPhoto = tx.attachment ?? null"
+              >
+                <img :src="tx.attachment" alt="" class="h-full w-full object-cover" />
+              </button>
+              <div class="min-w-0 flex-1">
+                <p class="line-clamp-2 break-words font-bold">
+                  {{ tx.description || "Lançamento" }}
+                  <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
+                    parcela {{ installmentLabel(tx) }}
+                  </Badge>
+                </p>
+                <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
+                  {{ formatDateShort(tx.date) }}
+                  <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
+                  <template v-if="categoryById.get(tx.category ?? '')">
+                    · {{ categoryById.get(tx.category ?? '')?.name }}</template
+                  >
+                  <template v-if="attributionLabel(tx.attribution)">
+                    · {{ attributionLabel(tx.attribution) }}</template
+                  >
+                </p>
+                <div v-if="(tx.tags ?? []).length > 0" class="mt-1 flex flex-wrap gap-1">
+                  <span
+                    v-for="item in tx.tags.slice(0, 3)"
+                    :key="item"
+                    class="rounded-full bg-muted px-2 py-0.5 text-[0.58rem] font-bold text-muted-foreground"
+                  >
+                    #{{ item }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                <span
+                  class="font-display font-bold"
+                  :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'"
+                >
+                  {{ amountLabel(tx) }}
+                </span>
+                <Badge v-if="tx.status === 'a_pagar'" variant="warning">a pagar</Badge>
+                <Badge v-if="tx.external_ref" variant="success">conciliado</Badge>
+              </div>
+              <div
+                v-if="!isMobile"
+                class="flex gap-0.5 opacity-100 transition md:opacity-0 md:group-hover:opacity-100"
+              >
+                <RouterLink
+                  :to="{ name: 'transaction-edit', params: { id: tx.id } }"
+                  class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                  aria-label="Editar lançamento"
+                >
+                  <Pencil class="h-3.5 w-3.5" />
+                </RouterLink>
+                <button
+                  class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                  aria-label="Excluir lançamento"
+                  @click="askRemove(tx)"
+                >
+                  <Trash2 class="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </li>
         </ul>
