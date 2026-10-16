@@ -299,14 +299,14 @@ watch(() => sync.dataVersion, () => store.load());
                 {{ item.active ? "Pausar" : "Ativar" }}
               </Button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
                 aria-label="Editar recorrência"
                 @click="openEdit(item)"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
                 aria-label="Excluir recorrência"
                 @click="remove(item.id)"
               >

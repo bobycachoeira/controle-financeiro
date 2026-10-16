@@ -10,7 +10,6 @@ import { useSyncStore } from "@/stores/sync";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDateShort } from "@/lib/format";
-import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
@@ -79,6 +78,7 @@ watch(() => sync.dataVersion, loadAll);
       <div class="flex gap-1 rounded-full bg-muted p-1 text-xs font-extrabold">
         <button
           type="button"
+          data-compact
           class="rounded-full px-3 py-1 transition"
           :class="windowDays === REVIEW_WINDOW_DAYS ? 'bg-card shadow-soft' : 'text-muted-foreground'"
           @click="windowDays = REVIEW_WINDOW_DAYS"
@@ -87,6 +87,7 @@ watch(() => sync.dataVersion, loadAll);
         </button>
         <button
           type="button"
+          data-compact
           class="rounded-full px-3 py-1 transition"
           :class="
             windowDays === REVIEW_WINDOW_DAYS_LONG ? 'bg-card shadow-soft' : 'text-muted-foreground'
@@ -141,7 +142,7 @@ watch(() => sync.dataVersion, loadAll);
               </div>
               <RouterLink
                 :to="{ name: 'transaction-edit', params: { id: tx.id } }"
-                class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+                class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
                 aria-label="Editar lançamento"
               >
                 <Pencil class="h-4 w-4" />
@@ -158,8 +159,11 @@ watch(() => sync.dataVersion, loadAll);
       no período.
     </p>
 
-    <RouterLink :to="{ name: 'transactions' }">
-      <Button variant="ghost" class="w-full">Ver todos os lançamentos</Button>
+    <RouterLink
+      :to="{ name: 'transactions' }"
+      class="flex h-11 w-full items-center justify-center rounded-full font-extrabold text-foreground/80 transition hover:bg-muted hover:text-foreground"
+    >
+      Ver todos os lançamentos
     </RouterLink>
   </div>
 </template>

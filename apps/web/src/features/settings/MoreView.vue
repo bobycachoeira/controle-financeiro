@@ -131,7 +131,7 @@ async function logout(): Promise<void> {
         <div class="grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
           <button
             type="button"
-            class="flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
+            class="flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
             :class="theme === 'light' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
             @click="setTheme('light')"
           >
@@ -139,7 +139,7 @@ async function logout(): Promise<void> {
           </button>
           <button
             type="button"
-            class="flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
+            class="flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
             :class="theme === 'dark' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
             @click="setTheme('dark')"
           >

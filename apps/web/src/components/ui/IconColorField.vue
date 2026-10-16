@@ -34,7 +34,7 @@ const colors = CHIP_COLORS;
         v-for="iconName in icons"
         :key="iconName"
         type="button"
-        class="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground transition hover:bg-card"
+        class="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-card"
         :class="iconName === props.icon && 'bg-card text-primary shadow-soft'"
         :aria-label="iconName"
         @click="emit('update:icon', iconName)"
@@ -48,6 +48,7 @@ const colors = CHIP_COLORS;
         v-for="c in colors"
         :key="c"
         type="button"
+        data-compact
         class="grid h-8 w-8 place-items-center rounded-full ring-offset-2 ring-offset-card transition"
         :class="cn(c === props.color && 'ring-2')"
         :style="{ backgroundColor: c, color: '#fff' }"

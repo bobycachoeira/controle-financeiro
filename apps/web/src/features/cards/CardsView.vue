@@ -207,7 +207,7 @@ watch(
           </div>
           <div class="grid grid-cols-2 gap-1">
             <button
-              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
+              class="grid h-11 w-11 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
               aria-label="Mover cartão para cima"
               :disabled="cardIndex === 0"
               @click="cardsStore.move(card.id, -1)"
@@ -215,7 +215,7 @@ watch(
               <ChevronUp class="h-4 w-4" />
             </button>
             <button
-              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
+              class="grid h-11 w-11 place-items-center rounded-full bg-white/20 transition hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20"
               aria-label="Mover cartão para baixo"
               :disabled="cardIndex === cardsStore.cards.length - 1"
               @click="cardsStore.move(card.id, 1)"
@@ -223,14 +223,14 @@ watch(
               <ChevronDown class="h-4 w-4" />
             </button>
             <button
-              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30"
+              class="grid h-11 w-11 place-items-center rounded-full bg-white/20 transition hover:bg-white/30"
               aria-label="Editar cartão"
               @click="openEdit(card)"
             >
               <Pencil class="h-4 w-4" />
             </button>
             <button
-              class="grid h-9 w-9 place-items-center rounded-full bg-white/20 transition hover:bg-white/30"
+              class="grid h-11 w-11 place-items-center rounded-full bg-white/20 transition hover:bg-white/30"
               aria-label="Excluir cartão"
               @click="cardsStore.remove(card.id)"
             >
@@ -248,7 +248,7 @@ watch(
             >
               <RouterLink
                 :to="{ name: 'invoice', params: { id: invoice.id } }"
-                class="min-w-0 flex-1"
+                class="flex min-h-11 min-w-0 flex-1 flex-col justify-center"
               >
                 <p class="font-bold first-letter:uppercase">{{ formatMonth(invoice.reference_month) }}</p>
                 <p class="text-xs text-muted-foreground">
@@ -286,7 +286,7 @@ watch(
             v-if="cardsStore.invoicesFor(card.id).length > 2"
             type="button"
             data-testid="invoices-toggle"
-            class="mt-2 text-xs font-bold text-primary transition hover:underline"
+            class="mt-2 inline-flex min-h-11 items-center text-xs font-bold text-primary transition hover:underline"
             @click="expandedCards[card.id] = !expandedCards[card.id]"
           >
             {{
@@ -297,6 +297,7 @@ watch(
           </button>
           <RouterLink
             :to="{ name: 'transaction-new', query: { card: card.id } }"
+            data-compact
             class="mt-2 block text-xs font-bold text-primary transition hover:underline"
           >
             Lançar compras anteriores (parcelas em andamento)
@@ -357,6 +358,7 @@ watch(
               v-for="c in CARD_COLORS"
               :key="c"
               type="button"
+              data-compact
               class="grid h-9 w-9 place-items-center rounded-full text-white ring-offset-2 ring-offset-card transition"
               :class="c === color && 'ring-2'"
               :style="{ backgroundColor: c }"

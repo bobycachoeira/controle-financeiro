@@ -150,7 +150,7 @@ watch(() => sync.dataVersion, loadAll);
               :color="row.account.color"
               :seed="row.account.name"
             />
-            <button class="min-w-0 flex-1 text-left" @click="openEdit(row.account)">
+            <button class="min-h-11 min-w-0 flex-1 text-left" @click="openEdit(row.account)">
               <p class="truncate font-bold">{{ row.account.name }}</p>
               <p class="truncate text-xs font-semibold text-muted-foreground">
                 {{ typeLabels[row.account.type] }}
@@ -167,7 +167,7 @@ watch(() => sync.dataVersion, loadAll);
             </span>
             <div class="grid grid-cols-2 gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                 aria-label="Mover conta para cima"
                 :disabled="rowIndex === 0"
                 @click="accountsStore.move(row.account.id, -1)"
@@ -175,7 +175,7 @@ watch(() => sync.dataVersion, loadAll);
                 <ChevronUp class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                 aria-label="Mover conta para baixo"
                 :disabled="rowIndex === balances.length - 1"
                 @click="accountsStore.move(row.account.id, 1)"
@@ -183,14 +183,14 @@ watch(() => sync.dataVersion, loadAll);
                 <ChevronDown class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta"
                 @click="openEdit(row.account)"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
                 aria-label="Excluir conta"
                 @click="remove(row.account)"
               >

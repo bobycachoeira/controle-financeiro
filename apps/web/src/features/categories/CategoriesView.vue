@@ -222,14 +222,14 @@ watch(() => sync.dataVersion, load);
               </span>
               <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
                 <button
-                  class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                  class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                   aria-label="Editar categoria"
                   @click="openEdit(category)"
                 >
                   <Pencil class="h-3.5 w-3.5" />
                 </button>
                 <button
-                  class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
+                  class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
                   :aria-label="category.active ? 'Ocultar categoria' : 'Ativar categoria'"
                   @click="toggleActive(category)"
                 >
@@ -264,7 +264,7 @@ watch(() => sync.dataVersion, load);
             </span>
             <button
               type="button"
-              class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+              class="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
               aria-label="Remover regra"
               @click="removeRule(index)"
             >

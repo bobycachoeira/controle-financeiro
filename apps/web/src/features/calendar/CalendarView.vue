@@ -156,7 +156,7 @@ watch(() => sync.dataVersion, loadAll);
       <CardContent class="space-y-3 p-4">
         <div class="flex items-center justify-between">
           <button
-            class="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+            class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
             aria-label="Mês anterior"
             @click="shiftMonth(-1)"
           >
@@ -164,7 +164,7 @@ watch(() => sync.dataVersion, loadAll);
           </button>
           <p class="font-display text-lg font-bold first-letter:uppercase">{{ formatMonth(month) }}</p>
           <button
-            class="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+            class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
             aria-label="Próximo mês"
             @click="shiftMonth(1)"
           >
@@ -177,6 +177,7 @@ watch(() => sync.dataVersion, loadAll);
             v-for="option in filters"
             :key="option.key"
             type="button"
+            data-compact
             class="rounded-full border px-3 py-1 text-xs font-bold transition"
             :class="
               visible[option.key]

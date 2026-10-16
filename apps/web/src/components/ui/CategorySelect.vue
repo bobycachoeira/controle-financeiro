@@ -143,7 +143,7 @@ watch(() => sync.dataVersion, load);
         <li v-if="allowEmpty">
           <button
             type="button"
-            class="flex w-full items-center justify-between px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
+            class="flex min-h-11 w-full items-center justify-between px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
             @click="choose('')"
           >
             <span class="text-muted-foreground">{{ emptyLabel ?? "Sem categoria" }}</span>
@@ -153,7 +153,7 @@ watch(() => sync.dataVersion, load);
         <li v-for="item in filtered" :key="item.id">
           <button
             type="button"
-            class="flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
+            class="flex min-h-11 w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
             @click="choose(item.id)"
           >
             <span class="truncate">{{ item.group }} · {{ item.name }}</span>
@@ -167,7 +167,7 @@ watch(() => sync.dataVersion, load);
       <button
         v-if="query.trim() && !exactMatch"
         type="button"
-        class="flex w-full items-center gap-2 border-t border-border px-4 py-2.5 text-left text-sm font-extrabold text-primary hover:bg-muted"
+        class="flex min-h-11 w-full items-center gap-2 border-t border-border px-4 py-2.5 text-left text-sm font-extrabold text-primary hover:bg-muted"
         :disabled="creating"
         @click="createAndChoose"
       >

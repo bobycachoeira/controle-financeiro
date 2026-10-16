@@ -229,14 +229,14 @@ watch(() => sync.dataVersion, loadAll);
             </div>
             <div class="flex shrink-0 gap-1">
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
                 aria-label="Editar meta"
                 @click="openEdit(goal)"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
                 aria-label="Excluir meta"
                 @click="remove(goal)"
               >
@@ -334,6 +334,7 @@ watch(() => sync.dataVersion, loadAll);
               v-for="item in GOAL_COLORS"
               :key="item"
               type="button"
+              data-compact
               class="h-8 w-8 rounded-full ring-offset-2 ring-offset-card transition"
               :class="item === color && 'ring-2'"
               :style="{ backgroundColor: item }"

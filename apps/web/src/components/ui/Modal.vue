@@ -15,6 +15,8 @@ const props = withDefaults(
 const emit = defineEmits<{ "update:modelValue": [boolean] }>();
 
 const panel = ref<HTMLElement | null>(null);
+let pushedState = false;
+let ignoreNextPop = false;
 
 function close(): void {
   emit("update:modelValue", false);
@@ -24,13 +26,36 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") close();
 }
 
+/**
+ * Gesto/botão de voltar do Android: com o modal aberto, um pushState garante
+ * que o "voltar" fecha o modal em vez de sair da tela por baixo dele.
+ */
+function onPopState(): void {
+  if (ignoreNextPop) {
+    ignoreNextPop = false;
+    return;
+  }
+  if (!props.modelValue) return;
+  pushedState = false;
+  close();
+}
+
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
+      history.pushState({ cfModal: true }, "");
+      pushedState = true;
+      window.addEventListener("popstate", onPopState);
       requestAnimationFrame(() => panel.value?.focus());
       document.body.style.overflow = "hidden";
     } else {
+      window.removeEventListener("popstate", onPopState);
+      if (pushedState) {
+        pushedState = false;
+        ignoreNextPop = true;
+        history.back();
+      }
       document.body.style.overflow = "";
     }
   },
@@ -39,6 +64,7 @@ watch(
 onMounted(() => document.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("popstate", onPopState);
   document.body.style.overflow = "";
 });
 </script>
@@ -63,7 +89,7 @@ onBeforeUnmount(() => {
           aria-modal="true"
           :aria-label="title"
           tabindex="-1"
-          class="max-h-[92dvh] w-full max-w-md animate-pop overflow-y-auto rounded-t-[2rem] bg-card p-6 shadow-lift outline-none sm:rounded-[2rem]"
+          class="max-h-[92dvh] w-full max-w-md animate-pop overflow-y-auto rounded-t-[2rem] bg-card p-6 shadow-lift outline-none [scroll-padding-bottom:45vh] sm:rounded-[2rem]"
         >
           <div class="mb-4 flex items-start justify-between gap-4">
             <div>
@@ -72,7 +98,7 @@ onBeforeUnmount(() => {
             </div>
             <button
               type="button"
-              class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+              class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-secondary hover:text-foreground"
               aria-label="Fechar"
               @click="close"
             >

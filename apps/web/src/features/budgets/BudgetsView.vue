@@ -242,14 +242,14 @@ watch(() => sync.dataVersion, loadAll);
               {{ statusLabel[usage[budget.id]?.status ?? "ok"] }}
             </Badge>
             <button
-              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+              class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
               aria-label="Editar orçamento"
               @click="openEdit(budget)"
             >
               <Pencil class="h-3.5 w-3.5" />
             </button>
             <button
-              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+              class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
               aria-label="Excluir orçamento"
               @click="store.remove(budget.id); refreshUsage()"
             >

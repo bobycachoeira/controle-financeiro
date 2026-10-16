@@ -347,7 +347,7 @@ watch(() => sync.dataVersion, loadAll);
                 {{ formatBRL(balanceOf(account)) }}
               </p>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
                 aria-label="Excluir investimento"
                 data-testid="investment-delete"
                 @click="removeInvestment(account)"

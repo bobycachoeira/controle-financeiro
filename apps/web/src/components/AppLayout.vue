@@ -68,7 +68,7 @@ onMounted(async () => {
           <SyncStatus />
           <RouterLink
             :to="{ name: 'profile' }"
-            class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-card text-xs font-black text-foreground transition hover:border-primary"
+            class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-card text-xs font-black text-foreground transition hover:border-primary"
             aria-label="Meu perfil"
           >
             <img
@@ -81,7 +81,7 @@ onMounted(async () => {
           </RouterLink>
           <button
             type="button"
-            class="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"
+            class="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground"
             :aria-label="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
             @click="toggleTheme"
           >
@@ -92,7 +92,10 @@ onMounted(async () => {
       </div>
     </header>
 
-    <main id="main-content" class="flex-1 px-4 pb-28 pt-5">
+    <main
+      id="main-content"
+      class="flex-1 px-4 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-5"
+    >
       <RouterView v-slot="{ Component }">
         <Transition
           mode="out-in"
@@ -119,7 +122,7 @@ onMounted(async () => {
     <QuickAddSheet v-model="quickAdd.open" :prefill="quickAdd.prefill" />
 
     <nav
-      class="fixed inset-x-0 bottom-3 z-40 mx-auto flex w-[calc(100%-1.5rem)] max-w-2xl items-stretch justify-between gap-1 rounded-[1.6rem] border border-border bg-card/90 p-1.5 shadow-lift backdrop-blur-lg"
+      class="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-[calc(100%-1.5rem)] max-w-2xl items-stretch justify-between gap-1 rounded-[1.6rem] border border-border bg-card/90 p-1.5 shadow-lift backdrop-blur-lg"
       aria-label="Navegação principal"
     >
       <RouterLink

@@ -746,7 +746,7 @@ watch(() => sync.dataVersion, async () => {
             <span class="font-display font-bold">{{ formatBRL(bill.amount_cents) }}</span>
             <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-leaf"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-leaf"
                 data-testid="bill-pay"
                 aria-label="Pagar conta"
                 @click="openPay(bill)"
@@ -754,14 +754,14 @@ watch(() => sync.dataVersion, async () => {
                 <Check class="h-4 w-4" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta"
                 @click="openEdit(bill)"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
                 aria-label="Excluir conta"
                 @click="setStatus(bill, 'cancelado')"
               >
@@ -803,14 +803,14 @@ watch(() => sync.dataVersion, async () => {
             </Badge>
             <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar conta recorrente"
                 @click="openEditRecurring(recurrence)"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-foreground"
                 :aria-label="recurrence.active ? 'Pausar' : 'Ativar'"
                 @click="toggleRecurring(recurrence)"
               >
@@ -818,7 +818,7 @@ watch(() => sync.dataVersion, async () => {
                 <Play v-else class="h-3.5 w-3.5" />
               </button>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
                 aria-label="Excluir conta recorrente"
                 @click="removeRecurring(recurrence.id)"
               >
@@ -844,7 +844,7 @@ watch(() => sync.dataVersion, async () => {
             <span class="min-w-0 flex-1 truncate">{{ bill.title }}</span>
             <Badge :variant="bill.status === 'pago' ? 'success' : 'destructive'">{{ bill.status }}</Badge>
             <button
-              class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
               aria-label="Reabrir"
               @click="setStatus(bill, 'pendente')"
             >

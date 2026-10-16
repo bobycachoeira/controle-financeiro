@@ -277,7 +277,7 @@ watch(
     <div class="flex items-center gap-3">
       <button
         type="button"
-        class="grid h-10 w-10 place-items-center rounded-full bg-card text-muted-foreground shadow-soft transition hover:text-foreground"
+        class="grid h-11 w-11 place-items-center rounded-full bg-card text-muted-foreground shadow-soft transition hover:text-foreground"
         aria-label="Voltar"
         @click="router.back()"
       >
@@ -316,7 +316,7 @@ watch(
         <div class="grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
           <button
             type="button"
-            class="rounded-full py-2 text-sm font-extrabold transition disabled:opacity-50"
+            class="h-11 rounded-full text-sm font-extrabold transition disabled:opacity-50"
             :class="type === 'despesa' ? 'bg-primary text-primary-foreground shadow-lift' : 'text-muted-foreground'"
             :disabled="isEdit && isCard"
             @click="type = 'despesa'"
@@ -325,7 +325,7 @@ watch(
           </button>
           <button
             type="button"
-            class="rounded-full py-2 text-sm font-extrabold transition disabled:opacity-50"
+            class="h-11 rounded-full text-sm font-extrabold transition disabled:opacity-50"
             :class="type === 'receita' ? 'bg-leaf text-white shadow-lift' : 'text-muted-foreground'"
             :disabled="isEdit && isCard"
             @click="type = 'receita'"

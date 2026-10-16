@@ -138,7 +138,7 @@ watch(() => sync.dataVersion, loadAll);
       </div>
       <div class="flex items-center gap-1">
         <button
-          class="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+          class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
           aria-label="Mês anterior"
           @click="shiftMonth(-1)"
         >
@@ -152,7 +152,7 @@ watch(() => sync.dataVersion, loadAll);
           aria-label="Mês do fechamento"
         />
         <button
-          class="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
+          class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary"
           aria-label="Próximo mês"
           @click="shiftMonth(1)"
         >

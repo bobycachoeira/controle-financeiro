@@ -303,7 +303,7 @@ watch(() => sync.dataVersion, loadAll);
             ficarem certos.
           </p>
         </div>
-        <RouterLink :to="{ name: 'review' }">
+        <RouterLink :to="{ name: 'review' }" class="flex shrink-0">
           <Button size="sm" variant="secondary">Revisar</Button>
         </RouterLink>
       </CardContent>
@@ -319,7 +319,7 @@ watch(() => sync.dataVersion, loadAll);
           <h2 class="font-display text-lg font-bold">Onde foi a grana</h2>
           <RouterLink
             :to="{ name: 'transactions', query: { month: currentMonth } }"
-            class="ml-auto text-xs font-bold text-primary"
+            class="ml-auto flex h-11 items-center text-xs font-bold text-primary"
           >
             Ver lançamentos
           </RouterLink>
@@ -332,7 +332,7 @@ watch(() => sync.dataVersion, loadAll);
             name: 'transactions',
             query: { month: currentMonth, ...(alert.category ? { category: alert.category } : {}) },
           }"
-          class="flex items-center justify-between gap-2 rounded-2xl bg-sun/20 px-3 py-2.5 text-xs font-semibold text-accent-foreground"
+          class="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-sun/20 px-3 py-2.5 text-xs font-semibold text-accent-foreground"
         >
           <span class="truncate">{{ alert.name }} em {{ alert.percent }}% do orçamento — vale olhar.</span>
           <span aria-hidden="true">›</span>
@@ -344,7 +344,7 @@ watch(() => sync.dataVersion, loadAll);
             name: 'transactions',
             query: { month: currentMonth, category: categoryBreakdown.topIncrease.categoryId },
           }"
-          class="flex items-center justify-between gap-2 rounded-2xl bg-sun/20 px-3 py-2.5 text-xs font-semibold text-accent-foreground"
+          class="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-sun/20 px-3 py-2.5 text-xs font-semibold text-accent-foreground"
         >
           <span class="truncate">
             {{ categoryBreakdown.topIncrease.name }} subiu
@@ -550,7 +550,7 @@ watch(() => sync.dataVersion, loadAll);
               {{ people.splitMode === "dividir" ? "Acerto do mês" : "Contribuições do mês" }}
             </h2>
           </div>
-          <RouterLink :to="{ name: 'settle' }" class="text-xs font-bold text-primary">
+          <RouterLink :to="{ name: 'settle' }" data-compact class="text-xs font-bold text-primary">
             Ver
           </RouterLink>
         </div>

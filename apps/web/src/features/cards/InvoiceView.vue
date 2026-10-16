@@ -87,7 +87,7 @@ watch(() => sync.dataVersion, load);
     <div class="flex items-center gap-3">
       <button
         type="button"
-        class="grid h-10 w-10 place-items-center rounded-full bg-card text-muted-foreground shadow-soft transition hover:text-foreground"
+        class="grid h-11 w-11 place-items-center rounded-full bg-card text-muted-foreground shadow-soft transition hover:text-foreground"
         aria-label="Voltar"
         @click="router.back()"
       >

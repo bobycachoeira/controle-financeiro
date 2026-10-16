@@ -322,6 +322,7 @@ watch(() => sync.dataVersion, loadAll);
         <button
           v-if="hasFilters"
           type="button"
+          data-compact
           class="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground transition hover:text-primary"
           @click="clearFilters"
         >
@@ -361,7 +362,7 @@ watch(() => sync.dataVersion, loadAll);
               <img :src="tx.attachment" alt="" class="h-full w-full object-cover" />
             </button>
             <div class="min-w-0 flex-1">
-              <p class="truncate font-bold">
+              <p class="line-clamp-2 break-words font-bold">
                 {{ tx.description || "Lançamento" }}
                 <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
                   parcela {{ installmentLabel(tx) }}
@@ -397,16 +398,16 @@ watch(() => sync.dataVersion, loadAll);
               <Badge v-if="tx.status === 'a_pagar'" variant="warning">a pagar</Badge>
               <Badge v-if="tx.external_ref" variant="success">conciliado</Badge>
             </div>
-            <div class="flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+            <div class="flex gap-0.5 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
               <RouterLink
                 :to="{ name: 'transaction-edit', params: { id: tx.id } }"
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-primary"
                 aria-label="Editar lançamento"
               >
                 <Pencil class="h-3.5 w-3.5" />
               </RouterLink>
               <button
-                class="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
+                class="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition hover:bg-card hover:text-destructive"
                 aria-label="Excluir lançamento"
                 @click="askRemove(tx)"
               >

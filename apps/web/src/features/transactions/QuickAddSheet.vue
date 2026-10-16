@@ -388,6 +388,7 @@ watch(
             :key="suggestion.description"
             type="button"
             data-testid="qa-suggestion"
+            data-compact
             class="max-w-full truncate rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
             @click="applySuggestion(suggestion)"
           >
@@ -410,6 +411,7 @@ watch(
             :key="item.id"
             type="button"
             data-testid="qa-category-chip"
+            data-compact
             class="rounded-full border px-3 py-1.5 text-xs font-bold transition"
             :class="
               category === item.id
@@ -440,6 +442,7 @@ watch(
             :key="item.id"
             type="button"
             data-testid="qa-payer-chip"
+            data-compact
             class="rounded-full border px-3 py-1.5 text-xs font-bold transition"
             :class="
               !isCard && account === item.id
@@ -455,6 +458,7 @@ watch(
             :key="item.id"
             type="button"
             data-testid="qa-payer-chip"
+            data-compact
             class="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-bold transition"
             :class="
               creditCard === item.id
@@ -482,6 +486,7 @@ watch(
             v-for="option in INSTALLMENT_OPTIONS"
             :key="option"
             type="button"
+            data-compact
             class="h-9 min-w-[3rem] rounded-full border px-3 text-xs font-bold transition"
             :class="
               installments === option
@@ -590,6 +595,7 @@ watch(
           <Button
             data-testid="qa-save-continue"
             variant="outline"
+            class="whitespace-nowrap px-2 text-xs min-[380px]:px-4 min-[380px]:text-sm"
             :disabled="saving"
             @click="submit(true)"
           >
