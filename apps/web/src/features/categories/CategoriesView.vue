@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import type { CategoryKind } from "@cf/shared";
-import { Eye, EyeOff, Pencil, Plus } from "lucide-vue-next";
+import { Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { db, type LocalCategory } from "@/db/schema";
 import { createLocal, newSyncId, newLocalId, updateLocal } from "@/db/repositories";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
+import { parseImportRules, type ImportRule } from "@/lib/import-rules";
+import { loadHouseholdSetting, saveHouseholdSetting } from "@/lib/household-settings";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import CategorySelect from "@/components/ui/CategorySelect.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
@@ -30,6 +33,45 @@ const group = ref("");
 const icon = ref<string | null>(null);
 const color = ref<string | null>(null);
 const saving = ref(false);
+const rules = ref<ImportRule[]>([]);
+const newPattern = ref("");
+const newRuleCategory = ref("");
+
+function categoryName(id: string): string {
+  return categories.value.find((category) => category.id === id)?.name ?? id;
+}
+
+async function loadRules(): Promise<void> {
+  if (!session.currentHouseholdId) return;
+  rules.value = parseImportRules(
+    await loadHouseholdSetting(session.currentHouseholdId, "import_rules", []),
+  );
+}
+
+async function persistRules(): Promise<void> {
+  if (!session.currentHouseholdId) return;
+  await saveHouseholdSetting(session.currentHouseholdId, "import_rules", rules.value);
+}
+
+async function addRule(): Promise<void> {
+  if (!newPattern.value.trim() || !newRuleCategory.value) {
+    toast.error("Informe o texto e a categoria da regra.");
+    return;
+  }
+  rules.value = [
+    ...rules.value,
+    { pattern: newPattern.value.trim(), category: newRuleCategory.value },
+  ];
+  newPattern.value = "";
+  newRuleCategory.value = "";
+  await persistRules();
+  toast.success("Regra salva.");
+}
+
+async function removeRule(index: number): Promise<void> {
+  rules.value = rules.value.filter((_, itemIndex) => itemIndex !== index);
+  await persistRules();
+}
 
 const grouped = computed(() => {
   const map = new Map<string, LocalCategory[]>();
@@ -48,6 +90,7 @@ async function load(): Promise<void> {
   )
     .filter((category) => !category.deleted_at)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  await loadRules();
 }
 
 function openCreate(): void {
@@ -194,6 +237,49 @@ watch(() => sync.dataVersion, load);
         </CardContent>
       </Card>
     </div>
+
+    <Card>
+      <CardContent class="space-y-3 p-4">
+        <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Regras de categorização
+        </p>
+        <p class="text-xs text-muted-foreground">
+          Quando a descrição contém o texto, a categoria é sugerida automaticamente no lançamento e
+          na importação de extrato.
+        </p>
+        <ul v-if="rules.length > 0" class="space-y-2">
+          <li
+            v-for="(rule, index) in rules"
+            :key="`${rule.pattern}-${index}`"
+            class="flex items-center justify-between gap-2 rounded-2xl border-2 border-border px-3 py-2 text-sm"
+          >
+            <span class="min-w-0 truncate">
+              <strong class="font-bold">{{ rule.pattern }}</strong>
+              <span class="text-muted-foreground"> → {{ categoryName(rule.category) }}</span>
+            </span>
+            <button
+              type="button"
+              class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive"
+              aria-label="Remover regra"
+              @click="removeRule(index)"
+            >
+              <Trash2 class="h-3.5 w-3.5" />
+            </button>
+          </li>
+        </ul>
+        <div class="grid grid-cols-2 gap-2">
+          <Input
+            v-model="newPattern"
+            placeholder="Texto na descrição (ex.: ifood)"
+            aria-label="Texto da regra"
+          />
+          <CategorySelect id="rule-category" v-model="newRuleCategory" kind="all" allow-empty />
+        </div>
+        <Button size="sm" variant="outline" type="button" @click="addRule">
+          <Plus class="h-4 w-4" /> Adicionar regra
+        </Button>
+      </CardContent>
+    </Card>
 
     <Modal v-model="open" :title="editingId ? 'Editar categoria' : 'Nova categoria'">
       <form class="space-y-4" @submit.prevent="submit">

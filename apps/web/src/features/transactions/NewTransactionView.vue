@@ -8,8 +8,11 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
+import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
+import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
+import { loadHouseholdSetting } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -25,6 +28,7 @@ const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
 const cardsStore = useCardsStore();
 const people = usePeopleStore();
+const session = useSessionStore();
 const sync = useSyncStore();
 const route = useRoute();
 const router = useRouter();
@@ -40,6 +44,25 @@ const creditCard = ref("");
 const attribution = ref("indefinido");
 const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
+const rules = ref<ImportRule[]>([]);
+const fallbackCategories = ref<{ saida: string | null; entrada: string | null }>({
+  saida: null,
+  entrada: null,
+});
+
+const ruleMatch = computed(() =>
+  description.value ? matchImportRule(description.value, rules.value) : null,
+);
+
+function resolvedCategory(): string | null {
+  if (category.value) return category.value;
+  if (ruleMatch.value) return ruleMatch.value.category;
+  return type.value === "receita" ? fallbackCategories.value.entrada : fallbackCategories.value.saida;
+}
+
+watch(description, () => {
+  if (!category.value && ruleMatch.value) category.value = ruleMatch.value.category;
+});
 const tagsInput = ref("");
 const attachment = ref<string | null>(null);
 const attachmentBusy = ref(false);
@@ -105,10 +128,6 @@ async function submit(): Promise<void> {
     toast.error("Informe um valor válido.");
     return;
   }
-  if (type.value === "despesa" && !category.value) {
-    toast.error("Selecione uma categoria.");
-    return;
-  }
   saving.value = true;
   try {
     if (isEdit.value) {
@@ -119,7 +138,7 @@ async function submit(): Promise<void> {
           type: type.value,
           date: date.value,
           attribution: attribution.value,
-          category: category.value || null,
+          category: resolvedCategory(),
           description: description.value,
           status: status.value,
           tags: parseTags(),
@@ -133,7 +152,7 @@ async function submit(): Promise<void> {
           type: type.value,
           date: date.value,
           attribution: attribution.value,
-          category: category.value || null,
+          category: resolvedCategory(),
           description: description.value,
           status: status.value,
           tags: parseTags(),
@@ -148,7 +167,7 @@ async function submit(): Promise<void> {
         amount_cents: cents,
         date: date.value,
         attribution: attribution.value,
-        category: category.value || null,
+        category: resolvedCategory(),
         description: description.value,
         status: "a_pagar",
         tags: parseTags(),
@@ -167,7 +186,7 @@ async function submit(): Promise<void> {
         type: type.value,
         date: date.value,
         attribution: attribution.value,
-        category: category.value || null,
+        category: resolvedCategory(),
         description: description.value,
         status: status.value,
         tags: parseTags(),
@@ -183,8 +202,21 @@ async function submit(): Promise<void> {
   }
 }
 
+async function loadRulesAndFallbacks(): Promise<void> {
+  const household = session.currentHouseholdId;
+  if (!household) return;
+  rules.value = parseImportRules(await loadHouseholdSetting(household, "import_rules", []));
+  const list = await db.categories.where("household").equals(household).toArray();
+  const saida = list.find((item) => !item.deleted_at && item.name === "Outros");
+  const entrada = list.find((item) => !item.deleted_at && item.name === "Outras receitas");
+  fallbackCategories.value = { saida: saida?.id ?? null, entrada: entrada?.id ?? null };
+  // Descrição digitada antes das regras carregarem também é categorizada.
+  if (!category.value && ruleMatch.value) category.value = ruleMatch.value.category;
+}
+
 onMounted(async () => {
   await Promise.all([accountsStore.load(), cardsStore.load(), people.load()]);
+  await loadRulesAndFallbacks();
   account.value = accountsStore.items.find((item) => item.type !== "cartao_credito")?.id ?? "";
   if (isEdit.value) {
     const tx = await db.transactions.get(String(route.params.id));
@@ -339,9 +371,14 @@ watch(
               id="category"
               v-model="category"
               :kind="type === 'receita' ? 'entrada' : 'saida'"
-              :required="type === 'despesa'"
               allow-empty
             />
+            <p
+              v-if="ruleMatch && category === ruleMatch.category"
+              class="text-[0.62rem] font-semibold text-primary"
+            >
+              Sugerida pela regra “{{ ruleMatch.pattern }}”
+            </p>
           </div>
         </div>
 
