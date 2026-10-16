@@ -130,7 +130,8 @@ export function spendingByCategory(
   for (const tx of transactions) {
     if (tx.deleted_at || tx.type !== "despesa") continue;
     if (monthOf(tx.date) !== month) continue;
-    const key = tx.category ?? "__none__";
+    // Relação vazia vinda do sync chega como "" — trata igual a sem categoria.
+    const key = tx.category || "__none__";
     totals.set(key, (totals.get(key) ?? 0) + tx.amount_cents);
   }
   return [...totals.entries()]

@@ -5646,22 +5646,22 @@ function accountBalanceEvolution(account, transactions, endMonth, count = 6) {
   });
 }
 function spendingByCategory(transactions, categories, month, limit = 5) {
-  var _a, _b;
+  var _a;
   const byId = new Map(categories.map((category) => [category.id, category]));
   const totals = /* @__PURE__ */ new Map();
   for (const tx of transactions) {
     if (tx.deleted_at || tx.type !== "despesa") continue;
     if (monthOf(tx.date) !== month) continue;
-    const key = (_a = tx.category) != null ? _a : "__none__";
-    totals.set(key, ((_b = totals.get(key)) != null ? _b : 0) + tx.amount_cents);
+    const key = tx.category || "__none__";
+    totals.set(key, ((_a = totals.get(key)) != null ? _a : 0) + tx.amount_cents);
   }
   return [...totals.entries()].map(([key, total]) => {
-    var _a2, _b2;
+    var _a2, _b;
     const category = byId.get(key);
     return {
       categoryId: key === "__none__" ? null : key,
       name: (_a2 = category == null ? void 0 : category.name) != null ? _a2 : "Sem categoria",
-      color: (_b2 = category == null ? void 0 : category.color) != null ? _b2 : "#94a3b8",
+      color: (_b = category == null ? void 0 : category.color) != null ? _b : "#94a3b8",
       totalCents: total
     };
   }).sort((a, b) => b.totalCents - a.totalCents).slice(0, limit);

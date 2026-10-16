@@ -61,6 +61,19 @@ describe("spendingByCategory", () => {
     const result = spendingByCategory(transactions, [], "2024-01");
     expect(result[0]).toMatchObject({ categoryId: null, name: "Sem categoria", totalCents: 4000 });
   });
+
+  it("trata categoria vazia ('') e nula como o mesmo balde", () => {
+    const result = spendingByCategory(
+      [
+        tx({ date: "2024-04-01", amount_cents: 1000, category: "" }),
+        tx({ date: "2024-04-02", amount_cents: 2000, category: null }),
+      ],
+      [],
+      "2024-04",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ categoryId: null, name: "Sem categoria", totalCents: 3000 });
+  });
 });
 
 describe("accountBalanceEvolution", () => {

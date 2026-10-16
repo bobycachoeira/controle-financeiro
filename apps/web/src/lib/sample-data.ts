@@ -2,6 +2,7 @@ import { pad2, todayISO } from "@cf/shared";
 import { db } from "@/db/schema";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSessionStore } from "@/stores/session";
+import { useSyncStore } from "@/stores/sync";
 import { useTransactionsStore } from "@/stores/transactions";
 
 export interface SampleSeedResult {
@@ -12,6 +13,16 @@ export interface SampleSeedResult {
 async function categoryIdByName(household: string, name: string): Promise<string | null> {
   const categories = await db.categories.where("household").equals(household).toArray();
   return categories.find((category) => !category.deleted_at && category.name === name)?.id ?? null;
+}
+
+/** O primeiro uso pode acontecer antes do sync trazer as categorias. */
+async function waitForCategories(household: string, timeoutMs = 2500): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const count = await db.categories.where("household").equals(household).count();
+    if (count > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
 }
 
 /**
@@ -39,9 +50,26 @@ export async function seedSampleData(): Promise<SampleSeedResult> {
     initial_balance_cents: 500000,
   });
 
+  // Garante que as categorias do servidor chegaram antes de categorizar:
+  // espera o sync inicial terminar e força um pull novo se ainda faltar.
+  const sync = useSyncStore();
+  const waitStarted = Date.now();
+  while (sync.syncing && Date.now() - waitStarted < 5000) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  try {
+    await sync.syncNow();
+  } catch {
+    // offline: segue com os fallbacks locais
+  }
+  await waitForCategories(household);
   const mercado = await categoryIdByName(household, "Supermercado");
   const combustivel = await categoryIdByName(household, "Combustível");
   const lazer = await categoryIdByName(household, "Lazer");
+  // Se as categorias ainda não chegaram do sync, cai no "Outros"/"Outras receitas"
+  // (mesma regra do formulário) para nada ficar sem categoria no servidor.
+  const outrosSaida = await categoryIdByName(household, "Outros");
+  const outrosEntrada = await categoryIdByName(household, "Outras receitas");
 
   const entries: Array<{
     amount: number;
@@ -71,7 +99,7 @@ export async function seedSampleData(): Promise<SampleSeedResult> {
       type: entry.type,
       date: `${month}-${pad2(Math.max(1, day))}`,
       attribution: "ambos",
-      category: entry.category,
+      category: entry.category ?? (entry.type === "receita" ? outrosEntrada : outrosSaida),
       description: entry.description,
       status: entry.status,
     });

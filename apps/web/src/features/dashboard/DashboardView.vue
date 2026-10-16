@@ -367,7 +367,11 @@ watch(() => sync.dataVersion, loadAll);
           Sem despesas nesse filtro.
         </p>
         <ul v-else class="space-y-2.5">
-          <li v-for="entry in categoryBreakdown.entries" :key="entry.name" class="space-y-1">
+          <li
+            v-for="entry in categoryBreakdown.entries"
+            :key="entry.categoryId ?? entry.name"
+            class="space-y-1"
+          >
             <div class="flex items-center justify-between gap-2 text-sm">
               <span class="truncate font-semibold">{{ entry.name }}</span>
               <span class="flex shrink-0 items-center gap-2">
