@@ -416,6 +416,11 @@ watch(
       </div>
 
       <div class="space-y-2">
+        <Label for="qa-date">Data</Label>
+        <Input id="qa-date" v-model="date" type="date" />
+      </div>
+
+      <div class="space-y-2">
         <Label>Categoria</Label>
         <div class="flex flex-wrap gap-1.5">
           <button
@@ -434,16 +439,16 @@ watch(
           >
             {{ item.name }}
           </button>
-          <CategorySelect
-            id="qa-category"
-            v-model="category"
-            :kind="type === 'receita' ? 'entrada' : 'saida'"
-            allow-empty
-            empty-label="Sem categoria (Outros)"
-            placeholder="Outra categoria…"
-            class="h-11"
-          />
         </div>
+        <CategorySelect
+          id="qa-category"
+          v-model="category"
+          :kind="type === 'receita' ? 'entrada' : 'saida'"
+          allow-empty
+          empty-label="Sem categoria (Outros)"
+          placeholder="Outra categoria…"
+          class="w-full"
+        />
       </div>
 
       <div class="space-y-2">
@@ -525,18 +530,12 @@ watch(
         </button>
 
         <div v-if="showMore" class="mt-3 space-y-4 rounded-2xl border-2 border-border p-4" data-testid="qa-more-fields">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-2">
-              <Label for="qa-date">Data</Label>
-              <Input id="qa-date" v-model="date" type="date" />
-            </div>
-            <div v-if="!isCard" class="space-y-2">
-              <Label for="qa-status">Status</Label>
-              <Select id="qa-status" v-model="status">
-                <option value="pago">Pago</option>
-                <option value="a_pagar">A pagar</option>
-              </Select>
-            </div>
+          <div v-if="!isCard" class="space-y-2">
+            <Label for="qa-status">Status</Label>
+            <Select id="qa-status" v-model="status">
+              <option value="pago">Pago</option>
+              <option value="a_pagar">A pagar</option>
+            </Select>
           </div>
           <div class="space-y-2">
             <Label for="qa-attribution">Atribuição</Label>

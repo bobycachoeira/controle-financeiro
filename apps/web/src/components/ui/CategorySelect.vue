@@ -125,7 +125,7 @@ watch(() => sync.dataVersion, load);
       @click="toggle"
     >
       <span class="truncate">
-        <template v-if="selected">{{ selected.group }} · {{ selected.name }}</template>
+        <template v-if="selected">{{ selected.name }}</template>
         <template v-else>{{ placeholder ?? "Selecione" }}</template>
       </span>
       <span class="text-muted-foreground">▾</span>
@@ -153,10 +153,15 @@ watch(() => sync.dataVersion, load);
         <li v-for="item in filtered" :key="item.id">
           <button
             type="button"
-            class="flex min-h-11 w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
+            class="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-sm font-semibold hover:bg-muted"
             @click="choose(item.id)"
           >
-            <span class="truncate">{{ item.group }} · {{ item.name }}</span>
+            <span class="min-w-0 flex-1 truncate">{{ item.name }}</span>
+            <span
+              class="shrink-0 text-[0.62rem] font-bold uppercase tracking-wide text-muted-foreground"
+            >
+              {{ item.group }}
+            </span>
             <Check v-if="item.id === modelValue" class="h-4 w-4 shrink-0 text-primary" />
           </button>
         </li>
