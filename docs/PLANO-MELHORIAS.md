@@ -93,3 +93,9 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       recentes), com “Ver todas” para o histórico.
 - [x] K6. Excluir parcela pergunta “só esta” ou **a compra toda** (todas as
       parcelas, registros e recálculo das faturas).
+- [x] L1. Campos de dinheiro em **modo centavos** (digita 1010 → R$ 10,10) em
+      todo o app.
+- [x] L2. **Categoria opcional** no lançamento (vazia → “Outros”) e **regras
+      por descrição** unificadas com o import (gerenciadas em Categorias).
+- [x] L3. Robustez do sync: edições locais não são mais sobrescritas pelo pull
+      (fila/reenvio) e edição do mesmo usuário logo após o create vence.
