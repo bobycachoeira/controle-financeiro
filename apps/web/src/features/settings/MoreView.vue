@@ -27,6 +27,7 @@ const groups: { title: string; links: MoreLink[] }[] = [
   {
     title: "Finanças",
     links: [
+      { name: "review", label: "Revisar lançamentos" },
       { name: "transfers", label: "Transferências" },
       { name: "bills", label: "Contas a pagar/receber" },
       { name: "settle", label: "Acerto do mês" },

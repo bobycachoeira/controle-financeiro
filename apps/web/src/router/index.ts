@@ -50,6 +50,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/features/transactions/NewTransactionView.vue"),
       },
       {
+        path: "review",
+        name: "review",
+        component: () => import("@/features/review/ReviewView.vue"),
+      },
+      {
         path: "transactions/:id/edit",
         name: "transaction-edit",
         component: () => import("@/features/transactions/NewTransactionView.vue"),

@@ -19,6 +19,11 @@ import { usePeopleStore } from "@/stores/people";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
 import { seedSampleData } from "@/lib/sample-data";
+import {
+  placeholderCategoryIds,
+  REVIEW_WINDOW_DAYS,
+  selectReviewQueue,
+} from "@/features/review/review";
 import { formatBRL, formatDate } from "@/lib/format";
 import { accountIconName } from "@/lib/icons";
 import {
@@ -146,6 +151,14 @@ const openInvoicesTotal = computed(() =>
     0,
   ),
 );
+const reviewQueue = computed(() =>
+  selectReviewQueue(transactionsStore.items, {
+    uncategorizedIds: placeholderCategoryIds(categories.value),
+    knownIds: new Set(categories.value.map((category) => category.id)),
+    today,
+    days: REVIEW_WINDOW_DAYS,
+  }),
+);
 const cardUsage = computed(() =>
   selectCardUsage(
     transactionsStore.items,
@@ -259,6 +272,21 @@ watch(() => sync.dataVersion, loadAll);
         <Button size="sm" :loading="seeding" @click="createSample">
           Criar dados de exemplo
         </Button>
+      </CardContent>
+    </Card>
+
+    <Card v-if="reviewQueue.length > 0" data-testid="review-card" class="border-amber-300">
+      <CardContent class="flex flex-wrap items-center gap-3 p-4">
+        <div class="min-w-0 flex-1">
+          <p class="font-bold">{{ reviewQueue.length }} lançamento(s) para revisar</p>
+          <p class="text-xs text-muted-foreground">
+            Sem categoria (ou em “Outros”) nos últimos 30 dias — categorize para os relatórios
+            ficarem certos.
+          </p>
+        </div>
+        <RouterLink :to="{ name: 'review' }">
+          <Button size="sm" variant="secondary">Revisar</Button>
+        </RouterLink>
       </CardContent>
     </Card>
 
