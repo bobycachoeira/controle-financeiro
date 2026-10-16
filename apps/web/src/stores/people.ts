@@ -8,6 +8,7 @@ import {
 } from "@cf/shared";
 import { db } from "../db/schema";
 import { toPlain, updateLocal } from "../db/repositories";
+import { waitForHousehold } from "../lib/household-settings";
 import { useSessionStore } from "./session";
 
 export type SplitMode = "junto" | "dividir";
@@ -103,7 +104,7 @@ export const usePeopleStore = defineStore("people", () => {
   async function save(next: AttributionOption[]): Promise<void> {
     const session = useSessionStore();
     if (!session.currentHouseholdId) return;
-    const household = await db.households.get(session.currentHouseholdId);
+    const household = await waitForHousehold(session.currentHouseholdId);
     if (!household) return;
     const clean = toPlain({
       ...household,
@@ -121,7 +122,7 @@ export const usePeopleStore = defineStore("people", () => {
   async function saveSplitMode(mode: SplitMode): Promise<void> {
     const session = useSessionStore();
     if (!session.currentHouseholdId) return;
-    const household = await db.households.get(session.currentHouseholdId);
+    const household = await waitForHousehold(session.currentHouseholdId);
     if (!household) return;
     const clean = toPlain({
       ...household,

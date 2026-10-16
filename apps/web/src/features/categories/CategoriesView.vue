@@ -48,29 +48,34 @@ async function loadRules(): Promise<void> {
   );
 }
 
-async function persistRules(): Promise<void> {
-  if (!session.currentHouseholdId) return;
-  await saveHouseholdSetting(session.currentHouseholdId, "import_rules", rules.value);
-}
-
 async function addRule(): Promise<void> {
   if (!newPattern.value.trim() || !newRuleCategory.value) {
     toast.error("Informe o texto e a categoria da regra.");
     return;
   }
-  rules.value = [
+  const next = [
     ...rules.value,
     { pattern: newPattern.value.trim(), category: newRuleCategory.value },
   ];
-  newPattern.value = "";
-  newRuleCategory.value = "";
-  await persistRules();
-  toast.success("Regra salva.");
+  try {
+    await saveHouseholdSetting(session.currentHouseholdId ?? "", "import_rules", next);
+    rules.value = next;
+    newPattern.value = "";
+    newRuleCategory.value = "";
+    toast.success("Regra salva.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao salvar a regra.");
+  }
 }
 
 async function removeRule(index: number): Promise<void> {
-  rules.value = rules.value.filter((_, itemIndex) => itemIndex !== index);
-  await persistRules();
+  const next = rules.value.filter((_, itemIndex) => itemIndex !== index);
+  try {
+    await saveHouseholdSetting(session.currentHouseholdId ?? "", "import_rules", next);
+    rules.value = next;
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao remover a regra.");
+  }
 }
 
 const grouped = computed(() => {

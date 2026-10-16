@@ -12,7 +12,7 @@ import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
-import { loadHouseholdSetting } from "@/lib/household-settings";
+import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -205,6 +205,7 @@ async function submit(): Promise<void> {
 async function loadRulesAndFallbacks(): Promise<void> {
   const household = session.currentHouseholdId;
   if (!household) return;
+  await waitForHousehold(household);
   rules.value = parseImportRules(await loadHouseholdSetting(household, "import_rules", []));
   const list = await db.categories.where("household").equals(household).toArray();
   const saida = list.find((item) => !item.deleted_at && item.name === "Outros");
