@@ -154,6 +154,86 @@ test.describe("Cartão → fatura → pagamento", () => {
     });
   });
 
+  test("corrige a forma de pagamento: conta -> cartão", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const bank = `BancoMove${stamp}`;
+    const description = `Mudança conta-cartão ${stamp}`;
+
+    await page.goto("/cards");
+    await page.getByRole("button", { name: /^Novo$/ }).click();
+    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
+    await page.getByLabel("Banco").fill(bank);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/?new=1");
+    await page.locator("#amount").waitFor({ timeout: 15_000 });
+    await page.locator("#amount").fill("80,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    // Edita e move para o cartão.
+    await page.goto("/transactions");
+    const row = page.locator("li", { hasText: description });
+    await row.getByLabel("Editar lançamento").click();
+    await expect(page.getByRole("heading", { name: "Editar lançamento" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.locator("#card").selectOption({ label: `${bank} •••• 15/25` });
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Lançamento movido para o cartão.")).toBeVisible({ timeout: 10_000 });
+
+    // Ficou "a pagar" e entrou na fatura do cartão.
+    await expect(page.locator("li", { hasText: description })).toContainText("a pagar");
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    const card = page.getByTestId("card").filter({ hasText: bank });
+    await expect(card.getByText("R$ 80,00")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("corrige a forma de pagamento: cartão -> conta", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const bank = `BancoVolta${stamp}`;
+    const description = `Mudança cartão-conta ${stamp}`;
+
+    await page.goto("/cards");
+    await page.getByRole("button", { name: /^Novo$/ }).click();
+    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
+    await page.getByLabel("Banco").fill(bank);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("45,00");
+    await page.locator("#description").fill(description);
+    await page.locator("#card").selectOption({ label: `${bank} •••• 15/25` });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    // Edita e volta para a conta.
+    await page.goto("/transactions");
+    const row = page.locator("li", { hasText: description });
+    await row.getByLabel("Editar lançamento").click();
+    await expect(page.getByRole("heading", { name: "Editar lançamento" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.locator("#card").selectOption({ label: "Sem cartão (conta)" });
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Lançamento movido para a conta.")).toBeVisible({ timeout: 10_000 });
+
+    // Sai da fatura e deixa de estar "a pagar".
+    await expect(page.locator("li", { hasText: description })).not.toContainText("a pagar");
+    await page.goto("/wallet");
+    await page.getByRole("button", { name: "Cartões" }).click();
+    const card = page.getByTestId("card").filter({ hasText: bank });
+    await expect(card.getByText("R$ 0,00").first()).toBeVisible({ timeout: 15_000 });
+  });
+
   test("remover a compra parcelada apaga todas as parcelas e as faturas futuras", async ({
     page,
     loginAs,

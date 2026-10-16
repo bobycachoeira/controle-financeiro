@@ -326,8 +326,86 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
-  async function remove(id: string): Promise<LocalTransaction | null> {
+  /**
+   * Converte um lançamento simples em compra no cartão (1 parcela 1/1),
+   * vinculando a fatura do ciclo da data. Usado na edição para corrigir a
+   * forma de pagamento.
+   */
+  async function attachToCard(
+    id: string,
+    input: { credit_card: string; closing_day: number; due_day: number; date?: string },
+  ): Promise<void> {
     const existing = await db.transactions.get(id);
+    if (!existing) return;
+    const card = await db.credit_cards.get(input.credit_card);
+    if (!card) return;
+    const session = useSessionStore();
+    const date = (input.date ?? existing.date).slice(0, 10);
+    const referenceMonth = referenceMonthForPurchase(date, input.closing_day);
+    const invoiceId = await ensureInvoice(
+      existing.household,
+      input.credit_card,
+      card.account,
+      referenceMonth,
+      input.closing_day,
+      input.due_day,
+    );
+    await updateLocal("transactions", {
+      ...existing,
+      account: card.account,
+      credit_card: input.credit_card,
+      invoice: invoiceId,
+      status: "a_pagar",
+      type: "despesa",
+    } as LocalTransaction);
+    const installment: LocalInstallment = {
+      id: newLocalId(),
+      household: existing.household,
+      sync_id: newSyncId(),
+      installment_group_id: newSyncId(),
+      root_transaction: id,
+      number: 1,
+      total: 1,
+      amount_cents: existing.amount_cents,
+      expected_date: date,
+      invoice: invoiceId,
+      paid: false,
+      updated_by: session.user?.id ?? null,
+      deleted_at: null,
+    };
+    await createLocal("installments", installment);
+    await recalcInvoice(invoiceId);
+    await load();
+  }
+
+  /**
+   * Volta uma compra no cartão para conta: remove as parcelas locais e
+   * desvincula a fatura (a fatura antiga é recalculada).
+   */
+  async function detachFromCard(
+    id: string,
+    input: { account: string; status?: "pago" | "a_pagar" },
+  ): Promise<void> {
+    const existing = await db.transactions.get(id);
+    if (!existing) return;
+    const oldInvoice = existing.invoice;
+    const rows = await db.installments.where("root_transaction").equals(id).toArray();
+    for (const row of rows) {
+      if (!row.deleted_at) await softDeleteLocal("installments", row.id);
+    }
+    await updateLocal("transactions", {
+      ...existing,
+      credit_card: null,
+      invoice: null,
+      installment: null,
+      account: input.account,
+      status: input.status ?? "pago",
+    } as LocalTransaction);
+    if (oldInvoice) await recalcInvoice(oldInvoice);
+    await load();
+  }
+
+  async function remove(id: string): Promise<LocalTransaction | null> {    const existing = await db.transactions.get(id);
     if (!existing) return null;
     await softDeleteLocal("transactions", id);
     if (existing.invoice) await recalcInvoice(existing.invoice);
@@ -398,5 +476,5 @@ export const useTransactionsStore = defineStore("transactions", () => {
     return removed;
   }
 
-  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, removePurchase, restore, findByExternalRef };
+  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, attachToCard, detachFromCard, remove, removePurchase, restore, findByExternalRef };
 });

@@ -45,6 +45,7 @@ const description = ref("");
 const date = ref(todayISO());
 const account = ref("");
 const creditCard = ref("");
+const originalCreditCard = ref("");
 const attribution = ref("indefinido");
 const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
@@ -79,6 +80,12 @@ const saving = ref(false);
 const remainingInstallments = computed(() =>
   Math.max(1, installments.value - paidInstallments.value),
 );
+
+/**
+ * Troca de forma de pagamento na edição: liberada para lançamentos simples
+ * (sem parcelas). Compra parcelada mantém a forma travada.
+ */
+const canSwitchPayment = computed(() => !installmentInfo.value || installmentInfo.value.total <= 1);
 
 function parseTags(): string[] {
   const list = tagsInput.value
@@ -129,6 +136,11 @@ const accountOwner = computed<string>(() => {
 });
 
 watch([account, creditCard], () => {
+  if (isCard.value) status.value = "a_pagar";
+  else if (isEdit.value && originalCreditCard.value !== "" && status.value === "a_pagar") {
+    // Ao tirar do cartão na edição, volta a ser um gasto da conta (pago).
+    status.value = "pago";
+  }
   if (isEdit.value) return;
   const owner = accountOwner.value !== "indefinido" ? accountOwner.value : people.currentKey;
   if (owner && owner !== "indefinido") attribution.value = owner;
@@ -148,36 +160,54 @@ async function submit(): Promise<void> {
   }
   saving.value = true;
   try {
+    const base = {
+      account: account.value,
+      amount_cents: cents,
+      type: type.value,
+      date: date.value,
+      attribution: attribution.value,
+      category: resolvedCategory(),
+      description: description.value,
+      status: status.value,
+      tags: parseTags(),
+      attachment: attachment.value,
+    };
     if (isEdit.value) {
-      if (isCard.value && type.value === "despesa") {
-        await transactionsStore.updateCardPurchase(String(route.params.id), {
-          account: account.value,
-          amount_cents: cents,
-          type: type.value,
+      const id = String(route.params.id);
+      const wasCard = originalCreditCard.value !== "";
+      if (!wasCard && isCard.value && card.value && canSwitchPayment.value) {
+        // Conta -> cartão: cria a parcela 1/1 e vincula a fatura do ciclo.
+        await transactionsStore.attachToCard(id, {
+          credit_card: card.value.id,
+          closing_day: card.value.closing_day,
+          due_day: card.value.due_day,
           date: date.value,
-          attribution: attribution.value,
-          category: resolvedCategory(),
-          description: description.value,
+        });
+        await transactionsStore.update(id, {
+          ...base,
+          account: card.value.account,
+          type: "despesa",
+          status: "a_pagar",
+        });
+        toast.success("Lançamento movido para o cartão.");
+      } else if (wasCard && !isCard.value && canSwitchPayment.value) {
+        // Cartão -> conta: remove as parcelas locais e desvincula a fatura.
+        await transactionsStore.detachFromCard(id, {
+          account: account.value,
           status: status.value,
-          tags: parseTags(),
-          attachment: attachment.value,
+        });
+        await transactionsStore.update(id, base);
+        toast.success("Lançamento movido para a conta.");
+      } else if (isCard.value && type.value === "despesa") {
+        await transactionsStore.updateCardPurchase(id, {
+          ...base,
           credit_card: creditCard.value,
         });
+        toast.success("Lançamento atualizado.");
       } else {
-        await transactionsStore.update(String(route.params.id), {
-          account: account.value,
-          amount_cents: cents,
-          type: type.value,
-          date: date.value,
-          attribution: attribution.value,
-          category: resolvedCategory(),
-          description: description.value,
-          status: status.value,
-          tags: parseTags(),
-          attachment: attachment.value,
-        });
+        await transactionsStore.update(id, base);
+        toast.success("Lançamento atualizado.");
       }
-      toast.success("Lançamento atualizado.");
     } else if (isCard.value && card.value) {
       await transactionsStore.createCardPurchase({
         account: card.value.account,
@@ -250,6 +280,7 @@ onMounted(async () => {
       date.value = tx.date.slice(0, 10);
       account.value = tx.account;
       creditCard.value = tx.credit_card ?? "";
+      originalCreditCard.value = creditCard.value;
       attribution.value = tx.attribution;
       status.value = tx.status;
       category.value = tx.category ?? "";
@@ -409,26 +440,40 @@ watch(
           <Label for="account">Conta</Label>
           <Select id="account" v-model="account" :disabled="isCard">
             <option value="">Selecione</option>
-            <option
-              v-for="item in accountsStore.items.filter((a) => a.type !== 'cartao_credito')"
-              :key="item.id"
-              :value="item.id"
-            >
-              {{ item.name }}
-            </option>
+            <optgroup label="Contas">
+              <option
+                v-for="item in accountsStore.items.filter((a) => a.type !== 'cartao_credito')"
+                :key="item.id"
+                :value="item.id"
+              >
+                {{ item.name }}
+              </option>
+            </optgroup>
           </Select>
+          <p v-if="isCard && isEdit" class="text-xs text-muted-foreground">
+            A conta é definida pelo cartão (quem paga a fatura). Para trocar, escolha “Sem cartão”
+            abaixo.
+          </p>
         </div>
 
-        <div v-if="type === 'despesa' && (!isEdit || isCard)" class="space-y-2">
+        <div v-if="type === 'despesa'" class="space-y-2">
           <Label for="card" class="flex items-center gap-1">
             <CreditCard class="h-3.5 w-3.5" /> Cartão de crédito
           </Label>
-          <Select id="card" v-model="creditCard" :disabled="isEdit && !isCard">
-            <option v-if="!isEdit || !isCard" value="">Sem cartão</option>
-            <option v-for="item in cardsStore.cards" :key="item.id" :value="item.id">
-              {{ item.bank || "Cartão" }} •••• {{ item.closing_day }}/{{ item.due_day }}
-            </option>
+          <Select id="card" v-model="creditCard" :disabled="isEdit && !canSwitchPayment">
+            <option value="">Sem cartão (conta)</option>
+            <optgroup v-if="cardsStore.cards.length > 0" label="Cartões">
+              <option v-for="item in cardsStore.cards" :key="item.id" :value="item.id">
+                {{ item.bank || "Cartão" }} •••• {{ item.closing_day }}/{{ item.due_day }}
+              </option>
+            </optgroup>
           </Select>
+          <p
+            v-if="isEdit && !canSwitchPayment"
+            class="text-xs font-semibold text-muted-foreground"
+          >
+            Compra parcelada: para trocar a forma de pagamento, remova e recrie o lançamento.
+          </p>
         </div>
 
         <div v-if="isCard && !isEdit" class="grid grid-cols-2 gap-3">
