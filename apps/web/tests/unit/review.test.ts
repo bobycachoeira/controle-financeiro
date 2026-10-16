@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { LocalTransaction } from "@/db/schema";
 import {
+  findSimilarTransactions,
   placeholderCategoryIds,
   REVIEW_WINDOW_DAYS,
   selectReviewQueue,
+  similarDescriptionKey,
 } from "@/features/review/review";
 
 function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransaction {
@@ -66,5 +68,32 @@ describe("fila de revisão", () => {
       { id: "z", name: "Mercado" },
     ]);
     expect([...ids].sort()).toEqual(["x", "y"]);
+  });
+});
+
+describe("aplicar categoria aos similares", () => {
+  it("agrupa pela primeira palavra significativa, sem acentos e maiúsculas", () => {
+    expect(similarDescriptionKey("Padaria do Zé")).toBe("padaria");
+    expect(similarDescriptionKey("  PADARIA Central!! ")).toBe("padaria");
+    expect(similarDescriptionKey("Farmácia São João")).toBe("farmacia");
+    expect(similarDescriptionKey("Pão")).toBe("pao");
+    expect(similarDescriptionKey("")).toBeNull();
+  });
+
+  it("encontra só o mesmo tipo e ignora o próprio item e removidos", () => {
+    const base = tx({ id: "a", description: "Padaria do Zé", category: "outros-id" });
+    const similars = findSimilarTransactions(base, [
+      base,
+      tx({ id: "b", description: "Padaria Central", category: "outros-id" }),
+      tx({ id: "c", description: "Padaria", type: "receita", category: "outros-id" }),
+      tx({ id: "d", description: "Mercado", category: "outros-id" }),
+      tx({ id: "e", description: "Padaria antiga", category: "outros-id", deleted_at: "x" }),
+    ]);
+    expect(similars.map((item) => item.id)).toEqual(["b"]);
+  });
+
+  it("sem descrição utilizável não sugere nada", () => {
+    const base = tx({ id: "a", description: "   " });
+    expect(findSimilarTransactions(base, [tx({ id: "b", description: "Padaria" })])).toEqual([]);
   });
 });

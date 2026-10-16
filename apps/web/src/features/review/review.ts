@@ -49,3 +49,34 @@ export function placeholderCategoryIds(
       .map((category) => category.id),
   );
 }
+
+/**
+ * Chave de similaridade entre descrições: a primeira palavra significativa
+ * (>= 4 letras), sem acentos/maiúsculas. "Padaria do Zé" e "Padaria Central"
+ * compartilham a chave "padaria".
+ */
+export function similarDescriptionKey(description: string): string | null {
+  const normalized = description
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .trim();
+  if (!normalized) return null;
+  const words = normalized.split(/\s+/);
+  return words.find((word) => word.length >= 4) ?? words[0] ?? null;
+}
+
+/** Outros lançamentos da fila "com a mesma cara" (mesma chave e mesmo tipo). */
+export function findSimilarTransactions(
+  tx: LocalTransaction,
+  candidates: readonly LocalTransaction[],
+): LocalTransaction[] {
+  const key = similarDescriptionKey(tx.description);
+  if (!key) return [];
+  return candidates.filter((candidate) => {
+    if (candidate.id === tx.id || candidate.deleted_at) return false;
+    if (candidate.type !== tx.type) return false;
+    return similarDescriptionKey(candidate.description) === key;
+  });
+}

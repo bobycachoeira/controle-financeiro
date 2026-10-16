@@ -14,6 +14,7 @@ import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
 import {
+  findSimilarTransactions,
   placeholderCategoryIds,
   REVIEW_WINDOW_DAYS,
   REVIEW_WINDOW_DAYS_LONG,
@@ -43,7 +44,20 @@ const accountById = computed(() => new Map(accountsStore.items.map((item) => [it
 async function assign(tx: LocalTransaction, categoryId: string): Promise<void> {
   if (!categoryId) return;
   await transactionsStore.update(tx.id, { category: categoryId });
-  toast.success("Categoria atualizada.");
+  const similars = findSimilarTransactions(tx, queue.value);
+  if (similars.length === 0) {
+    toast.success("Categoria atualizada.");
+    return;
+  }
+  toast.success("Categoria atualizada.", {
+    label: `Aplicar aos similares (${similars.length})`,
+    run: async () => {
+      for (const item of similars) {
+        await transactionsStore.update(item.id, { category: categoryId });
+      }
+      toast.success(`${similars.length + 1} lançamentos categorizados.`);
+    },
+  });
 }
 
 async function loadAll(): Promise<void> {
