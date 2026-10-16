@@ -99,3 +99,7 @@ Por isso a divisão/acerto entre o casal é **configurável**:
       por descrição** unificadas com o import (gerenciadas em Categorias).
 - [x] L3. Robustez do sync: edições locais não são mais sobrescritas pelo pull
       (fila/reenvio) e edição do mesmo usuário logo após o create vence.
+- [x] M1. **Revisar lançamentos**: fila dos últimos 30 dias (opção 90) com
+      categoria no próprio item, card de aviso no Início e item em Mais.
+      Salvar configurações da família agora aguarda o primeiro sync
+      (falhava em silêncio em instalações novas).
