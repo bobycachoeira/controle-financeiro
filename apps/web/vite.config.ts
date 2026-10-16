@@ -61,6 +61,10 @@ export default defineConfig({
       "@cf/shared": fileURLToPath(new URL("../../packages/shared/src/index.ts", import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // Evita re-otimização em runtime (reload no meio do uso, E2E instável).
+    include: ["@vueuse/core"],
+  },
   server: {
     port: 5173,
   },

@@ -22,7 +22,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite --port 5174 --strictPort",
+    command: "pnpm exec vite --port 5174 --strictPort --force",
     url: "http://localhost:5174",
     reuseExistingServer: false,
     timeout: 120_000,
