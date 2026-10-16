@@ -326,12 +326,40 @@ export const useTransactionsStore = defineStore("transactions", () => {
     await load();
   }
 
-  async function remove(id: string): Promise<void> {
+  async function remove(id: string): Promise<LocalTransaction | null> {
     const existing = await db.transactions.get(id);
-    if (!existing) return;
+    if (!existing) return null;
     await softDeleteLocal("transactions", id);
     if (existing.invoice) await recalcInvoice(existing.invoice);
     await load();
+    return existing;
+  }
+
+  /**
+   * Desfaz uma exclusão recente recriando o lançamento com um novo `id`/`sync_id`.
+   * O servidor descarta updates em registros excluídos (`orphan_update_discarded`),
+   * então a restauração é compensatória — sem mudança no contrato de sync. Use
+   * apenas para lançamentos simples (sem fatura/parcelas).
+   */
+  async function restore(record: LocalTransaction): Promise<LocalTransaction> {
+    const copy: LocalTransaction = {
+      ...record,
+      id: newLocalId(),
+      sync_id: newSyncId(),
+      deleted_at: null,
+      invoice: null,
+      installment: null,
+      transfer: null,
+      recurrence: null,
+      origin: "manual",
+      external_ref: null,
+    };
+    delete copy._dirty;
+    delete copy._pendingOutboxId;
+    delete copy._review;
+    const created = await createLocal("transactions", copy);
+    await load();
+    return created;
   }
 
   /**
@@ -370,5 +398,5 @@ export const useTransactionsStore = defineStore("transactions", () => {
     return removed;
   }
 
-  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, removePurchase, findByExternalRef };
+  return { items, loading, load, create, createCardPurchase, update, updateCardPurchase, remove, removePurchase, restore, findByExternalRef };
 });

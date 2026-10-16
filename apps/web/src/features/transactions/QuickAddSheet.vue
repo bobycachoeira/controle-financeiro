@@ -9,6 +9,7 @@ import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
 import { useToast } from "@/composables/useToast";
+import { haptic } from "@/lib/haptics";
 import type { QuickAddPrefill } from "@/stores/quick-add";
 import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
@@ -238,7 +239,7 @@ async function onPhotoChange(event: Event): Promise<void> {
   }
 }
 
-async function submit(): Promise<void> {
+async function submit(continueAfter = false): Promise<void> {
   const cents = amountCents.value;
   if (cents === null || cents <= 0) {
     amountError.value = "Informe um valor maior que zero.";
@@ -280,11 +281,34 @@ async function submit(): Promise<void> {
         attachment: attachment.value,
       });
     }
-    toast.success("Lançamento salvo.");
+    haptic(12);
+    toast.success(
+      "Lançamento salvo.",
+      record.invoice
+        ? undefined
+        : {
+            label: "Desfazer",
+            run: async () => {
+              await transactionsStore.remove(record.id);
+            },
+          },
+    );
     emit("saved", record);
     dirty.value = false;
+    if (continueAfter) {
+      amountCents.value = null;
+      description.value = "";
+      category.value = "";
+      tagsInput.value = "";
+      attachment.value = null;
+      status.value = isCard.value ? "a_pagar" : "pago";
+      await nextTick();
+      amountInput.value?.focus();
+      return;
+    }
     emit("update:modelValue", false);
   } catch (error) {
+    haptic([20, 40, 20]);
     toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
   } finally {
     saving.value = false;
@@ -562,15 +586,23 @@ watch(
       <div
         class="sticky bottom-0 -mx-6 -mb-6 border-t border-border bg-card px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3"
       >
-        <Button
-          data-testid="qa-save"
-          class="w-full"
-          size="lg"
-          :loading="saving"
-          @click="submit"
-        >
-          Salvar
-        </Button>
+        <div class="grid grid-cols-2 gap-2">
+          <Button
+            data-testid="qa-save-continue"
+            variant="outline"
+            :disabled="saving"
+            @click="submit(true)"
+          >
+            Salvar e continuar
+          </Button>
+          <Button
+            data-testid="qa-save"
+            :loading="saving"
+            @click="submit(false)"
+          >
+            Salvar
+          </Button>
+        </div>
       </div>
     </div>
   </Modal>

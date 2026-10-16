@@ -116,9 +116,19 @@ async function loadAll(): Promise<void> {
   await Promise.all([accountsStore.load(), loadFiltersData(), people.load(), reload()]);
 }
 
-async function removeTransaction(id: string): Promise<void> {
-  await transactionsStore.remove(id);
-  toast.info("Lançamento removido.");
+async function removeTransaction(tx: LocalTransaction): Promise<void> {
+  const removed = await transactionsStore.remove(tx.id);
+  if (!removed) return;
+  if (removed.invoice) {
+    toast.info("Lançamento removido.");
+    return;
+  }
+  toast.info("Lançamento removido.", {
+    label: "Desfazer",
+    run: async () => {
+      await transactionsStore.restore(removed);
+    },
+  });
 }
 
 const deleteTarget = ref<LocalTransaction | null>(null);
@@ -132,14 +142,14 @@ function askRemove(tx: LocalTransaction): void {
     deleteInfo.value = info;
     return;
   }
-  void removeTransaction(tx.id);
+  void removeTransaction(tx);
 }
 
 async function confirmRemoveOne(): Promise<void> {
   if (!deleteTarget.value) return;
   deleteBusy.value = true;
   try {
-    await removeTransaction(deleteTarget.value.id);
+    await removeTransaction(deleteTarget.value);
     deleteTarget.value = null;
   } finally {
     deleteBusy.value = false;

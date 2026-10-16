@@ -10,7 +10,9 @@ import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
+import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
+import { haptic } from "@/lib/haptics";
 import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
@@ -30,6 +32,7 @@ const cardsStore = useCardsStore();
 const people = usePeopleStore();
 const session = useSessionStore();
 const sync = useSyncStore();
+const quickAdd = useQuickAddStore();
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
@@ -82,6 +85,20 @@ function parseTags(): string[] {
     .map((tag) => tag.trim())
     .filter(Boolean);
   return [...new Set(list)].slice(0, 8);
+}
+
+/** Abre o quick add pré-preenchido para repetir este lançamento hoje. */
+function duplicate(): void {
+  quickAdd.show({
+    type: type.value,
+    amountCents: amountCents.value,
+    description: description.value,
+    category: category.value || null,
+    account: account.value,
+    creditCard: creditCard.value || null,
+    attribution: attribution.value,
+    tags: parseTags(),
+  });
 }
 
 async function onPhotoChange(event: Event): Promise<void> {
@@ -194,8 +211,10 @@ async function submit(): Promise<void> {
       });
       toast.success("Lançamento salvo.");
     }
+    haptic(12);
     router.push({ name: "transactions" });
   } catch (error) {
+    haptic([20, 40, 20]);
     toast.error(error instanceof Error ? error.message : "Falha ao salvar.");
   } finally {
     saving.value = false;
@@ -462,11 +481,22 @@ watch(
           Parcela {{ installmentInfo.number }} de {{ installmentInfo.total }} desta compra.
         </p>
 
-        <div class="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
-          <Button type="submit" :loading="saving" @click="submit">
-            {{ isEdit ? "Salvar alterações" : "Salvar" }}
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <Button
+            v-if="isEdit"
+            data-testid="tx-duplicate"
+            variant="outline"
+            type="button"
+            @click="duplicate"
+          >
+            Duplicar
           </Button>
+          <div class="ml-auto flex gap-2">
+            <Button variant="ghost" type="button" @click="router.back()">Cancelar</Button>
+            <Button type="submit" :loading="saving" @click="submit">
+              {{ isEdit ? "Salvar alterações" : "Salvar" }}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

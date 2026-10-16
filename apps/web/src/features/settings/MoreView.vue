@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import { Moon, Sun } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useTheme } from "@/composables/useTheme";
 import { useToast } from "@/composables/useToast";
+import { hapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -15,6 +16,13 @@ const sync = useSyncStore();
 const router = useRouter();
 const toast = useToast();
 const { theme, setTheme } = useTheme();
+
+const hapticsOn = ref(hapticsEnabled());
+
+function toggleHaptics(): void {
+  hapticsOn.value = !hapticsOn.value;
+  setHapticsEnabled(hapticsOn.value);
+}
 
 interface MoreLink {
   name: string;
@@ -138,6 +146,25 @@ async function logout(): Promise<void> {
             <Moon class="h-4 w-4" /> Escuro
           </button>
         </div>
+        <button
+          type="button"
+          role="switch"
+          data-testid="haptics-toggle"
+          :aria-checked="hapticsOn"
+          class="flex min-h-11 w-full items-center justify-between gap-3 text-sm font-bold"
+          @click="toggleHaptics"
+        >
+          Vibração ao salvar
+          <span
+            class="relative h-6 w-11 shrink-0 rounded-full transition"
+            :class="hapticsOn ? 'bg-primary' : 'bg-muted-foreground/30'"
+          >
+            <span
+              class="absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all"
+              :class="hapticsOn ? 'left-[1.4rem]' : 'left-0.5'"
+            />
+          </span>
+        </button>
       </CardContent>
     </Card>
 

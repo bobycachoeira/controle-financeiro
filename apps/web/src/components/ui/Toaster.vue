@@ -4,6 +4,12 @@ import { useToast } from "@/composables/useToast";
 import { cn } from "@/lib/utils";
 
 const { toasts, dismiss } = useToast();
+
+async function runAction(toast: (typeof toasts.value)[number]): Promise<void> {
+  if (!toast.action) return;
+  dismiss(toast.id);
+  await toast.action.run();
+}
 </script>
 
 <template>
@@ -38,6 +44,15 @@ const { toasts, dismiss } = useToast();
         <AlertCircle v-else-if="toast.kind === 'error'" class="h-5 w-5 shrink-0" aria-hidden="true" />
         <Info v-else class="h-5 w-5 shrink-0" aria-hidden="true" />
         <span class="flex-1">{{ toast.message }}</span>
+        <button
+          v-if="toast.action"
+          type="button"
+          class="shrink-0 rounded-full border-2 border-current px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide transition hover:brightness-110"
+          @click.stop="runAction(toast)"
+          @keydown.enter.stop="runAction(toast)"
+        >
+          {{ toast.action.label }}
+        </button>
       </div>
     </TransitionGroup>
   </div>
