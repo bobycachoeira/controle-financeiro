@@ -99,7 +99,7 @@ export const useSyncStore = defineStore("sync", () => {
     if (id === undefined) return;
     const item = await db.outbox.get(id);
     if (item?.entity_id) {
-      await clearPendingFlag(item.entity, item.entity_id);
+      await clearPendingFlag(item.entity, item.entity_id, item.id);
     }
     await discardOutbox(id);
     await refreshStatus();

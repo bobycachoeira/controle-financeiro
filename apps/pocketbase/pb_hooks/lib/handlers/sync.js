@@ -157,6 +157,51 @@ function recordSyncEvent(household, userId, operation, result) {
   $app.save(event);
 }
 
+/**
+ * Aplica os campos do cliente no registro (LWW) e roda os recálculos
+ * derivados (fatura de transações e total/status de faturas). Devolve o
+ * registro serializado final.
+ */
+function applyClientFields(record, collection, payload, userId, entity) {
+  const previousInvoice = entity === "transactions" ? record.getString("invoice") : "";
+  setWhitelistedFields(record, collection, payload);
+  record.set("updated_by", userId);
+  $app.save(record);
+  let serialized = serialize(record);
+  if (entity === "transactions") {
+    const currentInvoice = record.getString("invoice");
+    if (previousInvoice && previousInvoice !== currentInvoice) {
+      invoiceDomain.recalcInvoice($app, previousInvoice);
+    }
+    if (currentInvoice) {
+      invoiceDomain.recalcInvoice($app, currentInvoice);
+    }
+  }
+  if (entity === "invoices") {
+    invoiceDomain.recalcInvoice($app, record.id);
+    serialized = serialize($app.findRecordById(entity, record.id));
+  }
+  if (
+    (entity === "bills" || entity === "invoices") &&
+    (payload.status === "pago" || payload.status === "cancelado" || payload.status === "paga")
+  ) {
+    discardPendingDeliveries(entity, record.id);
+  }
+  return serialized;
+}
+
+/**
+ * Corrida do próprio usuário: create seguido de edição em sequência perde no
+ * timestamp (o servidor gravou depois do client_ts do update). Se o registro
+ * foi gravado agora mesmo pelo MESMO usuário, a edição mais nova vence.
+ */
+function sameUserFreshUpdate(record, userId) {
+  if (record.getString("updated_by") !== userId) return false;
+  const updatedMs = new Date(record.getString("updated") || 0).getTime();
+  if (Number.isNaN(updatedMs)) return false;
+  return Date.now() - updatedMs < 5 * 60 * 1000;
+}
+
 function validatePayload(entity, payload) {
   const schemaMap = {
     accounts: shared.accountSchema,
@@ -318,34 +363,9 @@ function applyOperation(household, userId, role, operation) {
       serverUpdatedAt: record.getString("updated") || "1970-01-01T00:00:00.000Z",
     });
     if (decision.winner === "client") {
-      const previousInvoice = entity === "transactions" ? record.getString("invoice") : "";
-      setWhitelistedFields(record, collection, payload);
-      record.set("updated_by", userId);
-      $app.save(record);
       result.status = "applied";
       result.remote_id = record.id;
-      result.record = serialize(record);
-      if (entity === "transactions") {
-        const currentInvoice = record.getString("invoice");
-        if (previousInvoice && previousInvoice !== currentInvoice) {
-          invoiceDomain.recalcInvoice($app, previousInvoice);
-        }
-        if (currentInvoice) {
-          invoiceDomain.recalcInvoice($app, currentInvoice);
-        }
-      }
-      if (entity === "invoices") {
-        // O total da fatura é sempre derivado das transações no servidor;
-        // nunca confiamos no total que veio no payload.
-        invoiceDomain.recalcInvoice($app, record.id);
-        result.record = serialize($app.findRecordById(entity, record.id));
-      }
-      if (
-        (entity === "bills" || entity === "invoices") &&
-        (payload.status === "pago" || payload.status === "cancelado" || payload.status === "paga")
-      ) {
-        discardPendingDeliveries(entity, record.id);
-      }
+      result.record = applyClientFields(record, collection, payload, userId, entity);
     } else {
       if (payloadMatchesRecord(record, collection, payload)) {
         result.status = "applied";
@@ -362,6 +382,12 @@ function applyOperation(household, userId, role, operation) {
         result.remote_id = record.id;
         result.record = serialize($app.findRecordById(entity, record.id));
         discardPendingDeliveries(entity, record.id);
+      } else if (sameUserFreshUpdate(record, userId)) {
+        // Create + edição do mesmo usuário em sequência: a edição mais nova vence.
+        result.record = applyClientFields(record, collection, payload, userId, entity);
+        result.status = "applied";
+        result.code = "same_user_update";
+        result.remote_id = record.id;
       } else {
         result.status = "conflict";
         result.conflict = true;

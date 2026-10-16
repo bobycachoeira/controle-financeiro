@@ -80,15 +80,24 @@ export async function upsertLocal<T extends SyncableRecord>(
 export async function applyRemote<T extends SyncableRecord>(
   entity: SyncEntityName,
   record: T,
+  options: { force?: boolean } = {},
 ): Promise<void> {
   const table = ENTITY_TABLES[entity];
   const existing = await table.get(record.id);
+  if (!options.force && existing) {
+    // Com alteração local ainda não concluída (pendente/enviando/falha), não
+    // sobrescreve: o push decide (LWW) e o pull seguinte aplica o resultado.
+    if (existing._pendingOutboxId !== undefined) return;
+    const unfinished = await db.outbox
+      .where("entity")
+      .equals(entity)
+      .filter((item) => item.entity_id === record.id && item.status !== "done")
+      .first();
+    if (unfinished) return;
+  }
   const payload: SyncableRecord = { ...record };
   delete payload._dirty;
   delete payload._pendingOutboxId;
-  if (existing?._pendingOutboxId) {
-    payload._pendingOutboxId = existing._pendingOutboxId;
-  }
   await table.put(toPlain(payload));
 }
 
@@ -252,13 +261,20 @@ export async function softDeleteLocal(
   });
 }
 
+/**
+ * Limpa a pendência do registro. Com `expectedItemId`, só limpa se o item
+ * atual ainda for o dono da pendência (evita apagar a marca de uma edição
+ * mais nova que já está na fila).
+ */
 export async function clearPendingFlag(
   entity: SyncEntityName,
   id: string,
+  expectedItemId?: number,
 ): Promise<void> {
   const table = ENTITY_TABLES[entity];
   const existing = await table.get(id);
   if (!existing) return;
+  if (expectedItemId !== undefined && existing._pendingOutboxId !== expectedItemId) return;
   const clean: SyncableRecord = { ...existing, _dirty: false };
   delete clean._pendingOutboxId;
   await table.put(toPlain(clean));

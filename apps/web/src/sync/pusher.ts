@@ -7,7 +7,13 @@ import {
 } from "@cf/shared";
 import { apiClient } from "../api/client";
 import { db, type OutboxItem } from "../db/schema";
-import { ENTITY_TABLES, removeLocal, type SyncableRecord } from "../db/repositories";
+import {
+  clearPendingFlag,
+  ENTITY_TABLES,
+  newSyncId,
+  removeLocal,
+  type SyncableRecord,
+} from "../db/repositories";
 import { applyServerState, flagForReview, type ConflictEntry } from "./conflict";
 import { headPending, markDone, markFailed, markSending } from "./outbox";
 
@@ -35,13 +41,21 @@ async function rekeyLocal(
   entity: SyncEntityName,
   localId: string,
   remoteId: string,
+  itemId?: number,
 ): Promise<void> {
   if (!localId) return;
   const table = ENTITY_TABLES[entity];
   const local = await table.get(localId);
   if (!local) return;
   await table.delete(localId);
-  await table.put({ ...local, id: remoteId, _dirty: false, _pendingOutboxId: undefined });
+  const rekeyed: SyncableRecord = { ...local, id: remoteId };
+  // Só limpa a pendência se ela for deste item; uma edição mais nova na fila
+  // precisa continuar marcada para o pull não sobrescrevê-la.
+  if (itemId === undefined || local._pendingOutboxId === itemId) {
+    rekeyed._dirty = false;
+    delete rekeyed._pendingOutboxId;
+  }
+  await table.put(rekeyed);
 }
 
 /**
@@ -65,6 +79,21 @@ async function handleResult(
   conflicts: ConflictEntry[],
 ): Promise<void> {
   if (!item.id) return;
+  if (result.status === "applied") {
+    // O item pode ter sido editado durante o envio: o payload novo não foi.
+    // Reenvia (create vira update, para não esbarrar na idempotência).
+    const current = await db.outbox.get(item.id);
+    if (current && JSON.stringify(current.payload) !== JSON.stringify(item.payload)) {
+      await db.outbox.update(item.id, {
+        status: "pending",
+        sync_id: item.operation === "create" ? newSyncId() : item.sync_id,
+        operation: item.operation === "create" ? "update" : item.operation,
+        attempts: 0,
+        last_error: null,
+      });
+      return;
+    }
+  }
   switch (result.status) {
     case "applied": {
       if (result.code === "duplicate_merged" && result.record) {
@@ -74,7 +103,10 @@ async function handleResult(
         };
         if (record.id) await mergeDuplicate(item.entity, item.entity_id, record);
       } else if (item.operation === "create" && result.remote_id) {
-        await rekeyLocal(item.entity, item.entity_id ?? "", result.remote_id);
+        await rekeyLocal(item.entity, item.entity_id ?? "", result.remote_id, item.id);
+      } else if (item.entity_id) {
+        // Enviado com sucesso: libera o registro para o pull aplicar o estado final.
+        await clearPendingFlag(item.entity, item.entity_id, item.id);
       }
       await markDone(item.id);
       break;
@@ -97,6 +129,7 @@ async function handleResult(
       break;
     }
     case "ignored": {
+      if (item.entity_id) await clearPendingFlag(item.entity, item.entity_id, item.id);
       await markDone(item.id);
       break;
     }
@@ -124,15 +157,23 @@ export async function pushOutbox(household: string): Promise<PushSummary> {
   for (const item of items) {
     if (item.id !== undefined) await markSending(item.id);
   }
+  // Relê a fila: um coalesce que chegou entre a leitura e o envio pode ter
+  // mudado o payload — o que vai na requisição é o estado mais novo.
+  const sending = (
+    await Promise.all(
+      items.map((item) => (item.id === undefined ? undefined : db.outbox.get(item.id))),
+    )
+  ).filter((item): item is OutboxItem => Boolean(item && item.status === "sending"));
+  if (sending.length === 0) return summary;
 
   let response: PushResponse;
   try {
     response = await apiClient.post<PushResponse>("/sync/push", {
       household,
-      operations: items.map(toOperation),
+      operations: sending.map(toOperation),
     });
   } catch (error) {
-    for (const item of items) {
+    for (const item of sending) {
       if (item.id !== undefined) await markFailed(item.id, "network_error");
     }
     throw error;
@@ -140,7 +181,7 @@ export async function pushOutbox(household: string): Promise<PushSummary> {
   const parsed = pushResponseSchema.parse(response);
   summary.serverSeq = parsed.server_seq;
 
-  const bySyncId = new Map(items.map((item) => [item.sync_id, item]));
+  const bySyncId = new Map(sending.map((item) => [item.sync_id, item]));
   for (const result of parsed.results) {
     summary[result.status] += 1;
     const item = bySyncId.get(result.sync_id);

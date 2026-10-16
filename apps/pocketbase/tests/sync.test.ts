@@ -1,5 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { api, operation, push, setupFamily, startHarness, type Family, type Harness } from "./harness";
+import {
+  api,
+  createUser,
+  loginWithMagicLink,
+  operation,
+  push,
+  setupFamily,
+  startHarness,
+  type Family,
+  type Harness,
+} from "./harness";
 
 function accountPayload(id: string, syncId: string, name: string) {
   return { id, household: "", sync_id: syncId, name, type: "corrente", initial_balance_cents: 0 };
@@ -18,10 +28,27 @@ async function createAccount(family: Family, harness: Harness): Promise<{ remote
 describe("sync idempotency and conflicts", () => {
   let harness: Harness;
   let family: Family;
+  let partnerToken: string;
 
   beforeAll(async () => {
     harness = await startHarness();
     family = await setupFamily(harness, "sync@example.com", "Sync");
+
+    // Parceiro no mesmo household (para conflitos reais entre usuários).
+    const email = `partner-sync${Date.now()}@example.com`;
+    const partnerId = await createUser(harness, email, "Partner");
+    await api(harness, "/api/collections/household_members/records", {
+      token: harness.adminToken,
+      body: {
+        household: family.householdId,
+        user: partnerId,
+        role: "partner",
+        invite_status: "accepted",
+        permissions: {},
+      },
+    });
+    const login = await loginWithMagicLink(harness, email);
+    partnerToken = login.token;
   }, 60_000);
 
   afterAll(async () => {
@@ -41,7 +68,7 @@ describe("sync idempotency and conflicts", () => {
     expect(second.data.results[0]?.code).toBe("idempotent");
   });
 
-  it("keeps server version when the client timestamp is older (LWW)", async () => {
+  it("keeps server version when another user's timestamp is older (LWW)", async () => {
     const { remoteId, syncId, localId } = await createAccount(family, harness);
 
     const stale = operation(
@@ -52,10 +79,34 @@ describe("sync idempotency and conflicts", () => {
       remoteId,
     );
     stale.client_ts = "2000-01-01T00:00:00.000Z";
-    const conflict = await push(harness, family.token, family.householdId, [stale]);
+    const conflict = await push(harness, partnerToken, family.householdId, [stale]);
     expect(conflict.data.results[0]?.status).toBe("conflict");
     expect(conflict.data.results[0]?.conflict).toBe(true);
     expect(conflict.data.results[0]?.code).toBe("conflict_kept_server");
+  });
+
+  it("applies an update from the same user right after the create (own-app race)", async () => {
+    const { remoteId, syncId, localId } = await createAccount(family, harness);
+
+    const followUp = operation(
+      crypto.randomUUID(),
+      "accounts",
+      "update",
+      accountPayload(localId, syncId, "Editado logo depois"),
+      remoteId,
+    );
+    followUp.client_ts = "2000-01-01T00:00:00.000Z";
+    const result = await push(harness, family.token, family.householdId, [followUp]);
+    expect(result.data.results[0]?.status).toBe("applied");
+    expect(result.data.results[0]?.code).toBe("same_user_update");
+
+    const pull = await api<{ changes: Array<{ id: string; record?: Record<string, unknown> }> }>(
+      harness,
+      `/api/sync/pull?since=0&limit=500&household=${family.householdId}`,
+      { token: family.token },
+    );
+    const record = pull.data.changes.find((change) => change.id === remoteId)?.record;
+    expect(record?.name).toBe("Editado logo depois");
   });
 
   it("applies an update without a real difference even with an old timestamp", async () => {
@@ -154,7 +205,7 @@ describe("sync idempotency and conflicts", () => {
       remoteId,
     );
     stale.client_ts = "2000-01-01T00:00:00.000Z";
-    const result = await push(harness, family.token, family.householdId, [stale]);
+    const result = await push(harness, partnerToken, family.householdId, [stale]);
     expect(result.data.results[0]?.status).toBe("conflict");
     expect((result.data.results[0]?.record as Record<string, unknown>)?.id).toBe(remoteId);
   });

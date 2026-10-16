@@ -104,7 +104,8 @@ export async function applyServerState(
   entity: SyncEntityName,
   record: SyncableRecord,
 ): Promise<void> {
-  await applyRemote(entity, record);
+  // Conflito exige aplicar a versão do servidor mesmo com alteração pendente.
+  await applyRemote(entity, record, { force: true });
 }
 
 export async function flagForReview(
