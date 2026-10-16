@@ -53,6 +53,35 @@ test.describe("ações rápidas nos lançamentos", () => {
     await expect(page.getByText(duplicate)).toBeVisible({ timeout: 10_000 });
   });
 
+  test("sugestão de descrição preenche descrição e categoria em 1 toque", async ({ page, loginAs }) => {
+    await loginAs("titular");
+
+    // Histórico com categoria: é dele que sai a sugestão.
+    await page.goto("/?new=1");
+    await page.locator("#amount").waitFor({ timeout: 15_000 });
+    await page.locator("#amount").fill("18,00");
+    await page.locator("#description").fill("Farmácia São João");
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill("Farmácia");
+    await page.locator("li button", { hasText: "Farmácia" }).first().click();
+    await page.locator("#account").selectOption({ index: 1 });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await page.getByText("Farmácia São João").first().waitFor({ timeout: 10_000 });
+
+    await page.goto("/");
+    await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId("quick-add-fab").click();
+    await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 5_000 });
+
+    await page.locator("#qa-description").fill("Farm");
+    const suggestion = page.getByTestId("qa-suggestion").filter({ hasText: "Farmácia São João" });
+    await expect(suggestion).toBeVisible({ timeout: 5_000 });
+    await suggestion.click();
+
+    await expect(page.locator("#qa-description")).toHaveValue("Farmácia São João");
+    await expect(page.locator("#qa-category")).toContainText("Farmácia");
+  });
+
   test("salvar e continuar mantém o sheet aberto e limpa o valor", async ({ page, loginAs }) => {
     await loginAs("titular");
     await page.goto("/");

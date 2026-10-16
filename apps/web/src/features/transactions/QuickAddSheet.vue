@@ -10,6 +10,7 @@ import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
 import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
+import { trackUx } from "@/lib/ux-metrics";
 import type { QuickAddPrefill } from "@/stores/quick-add";
 import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
@@ -66,6 +67,8 @@ const paidInstallments = ref(0);
 const showMore = ref(false);
 const saving = ref(false);
 const dirty = ref(false);
+let openedAt = 0;
+let savedInSession = false;
 
 const amountInput = ref<InstanceType<typeof CurrencyInput> | null>(null);
 const categories = ref<LocalCategory[]>([]);
@@ -179,6 +182,9 @@ function defaultAccountId(): string {
 
 async function prepare(): Promise<void> {
   const prefill = props.prefill;
+  openedAt = Date.now();
+  savedInSession = false;
+  trackUx("quick_add_opened");
   amountCents.value = prefill?.amountCents ?? null;
   amountError.value = "";
   type.value = prefill?.type ?? "despesa";
@@ -282,6 +288,8 @@ async function submit(continueAfter = false): Promise<void> {
       });
     }
     haptic(12);
+    savedInSession = true;
+    trackUx("quick_add_saved", Date.now() - openedAt);
     toast.success(
       "Lançamento salvo.",
       record.invoice
@@ -322,7 +330,11 @@ function close(): void {
 watch(
   () => props.modelValue,
   (open) => {
-    if (open) void prepare();
+    if (open) {
+      void prepare();
+    } else if (!savedInSession && dirty.value) {
+      trackUx("quick_add_abandoned");
+    }
   },
 );
 </script>

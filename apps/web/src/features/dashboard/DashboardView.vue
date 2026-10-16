@@ -390,6 +390,14 @@ watch(() => sync.dataVersion, loadAll);
             </div>
           </li>
         </ul>
+
+        <RouterLink
+          :to="{ name: 'closing' }"
+          class="flex min-h-11 items-center justify-center gap-2 rounded-2xl border-2 border-border text-sm font-extrabold text-foreground transition hover:bg-muted"
+        >
+          Fechamento do mês
+          <span aria-hidden="true">›</span>
+        </RouterLink>
       </CardContent>
     </Card>
 

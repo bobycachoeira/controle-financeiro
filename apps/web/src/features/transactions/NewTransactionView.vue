@@ -13,6 +13,7 @@ import { useSyncStore } from "@/stores/sync";
 import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
+import { trackUx } from "@/lib/ux-metrics";
 import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
@@ -212,6 +213,7 @@ async function submit(): Promise<void> {
       toast.success("Lançamento salvo.");
     }
     haptic(12);
+    trackUx("form_saved");
     router.push({ name: "transactions" });
   } catch (error) {
     haptic([20, 40, 20]);
@@ -235,6 +237,7 @@ async function loadRulesAndFallbacks(): Promise<void> {
 }
 
 onMounted(async () => {
+  trackUx("form_opened");
   await Promise.all([accountsStore.load(), cardsStore.load(), people.load()]);
   await loadRulesAndFallbacks();
   account.value = accountsStore.items.find((item) => item.type !== "cartao_credito")?.id ?? "";

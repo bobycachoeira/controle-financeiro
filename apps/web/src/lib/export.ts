@@ -1,5 +1,6 @@
 import type { LocalAccount, LocalCategory, LocalTransaction } from "@/db/schema";
 import { db } from "@/db/schema";
+import { readUxMetrics } from "@/lib/ux-metrics";
 
 function csvCell(value: string): string {
   const text = value ?? "";
@@ -111,6 +112,7 @@ export async function collectHouseholdBackup(household: string): Promise<string>
           }
         : null,
       data,
+      ux_metrics: readUxMetrics(),
     },
     null,
     2,
