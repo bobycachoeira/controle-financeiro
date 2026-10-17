@@ -8,7 +8,7 @@ import { test, expect } from "./fixtures";
  */
 
 test.describe("métricas de UX", () => {
-  test("baseline: lançar gasto pelo formulário completo (atalho /?new=1)", async ({
+  test("baseline: lançar gasto pelo formulário completo (/transactions/new)", async ({
     page,
     loginAs,
   }) => {
@@ -20,7 +20,7 @@ test.describe("métricas de UX", () => {
     const description = `Métrica completa ${Date.now()}`;
     const t0 = Date.now();
 
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     const formVisibleMs = Date.now() - t0;
 
@@ -47,7 +47,7 @@ test.describe("métricas de UX", () => {
     await loginAs("titular");
 
     // Uso real: a família já tem histórico — é dele que saem os chips.
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     await page.locator("#amount").fill("10,00");
     await page.locator("#description").fill("Mercado aquecimento");

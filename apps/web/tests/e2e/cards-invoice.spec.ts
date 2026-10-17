@@ -167,7 +167,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
 
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     await page.locator("#amount").fill("80,00");
     await page.locator("#description").fill(description);

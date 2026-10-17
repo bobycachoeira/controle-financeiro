@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
-import { RouterLink, RouterView, useRoute } from "vue-router";
+import { computed, onMounted, watch } from "vue";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { ClipboardList, LayoutDashboard, Menu, Moon, Plus, Receipt, Sun, Wallet } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
@@ -14,6 +14,7 @@ const session = useSessionStore();
 const sync = useSyncStore();
 const quickAdd = useQuickAddStore();
 const route = useRoute();
+const router = useRouter();
 const { theme, toggle: toggleTheme } = useTheme();
 
 const navItems = [
@@ -34,6 +35,16 @@ function isActive(item: { name: string; matches: string[] }): boolean {
   const current = String(route.name ?? "");
   return item.matches.some((match) => current === match || current.startsWith(match));
 }
+
+watch(
+  () => route.query.new,
+  (value) => {
+    if (value !== "1") return;
+    quickAdd.show();
+    void router.replace({ name: "dashboard" });
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   sync.bind();

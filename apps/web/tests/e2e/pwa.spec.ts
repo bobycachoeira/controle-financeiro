@@ -1,11 +1,12 @@
 import { test, expect } from "./fixtures";
 
 test.describe("PWA", () => {
-  test("o atalho de novo lançamento abre o formulário", async ({ page, loginAs, backend }) => {
+  test("o atalho de novo lançamento abre o lançamento rápido", async ({ page, loginAs, backend }) => {
     void backend;
     await loginAs("titular");
     await page.goto("/?new=1");
-    await expect(page.getByText("Novo lançamento")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Novo lançamento")).toBeVisible();
   });
 
   test("os demais atalhos abrem as telas direto", async ({ page, loginAs }) => {

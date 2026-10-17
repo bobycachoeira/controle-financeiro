@@ -181,9 +181,5 @@ router.beforeEach(async (to) => {
     return { name: "dashboard" };
   }
 
-  if (to.name === "dashboard" && to.query.new === "1" && session.hasHousehold) {
-    return { name: "transaction-new" };
-  }
-
   return true;
 });

@@ -87,7 +87,7 @@ test.describe("mobile/Android", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const description = `Swipe ${Date.now()}`;
 
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     await page.locator("#amount").fill("9,90");
     await page.locator("#description").fill(description);

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "./fixtures";
 
 async function createSimpleExpense(page: Page, description: string): Promise<void> {
-  await page.goto("/?new=1");
+  await page.goto("/transactions/new");
   await page.locator("#amount").waitFor({ timeout: 15_000 });
   await page.locator("#amount").fill("12,50");
   await page.locator("#description").fill(description);
@@ -55,18 +55,20 @@ test.describe("ações rápidas nos lançamentos", () => {
 
   test("sugestão de descrição preenche descrição e categoria em 1 toque", async ({ page, loginAs }) => {
     await loginAs("titular");
+    const stamp = Date.now();
+    const description = `Farmácia São João ${stamp}`;
 
     // Histórico com categoria: é dele que sai a sugestão.
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     await page.locator("#amount").fill("18,00");
-    await page.locator("#description").fill("Farmácia São João");
+    await page.locator("#description").fill(description);
     await page.locator("#category").click();
     await page.getByPlaceholder(/Filtrar categoria/).fill("Farmácia");
     await page.locator("li button", { hasText: "Farmácia" }).first().click();
     await page.locator("#account").selectOption({ index: 1 });
     await page.getByRole("button", { name: "Salvar" }).click();
-    await page.getByText("Farmácia São João").first().waitFor({ timeout: 10_000 });
+    await page.getByText(description).first().waitFor({ timeout: 10_000 });
 
     await page.goto("/");
     await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
@@ -74,11 +76,11 @@ test.describe("ações rápidas nos lançamentos", () => {
     await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 5_000 });
 
     await page.locator("#qa-description").fill("Farm");
-    const suggestion = page.getByTestId("qa-suggestion").filter({ hasText: "Farmácia São João" });
+    const suggestion = page.getByTestId("qa-suggestion").filter({ hasText: description });
     await expect(suggestion).toBeVisible({ timeout: 5_000 });
     await suggestion.click();
 
-    await expect(page.locator("#qa-description")).toHaveValue("Farmácia São João");
+    await expect(page.locator("#qa-description")).toHaveValue(description);
     await expect(page.locator("#qa-category")).toContainText("Farmácia");
   });
 
@@ -89,26 +91,27 @@ test.describe("ações rápidas nos lançamentos", () => {
     await loginAs("titular");
 
     // Terceira conta: garante o atalho "Mais contas".
+    const extra = `Conta Extra ${Date.now()}`;
     await page.goto("/wallet");
     await page.getByRole("button", { name: /^Nova$/ }).click();
-    await page.locator("#account-name").fill("Conta Extra");
+    await page.locator("#account-name").fill(extra);
     await page.getByRole("button", { name: "Salvar" }).click();
-    await expect(page.getByText("Conta Extra")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(extra)).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/");
     await expect(page.getByText("Saldo total")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("quick-add-fab").click();
     await expect(page.getByTestId("quick-add-sheet")).toBeVisible({ timeout: 5_000 });
 
-    const more = page.getByTestId("qa-more-payers");
+    const more = page.getByTestId("qa-more-payers").first();
     await expect(more).toBeVisible();
     await more.click();
     await expect(page.getByTestId("payer-picker")).toBeVisible({ timeout: 5_000 });
-    await page.getByTestId("payer-picker").getByRole("button", { name: /Conta Extra/ }).click();
+    await page.getByTestId("payer-picker").getByRole("button", { name: new RegExp(extra) }).click();
     await expect(page.getByTestId("payer-picker")).toHaveCount(0, { timeout: 5_000 });
 
     // A conta escolhida vira o chip selecionado.
-    await expect(page.getByTestId("qa-payer-chip").filter({ hasText: "Conta Extra" })).toHaveClass(
+    await expect(page.getByTestId("qa-payer-chip").filter({ hasText: extra })).toHaveClass(
       /border-primary/,
     );
   });

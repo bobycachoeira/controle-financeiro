@@ -14,7 +14,7 @@ test.describe("orçamentos", () => {
     const stamp = Date.now();
 
     // Gasto de 90 numa categoria, com orçamento de 100 (alerta em 80%).
-    await page.goto("/?new=1");
+    await page.goto("/transactions/new");
     await page.locator("#amount").waitFor({ timeout: 15_000 });
     await page.locator("#amount").fill("90,00");
     await page.locator("#description").fill(`Orçamento ${stamp}`);
