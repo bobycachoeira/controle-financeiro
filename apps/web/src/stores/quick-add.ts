@@ -5,6 +5,7 @@ import { ref } from "vue";
 export interface QuickAddPrefill {
   type?: "receita" | "despesa";
   amountCents?: number | null;
+  merchant?: string;
   description?: string;
   category?: string | null;
   account?: string;

@@ -24,6 +24,7 @@ export const transactionSchema = syncBaseSchema
     attribution: attributionSchema.default("indefinido"),
     payer_user: z.string().nullable().optional(),
     category: z.string().nullable().optional(),
+    merchant: z.string().max(120).default(""),
     description: z.string().max(200).default(""),
     status: transactionStatusSchema.default("pago"),
     recurrence: z.string().nullable().optional(),

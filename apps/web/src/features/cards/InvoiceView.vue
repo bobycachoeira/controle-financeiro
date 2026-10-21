@@ -161,7 +161,7 @@ watch(() => sync.dataVersion, load);
                 class="min-w-0 flex-1"
               >
                 <p class="truncate font-bold">
-                  {{ tx.description || "Compra" }}
+                  {{ tx.merchant || tx.description || "Compra" }}
                   <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
                     parcela {{ installmentLabel(tx) }}
                   </Badge>

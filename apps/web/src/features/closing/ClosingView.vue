@@ -10,6 +10,7 @@ import {
 } from "@cf/shared";
 import { db, type LocalCategory } from "@/db/schema";
 import { useAccountsStore } from "@/stores/accounts";
+import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
@@ -23,9 +24,11 @@ import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import IconChip from "@/components/ui/IconChip.vue";
+import MerchantSpendCard from "@/features/dashboard/MerchantSpendCard.vue";
 
 const session = useSessionStore();
 const accountsStore = useAccountsStore();
+const cardsStore = useCardsStore();
 const people = usePeopleStore();
 const transactionsStore = useTransactionsStore();
 const transfersStore = useTransfersStore();
@@ -114,6 +117,7 @@ async function shareCard(): Promise<void> {
 async function loadAll(): Promise<void> {
   await Promise.all([
     accountsStore.load(),
+    cardsStore.load(),
     transactionsStore.load(),
     transfersStore.load(),
     people.load(),
@@ -228,6 +232,14 @@ watch(() => sync.dataVersion, loadAll);
         </ul>
       </CardContent>
     </Card>
+
+    <MerchantSpendCard
+      :transactions="transactionsStore.items"
+      :accounts="accountsStore.items"
+      :cards="cardsStore.cards"
+      :categories="categories"
+      :month="month"
+    />
 
     <Button class="w-full" :loading="sharing" @click="shareCard">
       <Share2 class="h-4 w-4" /> Compartilhar card do mês

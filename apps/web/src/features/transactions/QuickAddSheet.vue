@@ -12,15 +12,23 @@ import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
 import { trackUx } from "@/lib/ux-metrics";
 import type { QuickAddPrefill } from "@/stores/quick-add";
-import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
+import {
+  matchTransactionRule,
+  parseImportRules,
+  type ImportRule,
+} from "@/lib/import-rules";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL } from "@/lib/format";
 import {
   buildHistoryIndex,
+  buildMerchantIndex,
+  findMerchantCategory,
   recentAccountIds,
   recentCategoryIds,
   suggestDescriptions,
+  suggestMerchants,
+  type MerchantSuggestion,
 } from "./suggestions";
 import Modal from "@/components/ui/Modal.vue";
 import Button from "@/components/ui/Button.vue";
@@ -52,6 +60,7 @@ const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5, 6, 10, 12];
 const amountCents = ref<number | null>(null);
 const amountError = ref("");
 const type = ref<"receita" | "despesa">("despesa");
+const merchant = ref("");
 const description = ref("");
 const date = ref(todayISO());
 const account = ref("");
@@ -84,6 +93,13 @@ const isCard = computed(() => creditCard.value !== "");
 const card = computed(() => cardsStore.cards.find((item) => item.id === creditCard.value));
 const historyIndex = computed(() => buildHistoryIndex(history.value));
 const suggestions = computed(() => suggestDescriptions(description.value, historyIndex.value, 3));
+const merchantIndex = computed(() => buildMerchantIndex(history.value));
+const merchantSuggestions = computed(() =>
+  suggestMerchants(merchant.value, merchantIndex.value, 4, type.value),
+);
+const merchantCategory = computed(() =>
+  findMerchantCategory(merchant.value, merchantIndex.value, type.value),
+);
 
 const recentCategories = computed(() => {
   const ids = recentCategoryIds(history.value, {
@@ -153,7 +169,9 @@ function onPayerPick(event: { kind: "account" | "card"; id: string }): void {
 }
 
 const ruleMatch = computed(() =>
-  description.value ? matchImportRule(description.value, rules.value) : null,
+  merchant.value || description.value
+    ? matchTransactionRule(merchant.value, description.value, rules.value)
+    : null,
 );
 
 function resolvedCategory(): string | null {
@@ -177,9 +195,15 @@ watch([account, creditCard], () => {
   dirty.value = true;
 });
 
-watch([description, amountCents, category], () => {
+watch([merchant, description, amountCents, category], () => {
   dirty.value = true;
   if (amountError.value && amountCents.value && amountCents.value > 0) amountError.value = "";
+});
+
+watch([merchant, description], () => {
+  if (category.value) return;
+  const suggested = merchantCategory.value ?? ruleMatch.value?.category ?? null;
+  if (suggested) category.value = suggested;
 });
 
 function parseTags(): string[] {
@@ -192,6 +216,11 @@ function parseTags(): string[] {
 
 function applySuggestion(suggestion: { description: string; category: string | null }): void {
   description.value = suggestion.description;
+  if (!category.value && suggestion.category) category.value = suggestion.category;
+}
+
+function applyMerchantSuggestion(suggestion: MerchantSuggestion): void {
+  merchant.value = suggestion.merchant;
   if (!category.value && suggestion.category) category.value = suggestion.category;
 }
 
@@ -232,6 +261,7 @@ async function prepare(): Promise<void> {
   amountCents.value = prefill?.amountCents ?? null;
   amountError.value = "";
   type.value = prefill?.type ?? "despesa";
+  merchant.value = prefill?.merchant ?? "";
   description.value = prefill?.description ?? "";
   date.value = prefill?.date ?? todayISO();
   account.value = prefill?.account ?? "";
@@ -244,7 +274,7 @@ async function prepare(): Promise<void> {
   installments.value = 1;
   paidInstallments.value = 0;
   showMore.value = false;
-  dirty.value = Boolean(prefill?.amountCents || prefill?.description);
+  dirty.value = Boolean(prefill?.amountCents || prefill?.description || prefill?.merchant);
 
   const household = session.currentHouseholdId;
   await Promise.all([
@@ -307,6 +337,7 @@ async function submit(continueAfter = false): Promise<void> {
         date: date.value,
         attribution: attribution.value,
         category: resolvedCategory(),
+        merchant: merchant.value,
         description: description.value,
         status: "a_pagar",
         tags: parseTags(),
@@ -325,6 +356,7 @@ async function submit(continueAfter = false): Promise<void> {
         date: date.value,
         attribution: attribution.value,
         category: resolvedCategory(),
+        merchant: merchant.value,
         description: description.value,
         status: status.value,
         tags: parseTags(),
@@ -349,6 +381,7 @@ async function submit(continueAfter = false): Promise<void> {
     dirty.value = false;
     if (continueAfter) {
       amountCents.value = null;
+      merchant.value = "";
       description.value = "";
       category.value = "";
       tagsInput.value = "";
@@ -430,29 +463,38 @@ watch(
       </div>
 
       <div class="space-y-2">
-        <Label for="qa-description">Descrição</Label>
+        <Label for="qa-merchant">Estabelecimento</Label>
         <Input
-          id="qa-description"
-          v-model="description"
-          maxlength="200"
-          placeholder="Ex.: Mercado da semana"
+          id="qa-merchant"
+          v-model="merchant"
+          maxlength="120"
+          placeholder="Ex.: Assaí, Uber, Netflix"
           autocomplete="off"
         />
-        <div v-if="suggestions.length > 0" class="flex flex-wrap gap-1.5">
+        <div v-if="merchantSuggestions.length > 0" class="flex flex-wrap gap-1.5">
           <button
-            v-for="suggestion in suggestions"
-            :key="suggestion.description"
+            v-for="suggestion in merchantSuggestions"
+            :key="suggestion.merchant"
             type="button"
-            data-testid="qa-suggestion"
+            data-testid="qa-merchant-suggestion"
             data-compact
             class="max-w-full truncate rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
-            @click="applySuggestion(suggestion)"
+            @click="applyMerchantSuggestion(suggestion)"
           >
-            {{ suggestion.description }}
+            {{ suggestion.merchant }}
           </button>
         </div>
+        <p class="text-[0.62rem] font-semibold text-muted-foreground">
+          Se não existir, ele é criado ao salvar.
+        </p>
         <p
-          v-if="ruleMatch && category === ruleMatch.category"
+          v-if="merchantCategory && category === merchantCategory"
+          class="text-[0.62rem] font-semibold text-primary"
+        >
+          Categoria sugerida por “{{ merchant }}”
+        </p>
+        <p
+          v-else-if="ruleMatch && category === ruleMatch.category"
           class="text-[0.62rem] font-semibold text-primary"
         >
           Sugerida pela regra “{{ ruleMatch.pattern }}”
@@ -609,6 +651,29 @@ watch(
         </button>
 
         <div v-if="showMore" class="mt-3 space-y-4 rounded-2xl border-2 border-border p-4" data-testid="qa-more-fields">
+          <div class="space-y-2">
+            <Label for="qa-description">Descrição (opcional)</Label>
+            <Input
+              id="qa-description"
+              v-model="description"
+              maxlength="200"
+              placeholder="Ex.: compra do mês"
+              autocomplete="off"
+            />
+            <div v-if="suggestions.length > 0" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="suggestion in suggestions"
+                :key="suggestion.description"
+                type="button"
+                data-testid="qa-suggestion"
+                data-compact
+                class="max-w-full truncate rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
+                @click="applySuggestion(suggestion)"
+              >
+                {{ suggestion.description }}
+              </button>
+            </div>
+          </div>
           <div v-if="!isCard" class="space-y-2">
             <Label for="qa-status">Status</Label>
             <Select id="qa-status" v-model="status">

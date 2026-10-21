@@ -1,3 +1,4 @@
+import { normalizeMerchantName } from "@cf/shared";
 import type { LocalTransaction } from "@/db/schema";
 
 /** Uma descrição vista no histórico, com o contexto mais recente dela. */
@@ -134,4 +135,86 @@ export function recentAccountIds(
     .sort((a, b) => (a[1] < b[1] ? 1 : -1))
     .slice(0, limit)
     .map(([id]) => id);
+}
+
+export interface MerchantSuggestion {
+  merchant: string;
+  count: number;
+  lastUsed: string;
+  category: string | null;
+  type: "receita" | "despesa";
+}
+
+/**
+ * Indexa estabelecimentos já usados (sem cadastro prévio). Nomes equivalentes
+ * em caixa/acentos são agrupados; a grafia mais recente é a exibida.
+ */
+export function buildMerchantIndex(
+  transactions: readonly LocalTransaction[],
+): MerchantSuggestion[] {
+  const map = new Map<string, MerchantSuggestion>();
+  for (const tx of transactions) {
+    if (!isUsableTransaction(tx)) continue;
+    const merchant = (tx.merchant ?? "").trim();
+    if (!merchant) continue;
+    const key = normalizeMerchantName(merchant);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, {
+        merchant,
+        count: 1,
+        lastUsed: tx.date,
+        category: tx.category ?? null,
+        type: tx.type as "receita" | "despesa",
+      });
+      continue;
+    }
+    existing.count += 1;
+    if (tx.date > existing.lastUsed) {
+      existing.lastUsed = tx.date;
+      existing.merchant = merchant;
+      existing.type = tx.type as "receita" | "despesa";
+      if (tx.category) existing.category = tx.category;
+    } else if (!existing.category && tx.category) {
+      existing.category = tx.category;
+    }
+  }
+  return [...map.values()].sort(
+    (a, b) => b.count - a.count || (a.lastUsed < b.lastUsed ? 1 : -1),
+  );
+}
+
+/** Sugestões de estabelecimento para o que está sendo digitado. */
+export function suggestMerchants(
+  input: string,
+  index: readonly MerchantSuggestion[],
+  limit = 3,
+  type?: "receita" | "despesa",
+): MerchantSuggestion[] {
+  const candidates = type ? index.filter((entry) => entry.type === type) : index;
+  const term = normalizeMerchantName(input);
+  if (!term) return candidates.slice(0, limit);
+  const startsWith: MerchantSuggestion[] = [];
+  const contains: MerchantSuggestion[] = [];
+  for (const entry of candidates) {
+    const merchant = normalizeMerchantName(entry.merchant);
+    if (merchant === term) continue;
+    if (merchant.startsWith(term)) startsWith.push(entry);
+    else if (merchant.includes(term)) contains.push(entry);
+  }
+  return [...startsWith, ...contains].slice(0, limit);
+}
+
+/** Categoria mais recente associada ao estabelecimento, se houver. */
+export function findMerchantCategory(
+  merchant: string,
+  index: readonly MerchantSuggestion[],
+  type?: "receita" | "despesa",
+): string | null {
+  const key = normalizeMerchantName(merchant);
+  if (!key) return null;
+  const entry = index.find(
+    (item) => normalizeMerchantName(item.merchant) === key && (!type || item.type === type),
+  );
+  return entry?.category ?? null;
 }

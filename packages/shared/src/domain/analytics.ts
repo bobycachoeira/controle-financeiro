@@ -1,4 +1,5 @@
 import { addMonths, formatISOMonth, monthOf, parseISOMonth } from "./dates";
+import { merchantDisplayName, normalizeMerchantName } from "./merchant";
 
 export interface AnalyticsTransaction {
   type: "receita" | "despesa" | "transferencia";
@@ -6,7 +7,10 @@ export interface AnalyticsTransaction {
   amount_cents: number;
   date: string;
   account?: string;
+  credit_card?: string | null;
   category?: string | null;
+  merchant?: string | null;
+  description?: string | null;
   deleted_at?: string | null;
 }
 
@@ -146,4 +150,63 @@ export function spendingByCategory(
     })
     .sort((a, b) => b.totalCents - a.totalCents)
     .slice(0, limit);
+}
+
+export interface MerchantSpend {
+  key: string;
+  name: string;
+  totalCents: number;
+  count: number;
+}
+
+export interface MerchantSpendOptions {
+  /** Meses no formato YYYY-MM que entram no relatório. */
+  months: readonly string[];
+  accountId?: string | null;
+  creditCardId?: string | null;
+  categoryId?: string | null;
+}
+
+/**
+ * Gastos por estabelecimento no período. Lançamentos antigos (sem merchant)
+ * usam a descrição como fallback; nomes são agrupados sem caixa/acentos.
+ */
+export function spendingByMerchant(
+  transactions: readonly AnalyticsTransaction[],
+  options: MerchantSpendOptions,
+): MerchantSpend[] {
+  const months = new Set(options.months);
+  const groups = new Map<
+    string,
+    { name: string; totalCents: number; count: number; lastDate: string }
+  >();
+  for (const tx of transactions) {
+    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (!months.has(monthOf(tx.date))) continue;
+    if (options.accountId && tx.account !== options.accountId) continue;
+    if (options.creditCardId && tx.credit_card !== options.creditCardId) continue;
+    if (options.categoryId && (tx.category ?? "") !== options.categoryId) continue;
+    const raw = merchantDisplayName(tx);
+    const key = normalizeMerchantName(raw) || "__none__";
+    const name = raw || "Sem estabelecimento";
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { name, totalCents: tx.amount_cents, count: 1, lastDate: tx.date });
+      continue;
+    }
+    existing.totalCents += tx.amount_cents;
+    existing.count += 1;
+    if (tx.date >= existing.lastDate) {
+      existing.lastDate = tx.date;
+      existing.name = name;
+    }
+  }
+  return [...groups.entries()]
+    .map(([key, group]) => ({
+      key,
+      name: group.name,
+      totalCents: group.totalCents,
+      count: group.count,
+    }))
+    .sort((a, b) => b.totalCents - a.totalCents || a.name.localeCompare(b.name));
 }

@@ -73,7 +73,7 @@ test.describe("métricas de UX", () => {
     await expect(page.locator("#qa-amount")).toBeFocused();
     await page.locator("#qa-amount").fill("7,50");
     interactions += 1;
-    await page.locator("#qa-description").fill(description);
+    await page.locator("#qa-merchant").fill(description);
     interactions += 1;
     await page.getByTestId("qa-category-chip").filter({ hasText: "Supermercado" }).first().click();
     interactions += 1;

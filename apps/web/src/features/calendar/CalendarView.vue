@@ -86,7 +86,7 @@ const itemsByDate = computed(() => {
       push(tx.date.slice(0, 10), {
         id: tx.id,
         kind: "transaction",
-        title: tx.description || "Lançamento",
+        title: tx.merchant || tx.description || "Lançamento",
         amountCents: tx.amount_cents,
         nature: tx.type === "receita" ? "entrada" : "saida",
         status: tx.status,

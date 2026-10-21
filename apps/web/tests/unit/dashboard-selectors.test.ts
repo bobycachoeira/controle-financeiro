@@ -42,6 +42,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string; amount_cents: num
     date: "2024-03-10",
     attribution: "meu",
     status: "pago",
+    merchant: "",
     description: "",
     tags: [],
     note: "",

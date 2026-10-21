@@ -88,6 +88,7 @@ const FIELD_LABELS: Record<string, string> = {
   status: "Status",
   type: "Tipo",
   nature: "Natureza",
+  merchant: "Estabelecimento",
   description: "Descrição",
   category: "Categoria",
   attribution: "Atribuição",

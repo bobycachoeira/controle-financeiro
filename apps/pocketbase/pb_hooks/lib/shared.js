@@ -147,6 +147,7 @@ __export(src_exports, {
   isoMonth: () => isoMonth,
   lastMonths: () => lastMonths,
   memberInviteStatusSchema: () => memberInviteStatusSchema,
+  merchantDisplayName: () => merchantDisplayName,
   minutesOfDay: () => minutesOfDay,
   monthLabel: () => monthLabel,
   monthOf: () => monthOf,
@@ -154,6 +155,7 @@ __export(src_exports, {
   monthlyCashflow: () => monthlyCashflow,
   nextAllowedTime: () => nextAllowedTime,
   nextOccurrence: () => nextOccurrence,
+  normalizeMerchantName: () => normalizeMerchantName,
   notificationPreferencesSchema: () => notificationPreferencesSchema,
   nullableDateTime: () => nullableDateTime,
   occurrencesBetween: () => occurrencesBetween,
@@ -183,6 +185,7 @@ __export(src_exports, {
   resolveInvoiceStatus: () => resolveInvoiceStatus,
   roleSchema: () => roleSchema,
   spendingByCategory: () => spendingByCategory,
+  spendingByMerchant: () => spendingByMerchant,
   splitCents: () => splitCents,
   sumCents: () => sumCents,
   sumInstallments: () => sumInstallments,
@@ -4539,6 +4542,7 @@ var transactionSchema = syncBaseSchema.extend({
   attribution: attributionSchema.default("indefinido"),
   payer_user: external_exports.string().nullable().optional(),
   category: external_exports.string().nullable().optional(),
+  merchant: external_exports.string().max(120).default(""),
   description: external_exports.string().max(200).default(""),
   status: transactionStatusSchema.default("pago"),
   recurrence: external_exports.string().nullable().optional(),
@@ -5459,7 +5463,7 @@ function splitCsvLine(line, delimiter) {
   return line.split(delimiter).map((part) => part.trim().replace(/^"|"$/g, ""));
 }
 function parseCSV(text) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
   if (lines.length === 0) return [];
   const delimiter = ((_c = (_b = (_a = lines[0]) == null ? void 0 : _a.match(/;/g)) == null ? void 0 : _b.length) != null ? _c : 0) >= ((_f = (_e = (_d = lines[0]) == null ? void 0 : _d.match(/,/g)) == null ? void 0 : _e.length) != null ? _f : 0) ? ";" : ",";
@@ -5468,6 +5472,7 @@ function parseCSV(text) {
   const dateIndex = hasHeader ? header.findIndex((cell) => /data|date/.test(cell)) : 0;
   const amountIndex = hasHeader ? header.findIndex((cell) => /valor|amount/.test(cell)) : 1;
   const descIndex = hasHeader ? header.findIndex((cell) => /descri|memo|hist/.test(cell)) : 2;
+  const merchantIndex = hasHeader ? header.findIndex((cell) => /estabelec|merchant|favorecid|payee|local/.test(cell)) : -1;
   const rows = [];
   const start = hasHeader ? 1 : 0;
   for (let index = start; index < lines.length; index += 1) {
@@ -5480,7 +5485,8 @@ function parseCSV(text) {
       rows.push({
         date: date != null ? date : "",
         amountCents: 0,
-        description: (_k = cells[descIndex]) != null ? _k : "",
+        merchant: merchantIndex >= 0 ? ((_k = cells[merchantIndex]) != null ? _k : "").slice(0, 120) : "",
+        description: (_l = cells[descIndex]) != null ? _l : "",
         nature: "saida",
         externalRef,
         error: "Linha inv\xE1lida"
@@ -5490,7 +5496,8 @@ function parseCSV(text) {
     rows.push({
       date,
       amountCents: amount.cents,
-      description: ((_l = cells[descIndex]) != null ? _l : "").slice(0, 200),
+      merchant: merchantIndex >= 0 ? ((_m = cells[merchantIndex]) != null ? _m : "").slice(0, 120) : "",
+      description: ((_n = cells[descIndex]) != null ? _n : "").slice(0, 200),
       nature: amount.nature,
       externalRef
     });
@@ -5508,7 +5515,8 @@ function parseOFX(text) {
   for (const block of blocks) {
     const rawDate = tagValue(block, "DTPOSTED");
     const rawAmount = tagValue(block, "TRNAMT");
-    const memo = tagValue(block, "MEMO") || tagValue(block, "NAME");
+    const name = tagValue(block, "NAME");
+    const memo = tagValue(block, "MEMO") || name;
     const fitId = tagValue(block, "FITID");
     const type = tagValue(block, "TRNTYPE").toUpperCase();
     const dataMatch = rawDate.match(/^(\d{4})(\d{2})(\d{2})/);
@@ -5519,6 +5527,7 @@ function parseOFX(text) {
       rows.push({
         date,
         amountCents: 0,
+        merchant: name.slice(0, 120),
         description: memo,
         nature: "saida",
         externalRef: fitId || hashString(block),
@@ -5529,6 +5538,7 @@ function parseOFX(text) {
     rows.push({
       date,
       amountCents: amount.cents,
+      merchant: name.slice(0, 120),
       description: memo.slice(0, 200),
       nature,
       externalRef: fitId || hashString(block)
@@ -5580,6 +5590,15 @@ function consolidateToBRL(entries, rates) {
     total += convertCents(entry.amountCents, rate);
   }
   return { totalCents: total, missing: [...missing] };
+}
+
+// src/domain/merchant.ts
+function normalizeMerchantName(value) {
+  return (value != null ? value : "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ");
+}
+function merchantDisplayName(tx) {
+  var _a, _b;
+  return ((_a = tx.merchant) != null ? _a : "").trim() || ((_b = tx.description) != null ? _b : "").trim();
 }
 
 // src/domain/analytics.ts
@@ -5665,6 +5684,38 @@ function spendingByCategory(transactions, categories, month, limit = 5) {
       totalCents: total
     };
   }).sort((a, b) => b.totalCents - a.totalCents).slice(0, limit);
+}
+function spendingByMerchant(transactions, options) {
+  var _a;
+  const months = new Set(options.months);
+  const groups = /* @__PURE__ */ new Map();
+  for (const tx of transactions) {
+    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (!months.has(monthOf(tx.date))) continue;
+    if (options.accountId && tx.account !== options.accountId) continue;
+    if (options.creditCardId && tx.credit_card !== options.creditCardId) continue;
+    if (options.categoryId && ((_a = tx.category) != null ? _a : "") !== options.categoryId) continue;
+    const raw = merchantDisplayName(tx);
+    const key = normalizeMerchantName(raw) || "__none__";
+    const name = raw || "Sem estabelecimento";
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { name, totalCents: tx.amount_cents, count: 1, lastDate: tx.date });
+      continue;
+    }
+    existing.totalCents += tx.amount_cents;
+    existing.count += 1;
+    if (tx.date >= existing.lastDate) {
+      existing.lastDate = tx.date;
+      existing.name = name;
+    }
+  }
+  return [...groups.entries()].map(([key, group]) => ({
+    key,
+    name: group.name,
+    totalCents: group.totalCents,
+    count: group.count
+  })).sort((a, b) => b.totalCents - a.totalCents || a.name.localeCompare(b.name));
 }
 
 // src/domain/attribution.ts

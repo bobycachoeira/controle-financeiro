@@ -42,3 +42,26 @@ describe("transactionSchema (sinal do valor)", () => {
     ).toBe(false);
   });
 });
+
+describe("transactionSchema (estabelecimento)", () => {
+  it("usa string vazia quando o estabelecimento não é informado", () => {
+    const result = transactionSchema.safeParse({
+      ...base,
+      type: "despesa",
+      amount_cents: 1000,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.merchant).toBe("");
+  });
+
+  it("aceita um estabelecimento com até 120 caracteres", () => {
+    const result = transactionSchema.safeParse({
+      ...base,
+      type: "despesa",
+      amount_cents: 1000,
+      merchant: "Mercado",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.merchant).toBe("Mercado");
+  });
+});

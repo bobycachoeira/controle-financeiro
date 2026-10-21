@@ -40,6 +40,7 @@ import {
   selectUpcomingBills,
 } from "./selectors";
 import ConflictPanel from "@/features/sync/ConflictPanel.vue";
+import MerchantSpendCard from "@/features/dashboard/MerchantSpendCard.vue";
 import AreaChart from "@/components/charts/AreaChart.vue";
 import BarsChart from "@/components/charts/BarsChart.vue";
 import Card from "@/components/ui/Card.vue";
@@ -405,6 +406,14 @@ watch(() => sync.dataVersion, loadAll);
       </CardContent>
     </Card>
 
+    <MerchantSpendCard
+      :transactions="transactionsStore.items"
+      :accounts="accountsStore.items"
+      :cards="cardsStore.cards"
+      :categories="categories"
+      :month="currentMonth"
+    />
+
     <Card>
       <CardContent class="p-4">
         <div class="mb-2 flex items-center gap-2">
@@ -606,7 +615,7 @@ watch(() => sync.dataVersion, loadAll);
         <p v-if="recent.length === 0" class="text-sm text-muted-foreground">Nada por aqui ainda.</p>
         <ul v-else class="divide-y">
           <li v-for="tx in recent" :key="tx.id" class="flex items-center justify-between py-2.5 text-sm">
-            <span class="truncate font-semibold">{{ tx.description || "Lançamento" }}</span>
+            <span class="truncate font-semibold">{{ tx.merchant || tx.description || "Lançamento" }}</span>
             <span class="font-display font-bold" :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'">
               {{ tx.type === "receita" ? "+" : "−" }}{{ formatBRL(tx.amount_cents) }}
             </span>

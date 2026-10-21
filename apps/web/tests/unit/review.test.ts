@@ -20,6 +20,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransacti
     date: "2026-10-10",
     attribution: "meu",
     category: null,
+    merchant: "",
     description: "Item",
     status: "pago",
     tags: [],

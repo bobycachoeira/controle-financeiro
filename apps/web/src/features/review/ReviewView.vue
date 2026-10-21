@@ -131,7 +131,7 @@ watch(() => sync.dataVersion, loadAll);
           >
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
-                <p class="truncate font-bold">{{ tx.description || "Lançamento" }}</p>
+                <p class="truncate font-bold">{{ tx.merchant || tx.description || "Lançamento" }}</p>
                 <p class="text-xs font-semibold text-muted-foreground">
                   {{ formatDateShort(tx.date) }}
                   <template v-if="accountById.get(tx.account)">

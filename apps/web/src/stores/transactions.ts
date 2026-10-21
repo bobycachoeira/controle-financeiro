@@ -6,6 +6,8 @@ import {
   dueDateForMonth,
   generateInstallments,
   generateOngoingInstallments,
+  merchantDisplayName,
+  normalizeMerchantName,
   referenceMonthForPurchase,
 } from "@cf/shared";
 import { db, type LocalInstallment, type LocalInvoice, type LocalTransaction } from "../db/schema";
@@ -22,7 +24,9 @@ export interface TransactionFilters {
   creditCard?: string;
   reconciled?: "all" | "yes" | "no";
   tag?: string;
-  /** Busca livre por descrição, observação e etiquetas. */
+  /** Estabelecimento exato (comparado sem caixa/acentos). */
+  merchant?: string;
+  /** Busca livre por estabelecimento, descrição, observação e etiquetas. */
   query?: string;
 }
 
@@ -34,6 +38,7 @@ export interface TransactionInput {
   date: string;
   attribution: string;
   category?: string | null;
+  merchant?: string;
   description?: string;
   status: TransactionStatus;
   tags?: string[];
@@ -75,14 +80,25 @@ export const useTransactionsStore = defineStore("transactions", () => {
         if (filters.type && tx.type !== filters.type) return false;
         if (filters.creditCard && tx.credit_card !== filters.creditCard) return false;
         if (filters.tag && !(tx.tags ?? []).includes(filters.tag)) return false;
+        if (filters.merchant) {
+          if (normalizeMerchantName(tx.merchant) !== normalizeMerchantName(filters.merchant)) {
+            return false;
+          }
+        }
         if (filters.reconciled === "yes" && !tx.external_ref) return false;
         if (filters.reconciled === "no" && tx.external_ref) return false;
         if (filters.query) {
-          const query = filters.query.trim().toLowerCase();
+          const query = normalizeMerchantName(filters.query);
           if (query) {
-            const haystack = [tx.description, tx.note, ...(tx.tags ?? [])]
-              .join(" ")
-              .toLowerCase();
+            const haystack = normalizeMerchantName(
+              [
+                merchantDisplayName(tx),
+                tx.merchant,
+                tx.description,
+                tx.note,
+                ...(tx.tags ?? []),
+              ].join(" "),
+            );
             if (!haystack.includes(query)) return false;
           }
         }
@@ -110,6 +126,7 @@ export const useTransactionsStore = defineStore("transactions", () => {
       attribution: input.attribution,
       payer_user: session.user?.id ?? null,
       category: input.category ?? null,
+      merchant: input.merchant ?? "",
       description: input.description ?? "",
       status: input.status,
       recurrence: null,

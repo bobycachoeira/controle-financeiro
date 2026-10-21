@@ -216,7 +216,12 @@ watch(account, () => {
             class="flex flex-col gap-1.5 py-2"
           >
             <div class="flex items-center justify-between gap-2">
-              <span class="truncate">{{ item.row.description || "(sem descrição)" }}</span>
+              <span class="truncate">
+                {{ item.row.merchant || item.row.description || "(sem estabelecimento)" }}
+                <span v-if="item.row.merchant && item.row.description" class="text-muted-foreground">
+                  · {{ item.row.description }}
+                </span>
+              </span>
               <span class="flex items-center gap-2 whitespace-nowrap">
                 {{ item.row.date ? formatDate(item.row.date) : "" }}
                 <span :class="item.row.nature === 'entrada' ? 'text-emerald-600' : 'text-red-600'">

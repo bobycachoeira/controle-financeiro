@@ -14,6 +14,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransacti
     date: "2026-10-10",
     attribution: "meu",
     category: "c1",
+    merchant: "",
     description: "Mercado",
     status: "pago",
     tags: [],
@@ -43,7 +44,7 @@ describe("export", () => {
   it("monta o CSV de lançamentos com sinal e nomes", () => {
     const csv = transactionsCsv({
       transactions: [
-        tx({ id: "t1", amount_cents: 18990 }),
+        tx({ id: "t1", amount_cents: 18990, merchant: "Assaí" }),
         tx({ id: "t2", amount_cents: 5000, type: "receita", category: null }),
       ],
       accounts: [account],
@@ -51,9 +52,10 @@ describe("export", () => {
       attributionLabel: () => "Paulo",
     });
     const lines = csv.split("\r\n");
-    expect(lines[0]).toContain("Data;Descrição;Valor");
+    expect(lines[0]).toContain("Data;Estabelecimento;Descrição;Valor");
     expect(lines[1]).toContain('"Conta; Principal"');
     expect(lines[1]).toContain('"Categoria ""X"""');
+    expect(lines[1]).toContain("Assaí");
     expect(lines[1]).toContain("-189,90");
     expect(lines[2]).toContain("50,00");
   });

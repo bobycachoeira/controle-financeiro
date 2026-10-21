@@ -14,7 +14,7 @@ describe("parseCSV", () => {
       "data;valor;descrição\n01/03/2024;-10,50;Mercado\n05/03/2024;1.500,00;Salário",
     );
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ date: "2024-03-01", amountCents: 1050, nature: "saida", description: "Mercado" });
+    expect(rows[0]).toMatchObject({ date: "2024-03-01", amountCents: 1050, nature: "saida", description: "Mercado", merchant: "" });
     expect(rows[1]).toMatchObject({ date: "2024-03-05", amountCents: 150000, nature: "entrada" });
     expect(rows[0]?.externalRef).toMatch(/^csv-/);
   });
@@ -25,6 +25,13 @@ describe("parseCSV", () => {
     expect(rows[1]).toMatchObject({ amountCents: 3000, nature: "entrada" });
   });
 
+  it("mapeia a coluna de estabelecimento quando existir", () => {
+    const rows = parseCSV(
+      "data;valor;estabelecimento;descrição\n01/03/2024;-10,50;Assaí;Compra do mês",
+    );
+    expect(rows[0]).toMatchObject({ merchant: "Assaí", description: "Compra do mês" });
+  });
+
   it("flags invalid lines without stopping", () => {
     const rows = parseCSV("data;valor;descrição\n01/03/2024;-10,50;Ok\nxxx;yyy;Erro");
     expect(rows[0]?.error).toBeUndefined();
@@ -33,6 +40,15 @@ describe("parseCSV", () => {
 });
 
 describe("parseOFX", () => {
+  it("mapeia NAME para estabelecimento e MEMO para descrição", () => {
+    const ofx = `
+      <OFX><BANKTRANLIST>
+      <STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20240301<TRNAMT>-10.50<FITID>abc123<NAME>Assaí<MEMO>Compra do mês
+      `;
+    const rows = parseOFX(ofx);
+    expect(rows[0]).toMatchObject({ merchant: "Assaí", description: "Compra do mês" });
+  });
+
   it("parses SGML transactions", () => {
     const ofx = `
       <OFX><BANKTRANLIST>
@@ -41,7 +57,7 @@ describe("parseOFX", () => {
       `;
     const rows = parseOFX(ofx);
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ date: "2024-03-01", amountCents: 1050, nature: "saida", externalRef: "abc123" });
+    expect(rows[0]).toMatchObject({ date: "2024-03-01", amountCents: 1050, nature: "saida", externalRef: "abc123", merchant: "" });
     expect(rows[1]).toMatchObject({ nature: "entrada", externalRef: "def456" });
   });
 });

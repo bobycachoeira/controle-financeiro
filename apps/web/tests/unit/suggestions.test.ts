@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { LocalTransaction } from "@/db/schema";
 import {
   buildHistoryIndex,
+  buildMerchantIndex,
+  findMerchantCategory,
   recentAccountIds,
   recentCategoryIds,
   suggestDescriptions,
+  suggestMerchants,
 } from "@/features/transactions/suggestions";
 
 function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransaction {
@@ -19,6 +22,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransacti
     date: "2026-10-10",
     attribution: "meu",
     category: null,
+    merchant: "",
     description: "Item",
     status: "pago",
     tags: [],
@@ -97,5 +101,37 @@ describe("sugestões do histórico", () => {
         tx({ id: "3", account: "a1", date: "2026-10-01" }),
       ]),
     ).toEqual(["a2", "a1"]);
+  });
+});
+
+describe("sugestões de estabelecimento", () => {
+  it("agrupa nomes equivalentes e mantém a grafia mais recente", () => {
+    const index = buildMerchantIndex([
+      tx({ id: "1", merchant: "Assaí", category: "mercado", date: "2026-09-01" }),
+      tx({ id: "2", merchant: "assai", category: "mercado", date: "2026-10-10" }),
+      tx({ id: "3", merchant: "Uber", category: "transporte" }),
+      tx({ id: "4", merchant: "Assaí", deleted_at: "x" }),
+    ]);
+    expect(index).toHaveLength(2);
+    expect(index[0]).toMatchObject({ merchant: "assai", count: 2, category: "mercado" });
+  });
+
+  it("sugere por prefixo e filtra por tipo", () => {
+    const index = buildMerchantIndex([
+      tx({ id: "1", merchant: "Assaí", type: "despesa" }),
+      tx({ id: "2", merchant: "Assaí", type: "receita" }),
+      tx({ id: "3", merchant: "Padaria", type: "despesa" }),
+    ]);
+    expect(suggestMerchants("ass", index, 3, "despesa").map((item) => item.merchant)).toEqual([
+      "Assaí",
+    ]);
+    expect(suggestMerchants("", index, 3, "despesa")).toHaveLength(2);
+  });
+
+  it("encontra a categoria associada ao estabelecimento", () => {
+    const index = buildMerchantIndex([
+      tx({ id: "1", merchant: "Uber", category: "transporte" }),
+    ]);
+    expect(findMerchantCategory("UBER", index, "despesa")).toBe("transporte");
   });
 });

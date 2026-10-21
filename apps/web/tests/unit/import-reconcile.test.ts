@@ -28,6 +28,7 @@ function tx(
     attribution: "indefinido",
     payer_user: null,
     category: null,
+    merchant: "",
     description,
     status: "pago",
     recurrence: null,

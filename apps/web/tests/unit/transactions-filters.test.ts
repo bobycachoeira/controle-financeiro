@@ -16,6 +16,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransacti
     date: "2026-10-10",
     attribution: "meu",
     category: "food",
+    merchant: "",
     description: "",
     status: "pago",
     tags: [],
@@ -45,6 +46,7 @@ describe("filtros de lançamentos", () => {
       }),
       tx({ id: "t2", description: "Salário", type: "receita", category: null, note: "empresa" }),
       tx({ id: "t3", description: "Café", category: "food", tags: ["lazer"] }),
+      tx({ id: "t4", merchant: "Assaí", description: "Compra", category: "food" }),
     ]);
     const store = useTransactionsStore();
 
@@ -58,12 +60,18 @@ describe("filtros de lançamentos", () => {
     expect(store.items.map((item) => item.id)).toEqual(["t2"]);
 
     await store.load({ category: "food" });
-    expect(store.items.map((item) => item.id).sort()).toEqual(["t1", "t3"]);
+    expect(store.items.map((item) => item.id).sort()).toEqual(["t1", "t3", "t4"]);
 
     await store.load({ tag: "lazer" });
     expect(store.items.map((item) => item.id)).toEqual(["t3"]);
 
     await store.load({ query: "casa" });
     expect(store.items.map((item) => item.id)).toEqual(["t1"]);
+
+    await store.load({ query: "assai" });
+    expect(store.items.map((item) => item.id)).toEqual(["t4"]);
+
+    await store.load({ merchant: "ASSAI" });
+    expect(store.items.map((item) => item.id)).toEqual(["t4"]);
   });
 });

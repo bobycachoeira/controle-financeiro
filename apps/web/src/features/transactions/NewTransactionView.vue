@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { todayISO } from "@cf/shared";
 import { ArrowLeft, ChevronDown, CreditCard } from "lucide-vue-next";
-import { db } from "@/db/schema";
+import { db, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
 import { useCardsStore } from "@/stores/cards";
@@ -14,7 +14,17 @@ import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
 import { trackUx } from "@/lib/ux-metrics";
-import { matchImportRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
+import {
+  matchTransactionRule,
+  parseImportRules,
+  type ImportRule,
+} from "@/lib/import-rules";
+import {
+  buildMerchantIndex,
+  findMerchantCategory,
+  suggestMerchants,
+  type MerchantSuggestion,
+} from "./suggestions";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL } from "@/lib/format";
@@ -41,6 +51,7 @@ const toast = useToast();
 const isEdit = computed(() => Boolean(route.params.id));
 const amountCents = ref<number | null>(null);
 const type = ref<"receita" | "despesa">("despesa");
+const merchant = ref("");
 const description = ref("");
 const date = ref(todayISO());
 const account = ref("");
@@ -50,13 +61,23 @@ const attribution = ref("indefinido");
 const status = ref<"pago" | "a_pagar">("pago");
 const category = ref("");
 const rules = ref<ImportRule[]>([]);
+const history = ref<LocalTransaction[]>([]);
 const fallbackCategories = ref<{ saida: string | null; entrada: string | null }>({
   saida: null,
   entrada: null,
 });
 
+const merchantIndex = computed(() => buildMerchantIndex(history.value));
+const merchantSuggestions = computed(() =>
+  suggestMerchants(merchant.value, merchantIndex.value, 4, type.value),
+);
+const merchantCategory = computed(() =>
+  findMerchantCategory(merchant.value, merchantIndex.value, type.value),
+);
 const ruleMatch = computed(() =>
-  description.value ? matchImportRule(description.value, rules.value) : null,
+  merchant.value || description.value
+    ? matchTransactionRule(merchant.value, description.value, rules.value)
+    : null,
 );
 
 function resolvedCategory(): string | null {
@@ -65,9 +86,16 @@ function resolvedCategory(): string | null {
   return type.value === "receita" ? fallbackCategories.value.entrada : fallbackCategories.value.saida;
 }
 
-watch(description, () => {
-  if (!category.value && ruleMatch.value) category.value = ruleMatch.value.category;
+watch([merchant, description], () => {
+  if (category.value) return;
+  const suggested = merchantCategory.value ?? ruleMatch.value?.category ?? null;
+  if (suggested) category.value = suggested;
 });
+
+function applyMerchantSuggestion(suggestion: MerchantSuggestion): void {
+  merchant.value = suggestion.merchant;
+  if (!category.value && suggestion.category) category.value = suggestion.category;
+}
 const tagsInput = ref("");
 const attachment = ref<string | null>(null);
 const attachmentBusy = ref(false);
@@ -101,6 +129,7 @@ function duplicate(): void {
   quickAdd.show({
     type: type.value,
     amountCents: amountCents.value,
+    merchant: merchant.value,
     description: description.value,
     category: category.value || null,
     account: account.value,
@@ -168,6 +197,7 @@ async function submit(): Promise<void> {
       date: date.value,
       attribution: attribution.value,
       category: resolvedCategory(),
+      merchant: merchant.value,
       description: description.value,
       status: status.value,
       tags: parseTags(),
@@ -217,6 +247,7 @@ async function submit(): Promise<void> {
         date: date.value,
         attribution: attribution.value,
         category: resolvedCategory(),
+        merchant: merchant.value,
         description: description.value,
         status: "a_pagar",
         tags: parseTags(),
@@ -236,6 +267,7 @@ async function submit(): Promise<void> {
         date: date.value,
         attribution: attribution.value,
         category: resolvedCategory(),
+        merchant: merchant.value,
         description: description.value,
         status: status.value,
         tags: parseTags(),
@@ -271,12 +303,18 @@ onMounted(async () => {
   trackUx("form_opened");
   await Promise.all([accountsStore.load(), cardsStore.load(), people.load()]);
   await loadRulesAndFallbacks();
+  if (session.currentHouseholdId) {
+    history.value = (
+      await db.transactions.where("household").equals(session.currentHouseholdId).toArray()
+    ).filter((tx) => !tx.deleted_at);
+  }
   account.value = accountsStore.items.find((item) => item.type !== "cartao_credito")?.id ?? "";
   if (isEdit.value) {
     const tx = await db.transactions.get(String(route.params.id));
     if (tx) {
       amountCents.value = tx.amount_cents;
       type.value = tx.type === "receita" ? "receita" : "despesa";
+      merchant.value = tx.merchant ?? "";
       description.value = tx.description;
       date.value = tx.date.slice(0, 10);
       account.value = tx.account;
@@ -370,8 +408,34 @@ watch(
         </div>
 
         <div class="space-y-2">
-          <Label for="description">Descrição</Label>
-          <Input id="description" v-model="description" maxlength="200" placeholder="Ex.: Mercado da semana" />
+          <Label for="merchant">Estabelecimento</Label>
+          <Input
+            id="merchant"
+            v-model="merchant"
+            maxlength="120"
+            autocomplete="off"
+            placeholder="Ex.: Assaí, Uber, Netflix"
+          />
+          <div v-if="merchantSuggestions.length > 0" class="flex flex-wrap gap-1.5">
+            <button
+              v-for="suggestion in merchantSuggestions"
+              :key="suggestion.merchant"
+              type="button"
+              data-compact
+              class="max-w-full truncate rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"
+              @click="applyMerchantSuggestion(suggestion)"
+            >
+              {{ suggestion.merchant }}
+            </button>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            Se não existir, ele é criado ao salvar. Sem cadastro separado.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <Label for="description">Descrição (opcional)</Label>
+          <Input id="description" v-model="description" maxlength="200" placeholder="Ex.: compra do mês" />
         </div>
 
         <div class="space-y-2">
@@ -388,7 +452,13 @@ watch(
             allow-empty
           />
           <p
-            v-if="ruleMatch && category === ruleMatch.category"
+            v-if="merchantCategory && category === merchantCategory"
+            class="text-[0.62rem] font-semibold text-primary"
+          >
+            Categoria sugerida por “{{ merchant }}”
+          </p>
+          <p
+            v-else-if="ruleMatch && category === ruleMatch.category"
             class="text-[0.62rem] font-semibold text-primary"
           >
             Sugerida pela regra “{{ ruleMatch.pattern }}”

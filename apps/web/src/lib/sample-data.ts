@@ -74,16 +74,17 @@ export async function seedSampleData(): Promise<SampleSeedResult> {
   const entries: Array<{
     amount: number;
     type: "receita" | "despesa";
+    merchant: string;
     description: string;
     category: string | null;
     status: "pago" | "a_pagar";
     wantedDay: number;
   }> = [
-    { amount: 450000, type: "receita", description: "Salário", category: null, status: "pago", wantedDay: 5 },
-    { amount: 18990, type: "despesa", description: "Mercado da semana", category: mercado, status: "pago", wantedDay: 6 },
-    { amount: 14990, type: "despesa", description: "Gasolina", category: combustivel, status: "pago", wantedDay: 8 },
-    { amount: 3990, type: "despesa", description: "Streaming", category: lazer, status: "pago", wantedDay: 10 },
-    { amount: 8990, type: "despesa", description: "Consulta dentista", category: null, status: "a_pagar", wantedDay: 25 },
+    { amount: 450000, type: "receita", merchant: "Empresa", description: "Salário", category: null, status: "pago", wantedDay: 5 },
+    { amount: 18990, type: "despesa", merchant: "Assaí", description: "Mercado da semana", category: mercado, status: "pago", wantedDay: 6 },
+    { amount: 14990, type: "despesa", merchant: "Posto Shell", description: "Gasolina", category: combustivel, status: "pago", wantedDay: 8 },
+    { amount: 3990, type: "despesa", merchant: "Netflix", description: "Streaming", category: lazer, status: "pago", wantedDay: 10 },
+    { amount: 8990, type: "despesa", merchant: "Clínica Sorriso", description: "Consulta dentista", category: null, status: "a_pagar", wantedDay: 25 },
   ];
 
   let created = 0;
@@ -100,6 +101,7 @@ export async function seedSampleData(): Promise<SampleSeedResult> {
       date: `${month}-${pad2(Math.max(1, day))}`,
       attribution: "ambos",
       category: entry.category ?? (entry.type === "receita" ? outrosEntrada : outrosSaida),
+      merchant: entry.merchant,
       description: entry.description,
       status: entry.status,
     });

@@ -1,4 +1,4 @@
-import { diffInDays } from "@cf/shared";
+import { diffInDays, merchantDisplayName } from "@cf/shared";
 import type { LocalTransaction } from "@/db/schema";
 
 /** Janela padrão (best practice: curta o suficiente para não virar dívida). */
@@ -72,11 +72,11 @@ export function findSimilarTransactions(
   tx: LocalTransaction,
   candidates: readonly LocalTransaction[],
 ): LocalTransaction[] {
-  const key = similarDescriptionKey(tx.description);
+  const key = similarDescriptionKey(merchantDisplayName(tx));
   if (!key) return [];
   return candidates.filter((candidate) => {
     if (candidate.id === tx.id || candidate.deleted_at) return false;
     if (candidate.type !== tx.type) return false;
-    return similarDescriptionKey(candidate.description) === key;
+    return similarDescriptionKey(merchantDisplayName(candidate)) === key;
   });
 }

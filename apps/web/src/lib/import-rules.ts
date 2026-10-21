@@ -31,3 +31,12 @@ export function matchImportRule(
   }
   return null;
 }
+
+/** Regras do formulário: estabelecimento tem prioridade sobre a descrição. */
+export function matchTransactionRule(
+  merchant: string,
+  description: string,
+  rules: readonly ImportRule[],
+): ImportRule | null {
+  return matchImportRule(merchant, rules) ?? matchImportRule(description, rules);
+}

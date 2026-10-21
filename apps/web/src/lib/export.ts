@@ -29,6 +29,7 @@ export function transactionsCsv(input: TransactionsCsvInput): string {
   const categoryById = new Map(input.categories.map((category) => [category.id, category]));
   const header = [
     "Data",
+    "Estabelecimento",
     "Descrição",
     "Valor",
     "Tipo",
@@ -51,6 +52,7 @@ export function transactionsCsv(input: TransactionsCsvInput): string {
             : -tx.amount_cents;
       return [
         tx.date.slice(0, 10),
+        tx.merchant ?? "",
         tx.description,
         formatCentsForCsv(signed),
         tx.type,

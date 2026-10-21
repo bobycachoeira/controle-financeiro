@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { useMediaQuery } from "@vueuse/core";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
-import { todayISO } from "@cf/shared";
+import { normalizeMerchantName, todayISO } from "@cf/shared";
 import { Pencil, Plus, Receipt, Search, SlidersHorizontal, Trash2, X } from "lucide-vue-next";
 import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
@@ -39,6 +39,7 @@ const attribution = ref("");
 const status = ref<"" | TransactionStatus>("");
 const reconciled = ref<"all" | "yes" | "no">("all");
 const category = ref("");
+const merchant = ref("");
 const type = ref<"" | TransactionType>("");
 const tag = ref("");
 const query = ref("");
@@ -113,9 +114,15 @@ if (typeof queryCategory === "string" && queryCategory) {
 if (typeof queryMonth === "string" && /^\d{4}-\d{2}$/.test(queryMonth)) {
   month.value = queryMonth;
 }
+const queryMerchant = route.query.merchant;
+if (typeof queryMerchant === "string" && queryMerchant) {
+  merchant.value = queryMerchant;
+  filtersOpen.value = true;
+}
 const viewingPhoto = ref<string | null>(null);
 const categories = ref<LocalCategory[]>([]);
 const allTags = ref<string[]>([]);
+const allMerchants = ref<string[]>([]);
 const installmentsByRoot = ref<Map<string, { number: number; total: number }>>(new Map());
 
 const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item])));
@@ -123,7 +130,7 @@ const categoryById = computed(() => new Map(categories.value.map((item) => [item
 
 const hasFilters = computed(
   () =>
-    Boolean(query.value || category.value || type.value || tag.value) ||
+    Boolean(query.value || category.value || merchant.value || type.value || tag.value) ||
     attribution.value !== "" ||
     status.value !== "" ||
     reconciled.value !== "all",
@@ -134,6 +141,7 @@ const activeFilterCount = computed(() => {
   if (type.value) count += 1;
   if (account.value) count += 1;
   if (category.value) count += 1;
+  if (merchant.value) count += 1;
   if (attribution.value) count += 1;
   if (status.value) count += 1;
   if (reconciled.value !== "all") count += 1;
@@ -144,6 +152,7 @@ const activeFilterCount = computed(() => {
 function clearFilters(): void {
   query.value = "";
   category.value = "";
+  merchant.value = "";
   type.value = "";
   tag.value = "";
   attribution.value = "";
@@ -161,11 +170,15 @@ async function loadFiltersData(): Promise<void> {
     .equals(session.currentHouseholdId)
     .toArray();
   const tags = new Set<string>();
+  const merchants = new Map<string, string>();
   for (const tx of transactions) {
     if (tx.deleted_at) continue;
     for (const item of tx.tags ?? []) tags.add(item);
+    const name = (tx.merchant ?? "").trim();
+    if (name) merchants.set(normalizeMerchantName(name), name);
   }
   allTags.value = [...tags].sort((a, b) => a.localeCompare(b));
+  allMerchants.value = [...merchants.values()].sort((a, b) => a.localeCompare(b));
 
   const installmentRows = await db.installments
     .where("household")
@@ -190,6 +203,7 @@ async function reload(): Promise<void> {
     attribution: attribution.value || undefined,
     status: status.value || undefined,
     category: category.value || undefined,
+    merchant: merchant.value || undefined,
     type: type.value || undefined,
     tag: tag.value || undefined,
     query: query.value || undefined,
@@ -262,6 +276,10 @@ function attributionLabel(attribution: string): string {
   return people.label(attribution);
 }
 
+function titleOf(tx: LocalTransaction): string {
+  return (tx.merchant ?? "").trim() || tx.description || "Lançamento";
+}
+
 function amountLabel(tx: LocalTransaction): string {
   if (tx.type === "transferencia") {
     return `${tx.amount_cents < 0 ? "−" : "+"}${formatBRL(Math.abs(tx.amount_cents))}`;
@@ -270,7 +288,10 @@ function amountLabel(tx: LocalTransaction): string {
 }
 
 onMounted(loadAll);
-watch([month, account, attribution, status, reconciled, category, type, tag, query], reload);
+watch(
+  [month, account, attribution, status, reconciled, category, merchant, type, tag, query],
+  reload,
+);
 watch(() => sync.dataVersion, loadAll);
 </script>
 
@@ -294,7 +315,7 @@ watch(() => sync.dataVersion, loadAll);
             id="filter-query"
             v-model="query"
             class="pl-9"
-            placeholder="Buscar por descrição, nota ou etiqueta…"
+            placeholder="Buscar por estabelecimento, descrição, nota ou etiqueta…"
           />
         </div>
         <div class="flex items-end gap-2">
@@ -344,6 +365,13 @@ watch(() => sync.dataVersion, loadAll);
               <option v-for="item in categories" :key="item.id" :value="item.id">
                 {{ item.name }}
               </option>
+            </Select>
+          </div>
+          <div class="space-y-1">
+            <Label for="filter-merchant">Estabelecimento</Label>
+            <Select id="filter-merchant" v-model="merchant">
+              <option value="">Todos</option>
+              <option v-for="item in allMerchants" :key="item" :value="item">{{ item }}</option>
             </Select>
           </div>
           <div class="space-y-1">
@@ -459,12 +487,15 @@ watch(() => sync.dataVersion, loadAll);
               </button>
               <div class="min-w-0 flex-1">
                 <p class="line-clamp-2 break-words font-bold">
-                  {{ tx.description || "Lançamento" }}
+                  {{ titleOf(tx) }}
                   <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
                     parcela {{ installmentLabel(tx) }}
                   </Badge>
                 </p>
                 <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
+                  <template v-if="tx.merchant && tx.description">
+                    {{ tx.description }} ·
+                  </template>
                   {{ formatDateShort(tx.date) }}
                   <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
                   <template v-if="categoryById.get(tx.category ?? '')">

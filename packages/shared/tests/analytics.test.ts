@@ -4,6 +4,7 @@ import {
   balanceEvolution,
   monthlyCashflow,
   spendingByCategory,
+  spendingByMerchant,
   type AnalyticsTransaction,
 } from "../src/domain/analytics";
 
@@ -93,5 +94,53 @@ describe("accountBalanceEvolution", () => {
     expect(series.map((point) => point.month)).toEqual(["2024-01", "2024-02"]);
     expect(series[0]?.balanceCents).toBe(151500);
     expect(series[1]?.balanceCents).toBe(150500);
+  });
+});
+
+describe("spendingByMerchant", () => {
+  it("agrupa por estabelecimento ignorando caixa e acentos", () => {
+    const result = spendingByMerchant(
+      [
+        tx({ date: "2024-04-01", amount_cents: 1000, merchant: "Assaí" }),
+        tx({ date: "2024-04-02", amount_cents: 2000, merchant: "assai" }),
+        tx({ date: "2024-04-03", amount_cents: 500, merchant: "Padaria" }),
+        tx({ date: "2024-04-04", amount_cents: 999, merchant: "Assaí", type: "receita" }),
+      ],
+      { months: ["2024-04"] },
+    );
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ name: "assai", totalCents: 3000, count: 2 });
+    expect(result[1]).toMatchObject({ name: "Padaria", totalCents: 500 });
+  });
+
+  it("usa a descrição como fallback e filtra por conta e categoria", () => {
+    const result = spendingByMerchant(
+      [
+        tx({ date: "2024-04-01", amount_cents: 1000, description: "Mercado antigo", account: "a1" }),
+        tx({ date: "2024-04-02", amount_cents: 2000, merchant: "Uber", account: "a2", category: "transporte" }),
+        tx({ date: "2024-04-03", amount_cents: 3000, merchant: "Uber", account: "a2", category: "lazer" }),
+      ],
+      { months: ["2024-04"], accountId: "a2", categoryId: "transporte" },
+    );
+    expect(result).toEqual([{ key: "uber", name: "Uber", totalCents: 2000, count: 1 }]);
+  });
+
+  it("filtra por cartão específico", () => {
+    const result = spendingByMerchant(
+      [
+        tx({ date: "2024-04-01", amount_cents: 1000, merchant: "Uber", credit_card: "c1" }),
+        tx({ date: "2024-04-02", amount_cents: 2000, merchant: "Uber", credit_card: "c2" }),
+      ],
+      { months: ["2024-04"], creditCardId: "c1" },
+    );
+    expect(result).toEqual([{ key: "uber", name: "Uber", totalCents: 1000, count: 1 }]);
+  });
+
+  it("exclui meses fora do período", () => {
+    const result = spendingByMerchant(
+      [tx({ date: "2024-03-31", amount_cents: 1000, merchant: "Uber" })],
+      { months: ["2024-04"] },
+    );
+    expect(result).toEqual([]);
   });
 });

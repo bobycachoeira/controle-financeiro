@@ -21,7 +21,7 @@ export interface ImportRow {
   row: ParsedImportRow;
   match: ImportMatch | null;
   decision: ImportDecision;
-  /** Categoria sugerida por regra de descrição (opcional). */
+  /** Categoria sugerida por regra de estabelecimento/descrição (opcional). */
   category: string | null;
 }
 
@@ -162,11 +162,13 @@ export const useImportStore = defineStore("import", () => {
     rows.value = rows.value.map((item) => (item.match ? { ...item, decision } : item));
   }
 
-  /** Aplica as regras de descrição, sugerindo categoria por linha. */
+  /** Aplica as regras de estabelecimento/descrição, sugerindo categoria por linha. */
   function applyRules(rules: readonly ImportRule[]): number {
     let matched = 0;
     rows.value = rows.value.map((item) => {
-      const rule = item.row.error ? null : matchImportRule(item.row.description, rules);
+      const rule = item.row.error
+        ? null
+        : (matchImportRule(item.row.merchant, rules) ?? matchImportRule(item.row.description, rules));
       if (rule) matched += 1;
       return { ...item, category: rule?.category ?? null };
     });
@@ -212,6 +214,7 @@ export const useImportStore = defineStore("import", () => {
           date: row.date,
           attribution: "indefinido",
           category: item.category ?? categoryId,
+          merchant: row.merchant,
           description: row.description,
           status: "pago",
           origin: "import",

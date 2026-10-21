@@ -14,4 +14,5 @@ export * from "./settlement";
 export * from "./import";
 export * from "./currency";
 export * from "./analytics";
+export * from "./merchant";
 export * from "./attribution";

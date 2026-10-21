@@ -5,6 +5,7 @@ export type ImportNature = "entrada" | "saida";
 export interface ParsedImportRow {
   date: string;
   amountCents: number;
+  merchant: string;
   description: string;
   nature: ImportNature;
   externalRef: string;
@@ -77,6 +78,9 @@ export function parseCSV(text: string): ParsedImportRow[] {
   const dateIndex = hasHeader ? header.findIndex((cell) => /data|date/.test(cell)) : 0;
   const amountIndex = hasHeader ? header.findIndex((cell) => /valor|amount/.test(cell)) : 1;
   const descIndex = hasHeader ? header.findIndex((cell) => /descri|memo|hist/.test(cell)) : 2;
+  const merchantIndex = hasHeader
+    ? header.findIndex((cell) => /estabelec|merchant|favorecid|payee|local/.test(cell))
+    : -1;
 
   const rows: ParsedImportRow[] = [];
   const start = hasHeader ? 1 : 0;
@@ -90,6 +94,7 @@ export function parseCSV(text: string): ParsedImportRow[] {
       rows.push({
         date: date ?? "",
         amountCents: 0,
+        merchant: merchantIndex >= 0 ? (cells[merchantIndex] ?? "").slice(0, 120) : "",
         description: cells[descIndex] ?? "",
         nature: "saida",
         externalRef,
@@ -100,6 +105,7 @@ export function parseCSV(text: string): ParsedImportRow[] {
     rows.push({
       date,
       amountCents: amount.cents,
+      merchant: merchantIndex >= 0 ? (cells[merchantIndex] ?? "").slice(0, 120) : "",
       description: (cells[descIndex] ?? "").slice(0, 200),
       nature: amount.nature,
       externalRef,
@@ -119,7 +125,8 @@ export function parseOFX(text: string): ParsedImportRow[] {
   for (const block of blocks) {
     const rawDate = tagValue(block, "DTPOSTED");
     const rawAmount = tagValue(block, "TRNAMT");
-    const memo = tagValue(block, "MEMO") || tagValue(block, "NAME");
+    const name = tagValue(block, "NAME");
+    const memo = tagValue(block, "MEMO") || name;
     const fitId = tagValue(block, "FITID");
     const type = tagValue(block, "TRNTYPE").toUpperCase();
     const dataMatch = rawDate.match(/^(\d{4})(\d{2})(\d{2})/);
@@ -130,6 +137,7 @@ export function parseOFX(text: string): ParsedImportRow[] {
       rows.push({
         date,
         amountCents: 0,
+        merchant: name.slice(0, 120),
         description: memo,
         nature: "saida",
         externalRef: fitId || hashString(block),
@@ -140,6 +148,7 @@ export function parseOFX(text: string): ParsedImportRow[] {
     rows.push({
       date,
       amountCents: amount.cents,
+      merchant: name.slice(0, 120),
       description: memo.slice(0, 200),
       nature,
       externalRef: fitId || hashString(block),
