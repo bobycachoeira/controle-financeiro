@@ -27,6 +27,8 @@ export interface InvoiceItem {
   household: string;
   title: string;
   dueDate: string;
+  closingDate?: string;
+  closedAt?: string;
   totalCents: number;
   status: string;
 }
@@ -154,6 +156,12 @@ export function buildReminderJobs(input: BuildInput): ReminderJob[] {
       if (invoice.status !== "aberta" && invoice.status !== "fechada") continue;
       const config = entry.preferences.fatura_cartao;
       if (!config?.habilitado) continue;
+      // Faturas abertas ainda podem receber lançamentos: só lembre depois do fechamento.
+      const closed =
+        invoice.status === "fechada" ||
+        Boolean(invoice.closedAt) ||
+        Boolean(invoice.closingDate && window.date >= invoice.closingDate);
+      if (!closed) continue;
       if (dueReminderDays(invoice.dueDate, config.dias_antes, window.date) === null) continue;
       const job: ReminderJob = {
         user: entry.userId,

@@ -8,6 +8,7 @@ import { useAccountsStore } from "@/stores/accounts";
 import { useCardsStore } from "@/stores/cards";
 import { usePeopleStore } from "@/stores/people";
 import { useSessionStore } from "@/stores/session";
+import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
 import { trackUx } from "@/lib/ux-metrics";
@@ -53,6 +54,7 @@ const accountsStore = useAccountsStore();
 const cardsStore = useCardsStore();
 const people = usePeopleStore();
 const session = useSessionStore();
+const sync = useSyncStore();
 const toast = useToast();
 
 const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5, 6, 10, 12];
@@ -284,13 +286,7 @@ async function prepare(): Promise<void> {
     household ? loadHistory(household) : Promise.resolve(),
   ]);
   if (household) {
-    await waitForHousehold(household);
-    rules.value = parseImportRules(await loadHouseholdSetting(household, "import_rules", []));
-    const list = await db.categories.where("household").equals(household).toArray();
-    categories.value = list.filter((item) => !item.deleted_at && item.active !== false);
-    const saida = categories.value.find((item) => item.name === "Outros");
-    const entrada = categories.value.find((item) => item.name === "Outras receitas");
-    fallbackCategories.value = { saida: saida?.id ?? null, entrada: entrada?.id ?? null };
+    await loadHouseholdReference(household);
   }
   if (!creditCard.value && !account.value) account.value = defaultAccountId();
   if (isCard.value) status.value = "a_pagar";
@@ -299,10 +295,38 @@ async function prepare(): Promise<void> {
   requestAnimationFrame(() => amountInput.value?.focus());
 }
 
+async function loadHouseholdReference(household: string): Promise<void> {
+  await waitForHousehold(household);
+  rules.value = parseImportRules(await loadHouseholdSetting(household, "import_rules", []));
+  const list = await db.categories.where("household").equals(household).toArray();
+  categories.value = list.filter((item) => !item.deleted_at && item.active !== false);
+  const saida = categories.value.find((item) => item.name === "Outros");
+  const entrada = categories.value.find((item) => item.name === "Outras receitas");
+  fallbackCategories.value = { saida: saida?.id ?? null, entrada: entrada?.id ?? null };
+}
+
 async function loadHistory(household: string): Promise<void> {
   const rows = await db.transactions.where("household").equals(household).toArray();
   history.value = rows.filter((tx) => !tx.deleted_at);
 }
+
+// Em abertura direta (atalho do Android) o sheet pode montar antes do primeiro
+// sync; recarrega o histórico assim que os dados chegarem do servidor.
+watch(
+  () => sync.dataVersion,
+  async () => {
+    const household = session.currentHouseholdId;
+    if (!props.modelValue || !household) return;
+    await Promise.all([
+      accountsStore.load(),
+      cardsStore.load(),
+      people.load(),
+      loadHistory(household),
+      loadHouseholdReference(household),
+    ]);
+    if (!creditCard.value && !account.value) account.value = defaultAccountId();
+  },
+);
 
 async function onPhotoChange(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
@@ -413,6 +437,7 @@ watch(
       trackUx("quick_add_abandoned");
     }
   },
+  { immediate: true },
 );
 </script>
 

@@ -148,6 +148,65 @@ describe("reminder scheduling", () => {
     expect(jobs.some((job) => job.kind === "fixas_recorrentes")).toBe(true);
   });
 
+  it("does not remind an invoice before its closing date", () => {
+    const jobs = buildReminderJobs(
+      baseInput({
+        preferences: [
+          {
+            userId: "u1",
+            household: "h1",
+            pushEnabled: true,
+            preferences: prefs({ fatura_cartao: { habilitado: true, dias_antes: [3] } }),
+            subscriptions: 1,
+          },
+        ],
+        bills: [],
+        invoices: [
+          {
+            id: "i1",
+            household: "h1",
+            title: "Fatura 2024-03",
+            dueDate: "2024-03-13",
+            closingDate: "2024-03-12",
+            totalCents: 50000,
+            status: "aberta",
+          },
+        ],
+      }),
+    );
+    expect(jobs).toHaveLength(0);
+  });
+
+  it("reminds an invoice once its closing date has passed", () => {
+    const jobs = buildReminderJobs(
+      baseInput({
+        preferences: [
+          {
+            userId: "u1",
+            household: "h1",
+            pushEnabled: true,
+            preferences: prefs({ fatura_cartao: { habilitado: true, dias_antes: [3, 1] } }),
+            subscriptions: 1,
+          },
+        ],
+        bills: [],
+        invoices: [
+          {
+            id: "i1",
+            household: "h1",
+            title: "Fatura 2024-03",
+            dueDate: "2024-03-13",
+            closingDate: "2024-03-10",
+            totalCents: 50000,
+            status: "aberta",
+          },
+        ],
+      }),
+    );
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.kind).toBe("fatura_cartao");
+  });
+
   it("reminds to confirm the value of an emitted variable bill", () => {
     const jobs = buildReminderJobs(
       baseInput({

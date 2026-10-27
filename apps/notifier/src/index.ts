@@ -77,7 +77,9 @@ interface InvoiceRecord {
   id: string;
   household: string;
   reference_month: string;
+  closing_date?: string;
   due_date: string;
+  closed_at?: string;
   total_cents: number;
   status: string;
 }
@@ -387,6 +389,8 @@ function toInvoiceItem(record: InvoiceRecord): InvoiceItem {
     household: record.household,
     title: `Fatura ${record.reference_month}`,
     dueDate: record.due_date.slice(0, 10),
+    closingDate: record.closing_date ? record.closing_date.slice(0, 10) : undefined,
+    closedAt: record.closed_at,
     totalCents: record.total_cents,
     status: record.status,
   };
