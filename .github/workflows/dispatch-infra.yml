@@ -1,0 +1,27 @@
+# Copie para .github/workflows/dispatch-infra.yml no repositório do app
+# (controle-financeiro e minha-leitura).
+#
+# Requer o secret INFRA_REPO_TOKEN no repositório do app:
+# PAT com acesso ao repositório meu_server e permissão Contents: Read and write
+# (fine-grained), ou classic com escopo "repo".
+name: Avisar infra para deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar deploy no meu_server
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          repository: bobycachoeira/meu_server
+          event-type: app-updated
+          client-payload: '{"app":"${{ github.event.repository.name }}","sha":"${{ github.sha }}"}'
