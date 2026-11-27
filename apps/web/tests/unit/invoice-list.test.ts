@@ -56,17 +56,19 @@ describe("pickVisibleInvoices", () => {
     expect(visible.map((item) => item.reference_month)).toEqual(["2026-09", "2026-10"]);
   });
 
-  it("expandido devolve todas, mais recentes primeiro", () => {
+  it("expandido mostra as em aberto da mais antiga para a mais nova e as pagas por último", () => {
     const invoices = [
-      invoice("2026-10", "fechada"),
-      invoice("2026-11", "aberta"),
+      invoice("2026-11", "paga"),
       invoice("2026-12", "aberta"),
+      invoice("2027-01", "aberta"),
+      invoice("2027-09", "aberta"),
     ];
     const visible = pickVisibleInvoices(invoices, true);
     expect(visible.map((item) => item.reference_month)).toEqual([
       "2026-12",
+      "2027-01",
+      "2027-09",
       "2026-11",
-      "2026-10",
     ]);
   });
 });
