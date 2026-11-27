@@ -9,8 +9,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.goto("/cards");
     await expect(page.getByRole("heading", { name: "Cartões" })).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
 
     const card = page.getByTestId("card").filter({ hasText: bank });
@@ -36,8 +35,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.goto("/cards");
     await expect(page.getByRole("heading", { name: "Cartões" })).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
 
@@ -71,8 +69,7 @@ test.describe("Cartão → fatura → pagamento", () => {
       await page.goto("/wallet");
       await page.getByRole("button", { name: "Cartões" }).click();
       await page.getByRole("button", { name: /^Novo$/ }).click();
-      await page.getByLabel("Nome").fill(`Cartão ${bank}`);
-      await page.getByLabel("Banco").fill(bank);
+      await page.getByLabel("Nome do cartão").fill(bank);
       await page.getByRole("button", { name: "Salvar" }).click();
       await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
     }
@@ -116,8 +113,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.goto("/wallet");
     await page.getByRole("button", { name: "Cartões" }).click();
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${bank}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
     const card = page.getByTestId("card").filter({ hasText: bank });
     await expect(card).toBeVisible({ timeout: 15_000 });
@@ -162,8 +158,7 @@ test.describe("Cartão → fatura → pagamento", () => {
 
     await page.goto("/cards");
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
 
@@ -202,8 +197,7 @@ test.describe("Cartão → fatura → pagamento", () => {
 
     await page.goto("/cards");
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${stamp}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
 
@@ -246,8 +240,7 @@ test.describe("Cartão → fatura → pagamento", () => {
     await page.goto("/wallet");
     await page.getByRole("button", { name: "Cartões" }).click();
     await page.getByRole("button", { name: /^Novo$/ }).click();
-    await page.getByLabel("Nome").fill(`Cartão ${bank}`);
-    await page.getByLabel("Banco").fill(bank);
+    await page.getByLabel("Nome do cartão").fill(bank);
     await page.getByRole("button", { name: "Salvar" }).click();
     const card = page.getByTestId("card").filter({ hasText: bank });
     await expect(card).toBeVisible({ timeout: 15_000 });

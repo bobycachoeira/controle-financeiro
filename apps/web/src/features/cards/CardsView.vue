@@ -51,7 +51,6 @@ const CARD_COLORS = [
 
 const open = ref(false);
 const editingId = ref<string | null>(null);
-const name = ref("");
 const accountName = ref("");
 const bank = ref("");
 const limitCents = ref<number | null>(null);
@@ -81,7 +80,6 @@ function paymentAccountName(card: LocalCreditCard): string {
 
 function openCreate(): void {
   editingId.value = null;
-  name.value = "";
   accountName.value = "";
   bank.value = "";
   limitCents.value = null;
@@ -109,8 +107,9 @@ function openEdit(card: LocalCreditCard): void {
 
 async function submit(): Promise<void> {
   const cents = limitCents.value ?? 0;
-  if (!editingId.value && !name.value) {
-    toast.error("Informe um nome.");
+  const cardName = bank.value.trim();
+  if (!editingId.value && !cardName) {
+    toast.error("Informe o nome do cartão.");
     return;
   }
   saving.value = true;
@@ -136,8 +135,8 @@ async function submit(): Promise<void> {
       toast.success("Cartão atualizado.");
     } else {
       await cardsStore.create({
-        name: name.value,
-        bank: bank.value,
+        name: cardName,
+        bank: cardName,
         limit_cents: cents,
         closing_day: Number(closingDay.value),
         due_day: Number(dueDay.value),
@@ -320,13 +319,15 @@ watch(
 
     <Modal v-model="open" :title="editingId ? 'Editar cartão' : 'Novo cartão'">
       <form class="space-y-4" @submit.prevent="submit">
-        <div v-if="!editingId" class="space-y-2">
-          <Label for="card-name">Nome</Label>
-          <Input id="card-name" v-model="name" required />
-        </div>
         <div class="space-y-2">
-          <Label for="card-bank">Banco</Label>
-          <Input id="card-bank" v-model="bank" />
+          <Label for="card-bank">Nome do cartão</Label>
+          <Input
+            id="card-bank"
+            v-model="bank"
+            required
+            maxlength="120"
+            placeholder="Ex.: Itau Black - Personalite"
+          />
         </div>
         <div v-if="editingId" class="space-y-2">
           <Label for="card-account-name">Nome da conta do cartão</Label>

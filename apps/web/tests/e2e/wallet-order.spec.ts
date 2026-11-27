@@ -44,8 +44,7 @@ test.describe("ordenação da carteira", () => {
     await page.getByRole("button", { name: "Cartões" }).click();
     for (const bank of [bankFirst, bankSecond]) {
       await page.getByRole("button", { name: /^Novo$/ }).click();
-      await page.getByLabel("Nome").fill(`Cartão ${bank}`);
-      await page.getByLabel("Banco").fill(bank);
+      await page.getByLabel("Nome do cartão").fill(bank);
       await page.getByRole("button", { name: "Salvar" }).click();
       await expect(page.getByTestId("card").filter({ hasText: bank })).toBeVisible({ timeout: 15_000 });
     }
