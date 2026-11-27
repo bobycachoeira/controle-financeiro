@@ -1,4 +1,13 @@
-import { addMonths, clampDay, pad2, parseISODate, toISODate } from "./dates";
+import {
+  addMonths,
+  clampDay,
+  daysInMonth,
+  pad2,
+  parseISODate,
+  parseISOMonth,
+  toISODate,
+} from "./dates";
+import { billDueDate } from "./bills";
 
 export type RecurrenceFrequency = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
@@ -64,7 +73,11 @@ function buildOccurrence(parsed: ParsedRRule, dtstart: string, index: number): s
     return toISODate(date);
   }
   if (parsed.freq === "MONTHLY") {
-    const { year, month } = addMonths(start.getUTCFullYear(), start.getUTCMonth() + 1, index * parsed.interval);
+    const { year, month } = addMonths(
+      start.getUTCFullYear(),
+      start.getUTCMonth() + 1,
+      index * parsed.interval,
+    );
     const day = parsed.byMonthDay ?? start.getUTCDate();
     return `${year}-${pad2(month)}-${pad2(clampDay(year, month, day))}`;
   }
@@ -105,4 +118,169 @@ export function nextOccurrence(rrule: string, dtstart: string, fromISO: string):
     if (occurrence > fromISO) return occurrence;
   }
   return null;
+}
+
+export interface FixedCostRecurrence {
+  id: string;
+  name: string;
+  rrule: string;
+  start_date: string;
+  end_date?: string | null;
+  count?: number | null;
+  active?: boolean;
+  deleted_at?: string | null;
+  target: "transaction" | "bill";
+  template: {
+    amount_cents: number;
+    default_amount_cents?: number | null;
+    nature?: "entrada" | "saida" | null;
+    type?: "receita" | "despesa" | "transferencia";
+    due_day?: number | null;
+    account?: string | null;
+  };
+}
+
+export interface FixedCostBill {
+  id: string;
+  recurrence?: string | null;
+  emission_date?: string | null;
+  due_date: string;
+  amount_cents: number;
+  nature: "entrada" | "saida";
+  status: "a_confirmar" | "pendente" | "pago" | "cancelado";
+  deleted_at?: string | null;
+}
+
+export interface FixedCostTransaction {
+  id: string;
+  recurrence?: string | null;
+  date: string;
+  amount_cents: number;
+  type: "receita" | "despesa" | "transferencia";
+  status: "pago" | "a_pagar";
+  deleted_at?: string | null;
+}
+
+export interface FixedCostItem {
+  key: string;
+  recurrenceId: string;
+  name: string;
+  occurrence: string;
+  dueDate: string | null;
+  amountCents: number;
+  nature: "entrada" | "saida";
+  target: "transaction" | "bill";
+  status: "pago" | "pendente" | "a_confirmar" | "previsto";
+}
+
+export interface FixedCostsInput {
+  recurrences: readonly FixedCostRecurrence[];
+  bills: readonly FixedCostBill[];
+  transactions: readonly FixedCostTransaction[];
+  month: string;
+}
+
+/**
+ * Custos/receitas fixos previstos para um mês, a partir das recorrências.
+ * Usa a conta/transação já gerada quando existe (valor e status reais) e o
+ * template da recorrência como previsão quando ainda não foi gerada.
+ */
+export function fixedCostsForMonth(input: FixedCostsInput): FixedCostItem[] {
+  const { year, month: monthNumber } = parseISOMonth(input.month);
+  const start = `${input.month}-01`;
+  const end = `${input.month}-${pad2(daysInMonth(year, monthNumber))}`;
+  const before = parseISODate(start);
+  before.setUTCDate(before.getUTCDate() - 1);
+  const after = toISODate(before);
+
+  const items: FixedCostItem[] = [];
+  for (const recurrence of input.recurrences) {
+    if (recurrence.deleted_at || recurrence.active === false) continue;
+    const dtstart = recurrence.start_date.slice(0, 10);
+    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
+    for (const occurrence of occurrences) {
+      if (occurrence < start || occurrence > end) continue;
+      if (recurrence.target === "bill") {
+        const bill = input.bills.find(
+          (item) =>
+            item.recurrence === recurrence.id &&
+            !item.deleted_at &&
+            (item.emission_date ?? "").slice(0, 10) === occurrence,
+        );
+        if (bill) {
+          if (bill.status === "cancelado") continue;
+          items.push({
+            key: `${recurrence.id}:${occurrence}`,
+            recurrenceId: recurrence.id,
+            name: recurrence.name,
+            occurrence,
+            dueDate: bill.due_date.slice(0, 10),
+            amountCents: bill.amount_cents,
+            nature: bill.nature,
+            target: "bill",
+            status:
+              bill.status === "pago"
+                ? "pago"
+                : bill.status === "a_confirmar"
+                  ? "a_confirmar"
+                  : "pendente",
+          });
+          continue;
+        }
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate: billDueDate(
+            occurrence,
+            recurrence.template.due_day ?? Number(occurrence.slice(8, 10)),
+          ),
+          amountCents:
+            recurrence.template.default_amount_cents ?? recurrence.template.amount_cents ?? 0,
+          nature: recurrence.template.nature ?? "saida",
+          target: "bill",
+          status: "previsto",
+        });
+        continue;
+      }
+
+      const tx = input.transactions.find(
+        (item) =>
+          item.recurrence === recurrence.id &&
+          !item.deleted_at &&
+          item.date.slice(0, 10) === occurrence,
+      );
+      if (tx) {
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate: null,
+          amountCents: tx.amount_cents,
+          nature: tx.type === "receita" ? "entrada" : "saida",
+          target: "transaction",
+          status: tx.status === "pago" ? "pago" : "pendente",
+        });
+        continue;
+      }
+      items.push({
+        key: `${recurrence.id}:${occurrence}`,
+        recurrenceId: recurrence.id,
+        name: recurrence.name,
+        occurrence,
+        dueDate: null,
+        amountCents: recurrence.template.amount_cents ?? 0,
+        nature: recurrence.template.type === "receita" ? "entrada" : "saida",
+        target: "transaction",
+        status: "previsto",
+      });
+    }
+  }
+  return items.sort((a, b) => {
+    const left = a.dueDate ?? a.occurrence;
+    const right = b.dueDate ?? b.occurrence;
+    return left === right ? a.name.localeCompare(b.name) : left < right ? -1 : 1;
+  });
 }

@@ -19,6 +19,7 @@ import { useCardsStore } from "@/stores/cards";
 import { useRatesStore } from "@/stores/rates";
 import { usePeopleStore } from "@/stores/people";
 import { useGoalsStore } from "@/stores/goals";
+import { useRecurrencesStore } from "@/stores/recurrences";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
 import { seedSampleData } from "@/lib/sample-data";
@@ -44,6 +45,7 @@ import {
 import ConflictPanel from "@/features/sync/ConflictPanel.vue";
 import MerchantSpendCard from "@/features/dashboard/MerchantSpendCard.vue";
 import ShortcutsCard from "@/features/dashboard/ShortcutsCard.vue";
+import FixedCostsCard from "@/features/dashboard/FixedCostsCard.vue";
 import AreaChart from "@/components/charts/AreaChart.vue";
 import BarsChart from "@/components/charts/BarsChart.vue";
 import Card from "@/components/ui/Card.vue";
@@ -61,6 +63,7 @@ const cardsStore = useCardsStore();
 const ratesStore = useRatesStore();
 const people = usePeopleStore();
 const goalsStore = useGoalsStore();
+const recurrencesStore = useRecurrencesStore();
 const transfersStore = useTransfersStore();
 const toast = useToast();
 const seeding = ref(false);
@@ -260,6 +263,7 @@ async function loadAll(): Promise<void> {
     ratesStore.load(),
     people.load(),
     goalsStore.load(),
+    recurrencesStore.load(),
     transfersStore.load(),
     loadExtras(),
   ]);
@@ -391,6 +395,13 @@ watch(() => sync.dataVersion, loadAll);
         </template>
       </CardContent>
     </Card>
+
+    <FixedCostsCard
+      :recurrences="recurrencesStore.items"
+      :bills="bills"
+      :transactions="transactionsStore.items"
+      :month="currentMonth"
+    />
 
     <Card v-if="reviewQueue.length > 0" data-testid="review-card" class="border-amber-300">
       <CardContent class="flex flex-wrap items-center gap-3 p-4">

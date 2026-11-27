@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fixedCostsForMonth,
   isValidRRule,
   nextOccurrence,
   occurrencesBetween,
@@ -64,5 +65,119 @@ describe("rrule subset", () => {
 
   it("computes the next occurrence", () => {
     expect(nextOccurrence("FREQ=WEEKLY;INTERVAL=1", "2024-03-01", "2024-03-05")).toBe("2024-03-08");
+  });
+});
+
+describe("fixedCostsForMonth", () => {
+  const base = {
+    id: "r1",
+    name: "Aluguel",
+    rrule: "FREQ=MONTHLY;INTERVAL=1",
+    start_date: "2026-01-05",
+    active: true,
+    target: "bill" as const,
+    template: {
+      amount_cents: 100000,
+      nature: "saida" as const,
+      due_day: 10,
+    },
+  };
+
+  it("prevê a conta do mês quando ainda não foi gerada", () => {
+    const items = fixedCostsForMonth({
+      recurrences: [base],
+      bills: [],
+      transactions: [],
+      month: "2026-11",
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      name: "Aluguel",
+      occurrence: "2026-11-05",
+      dueDate: "2026-11-10",
+      amountCents: 100000,
+      nature: "saida",
+      status: "previsto",
+    });
+  });
+
+  it("usa o valor e o status da conta já gerada", () => {
+    const items = fixedCostsForMonth({
+      recurrences: [base],
+      bills: [
+        {
+          id: "b1",
+          recurrence: "r1",
+          emission_date: "2026-11-05",
+          due_date: "2026-11-10",
+          amount_cents: 120000,
+          nature: "saida",
+          status: "pendente",
+        },
+      ],
+      transactions: [],
+      month: "2026-11",
+    });
+    expect(items[0]).toMatchObject({ amountCents: 120000, status: "pendente" });
+  });
+
+  it("não conta conta cancelada no mês", () => {
+    const items = fixedCostsForMonth({
+      recurrences: [base],
+      bills: [
+        {
+          id: "b1",
+          recurrence: "r1",
+          emission_date: "2026-11-05",
+          due_date: "2026-11-10",
+          amount_cents: 120000,
+          nature: "saida",
+          status: "cancelado",
+        },
+      ],
+      transactions: [],
+      month: "2026-11",
+    });
+    expect(items).toEqual([]);
+  });
+
+  it("usa o lançamento gerado quando a recorrência é de lançamento", () => {
+    const items = fixedCostsForMonth({
+      recurrences: [
+        {
+          ...base,
+          target: "transaction",
+          template: { amount_cents: 5000, type: "despesa", account: "a1" },
+        },
+      ],
+      bills: [],
+      transactions: [
+        {
+          id: "t1",
+          recurrence: "r1",
+          date: "2026-11-05",
+          amount_cents: 5500,
+          type: "despesa",
+          status: "a_pagar",
+        },
+      ],
+      month: "2026-11",
+    });
+    expect(items[0]).toMatchObject({
+      amountCents: 5500,
+      status: "pendente",
+      dueDate: null,
+      target: "transaction",
+    });
+  });
+
+  it("projeta o próximo mês a partir da recorrência", () => {
+    const items = fixedCostsForMonth({
+      recurrences: [base],
+      bills: [],
+      transactions: [],
+      month: "2026-12",
+    });
+    expect(items[0]).toMatchObject({ occurrence: "2026-12-05", dueDate: "2026-12-10" });
   });
 });
