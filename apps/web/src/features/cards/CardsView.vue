@@ -52,6 +52,7 @@ const CARD_COLORS = [
 const open = ref(false);
 const editingId = ref<string | null>(null);
 const name = ref("");
+const accountName = ref("");
 const bank = ref("");
 const limitCents = ref<number | null>(null);
 const closingDay = ref(15);
@@ -81,6 +82,7 @@ function paymentAccountName(card: LocalCreditCard): string {
 function openCreate(): void {
   editingId.value = null;
   name.value = "";
+  accountName.value = "";
   bank.value = "";
   limitCents.value = null;
   closingDay.value = 15;
@@ -93,6 +95,8 @@ function openCreate(): void {
 
 function openEdit(card: LocalCreditCard): void {
   editingId.value = card.id;
+  const linkedAccount = accountsStore.items.find((account) => account.id === card.account);
+  accountName.value = linkedAccount?.name ?? "";
   bank.value = card.bank ?? "";
   limitCents.value = card.limit_cents || null;
   closingDay.value = card.closing_day;
@@ -121,6 +125,14 @@ async function submit(): Promise<void> {
         payment_account: paymentAccount.value || null,
         owner: owner.value,
       });
+      const updatedCard = cardsStore.cards.find((item) => item.id === editingId.value);
+      const trimmedName = accountName.value.trim();
+      if (updatedCard && trimmedName) {
+        const linkedAccount = accountsStore.items.find((item) => item.id === updatedCard.account);
+        if (linkedAccount && linkedAccount.name !== trimmedName) {
+          await accountsStore.update(updatedCard.account, { name: trimmedName });
+        }
+      }
       toast.success("Cartão atualizado.");
     } else {
       await cardsStore.create({
@@ -315,6 +327,13 @@ watch(
         <div class="space-y-2">
           <Label for="card-bank">Banco</Label>
           <Input id="card-bank" v-model="bank" />
+        </div>
+        <div v-if="editingId" class="space-y-2">
+          <Label for="card-account-name">Nome da conta do cartão</Label>
+          <Input id="card-account-name" v-model="accountName" maxlength="80" />
+          <p class="text-xs text-muted-foreground">
+            Nome interno usado em relatórios e exportações.
+          </p>
         </div>
         <div class="space-y-2">
           <Label for="card-limit">Limite (R$)</Label>
