@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { apiClient } from "@/api/client";
 import { ref } from "vue";
 import { db, type LocalExchangeRate } from "../db/schema";
 import { createLocal, newLocalId, newSyncId, softDeleteLocal } from "../db/repositories";
@@ -10,8 +11,19 @@ export interface RateInput {
   rate_micros: number;
 }
 
+export interface RateQuote {
+  currency: string;
+  rate_micros: number;
+  source: string;
+  date: string;
+  fetched_at: string;
+}
+
 export function parseRateToMicros(input: string): number | null {
-  let normalized = input.trim().replace(/\s/g, "").replace(/[^\d.,]/g, "");
+  let normalized = input
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/[^\d.,]/g, "");
   if (normalized.includes(",")) {
     normalized = normalized.replace(/\./g, "").replace(",", ".");
   } else if (normalized.split(".").length > 2) {
@@ -28,10 +40,11 @@ export const useRatesStore = defineStore("rates", () => {
   async function load(): Promise<void> {
     const session = useSessionStore();
     if (!session.currentHouseholdId) return;
-    const all = await db.exchange_rates.where("household").equals(session.currentHouseholdId).toArray();
-    items.value = all
-      .filter((item) => !item.deleted_at)
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    const all = await db.exchange_rates
+      .where("household")
+      .equals(session.currentHouseholdId)
+      .toArray();
+    items.value = all.filter((item) => !item.deleted_at).sort((a, b) => (a.date < b.date ? 1 : -1));
   }
 
   async function create(input: RateInput): Promise<LocalExchangeRate> {
@@ -56,5 +69,9 @@ export const useRatesStore = defineStore("rates", () => {
     await load();
   }
 
-  return { items, load, create, remove };
+  async function fetchQuote(currency: string): Promise<RateQuote> {
+    return apiClient.get<RateQuote>(`/rates/quote?currency=${encodeURIComponent(currency)}`);
+  }
+
+  return { items, load, create, remove, fetchQuote };
 });

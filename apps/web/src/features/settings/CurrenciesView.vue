@@ -21,6 +21,7 @@ const currency = ref("USD");
 const date = ref(todayISO());
 const rate = ref("");
 const saving = ref(false);
+const fetching = ref(false);
 
 async function create(): Promise<void> {
   const micros = parseRateToMicros(rate.value);
@@ -41,11 +42,37 @@ async function create(): Promise<void> {
 }
 
 function formatMicros(micros: number): string {
-  return (micros / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+  return (micros / 1_000_000).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+}
+
+async function fetchCurrent(): Promise<void> {
+  const code = currency.value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code) || code === "BRL") {
+    toast.error("Informe uma moeda de 3 letras (ex.: USD).");
+    return;
+  }
+  fetching.value = true;
+  try {
+    const quote = await store.fetchQuote(code);
+    currency.value = quote.currency;
+    rate.value = formatMicros(quote.rate_micros);
+    date.value = quote.date;
+    toast.success(`Cotação ${quote.currency}/BRL preenchida. Confira e salve.`);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Falha ao buscar a cotação.");
+  } finally {
+    fetching.value = false;
+  }
 }
 
 onMounted(() => store.load());
-watch(() => sync.dataVersion, () => store.load());
+watch(
+  () => sync.dataVersion,
+  () => store.load(),
+);
 </script>
 
 <template>
@@ -68,7 +95,27 @@ watch(() => sync.dataVersion, () => store.load());
           </div>
           <div class="space-y-2">
             <Label for="rate-value">Cotação para BRL</Label>
-            <Input id="rate-value" v-model="rate" inputmode="decimal" placeholder="5,20" />
+            <div class="flex gap-2">
+              <Input
+                id="rate-value"
+                v-model="rate"
+                inputmode="decimal"
+                placeholder="5,20"
+                class="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                :loading="fetching"
+                data-testid="rate-fetch"
+                @click="fetchCurrent"
+              >
+                Buscar agora
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              Busca gratuita na AwesomeAPI (USD, EUR e outras moedas).
+            </p>
           </div>
           <Button type="submit" :loading="saving">Salvar cotação</Button>
         </form>

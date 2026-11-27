@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { api, operation, push, setupFamily, startHarness, type Family, type Harness } from "./harness";
+import {
+  api,
+  operation,
+  push,
+  setupFamily,
+  startHarness,
+  type Family,
+  type Harness,
+} from "./harness";
 
 describe("integrations and multicurrency", () => {
   let harness: Harness;
@@ -23,6 +31,14 @@ describe("integrations and multicurrency", () => {
     expect(result.data.open_finance_enabled).toBe(false);
   });
 
+  it("valida a consulta de cotação", async () => {
+    const unauthorized = await api(harness, "/api/rates/quote?currency=USD");
+    expect(unauthorized.status).toBe(401);
+
+    const invalid = await api(harness, "/api/rates/quote?currency=BRL", { token: family.token });
+    expect(invalid.status).toBe(400);
+  });
+
   it("syncs exchange rates", async () => {
     const id = crypto.randomUUID();
     const syncId = crypto.randomUUID();
@@ -31,7 +47,14 @@ describe("integrations and multicurrency", () => {
         syncId,
         "exchange_rates",
         "create",
-        { id, household: "", sync_id: syncId, currency: "USD", date: "2024-03-01", rate_micros: 5200000 },
+        {
+          id,
+          household: "",
+          sync_id: syncId,
+          currency: "USD",
+          date: "2024-03-01",
+          rate_micros: 5200000,
+        },
         id,
       ),
     ]);
@@ -53,7 +76,14 @@ describe("integrations and multicurrency", () => {
         accountSync,
         "accounts",
         "create",
-        { id: accountId, household: "", sync_id: accountSync, name: "Import", type: "corrente", owner: "dela" },
+        {
+          id: accountId,
+          household: "",
+          sync_id: accountSync,
+          name: "Import",
+          type: "corrente",
+          owner: "dela",
+        },
         accountId,
       ),
     ]);

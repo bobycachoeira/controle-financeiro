@@ -84,6 +84,7 @@ routerAdd("GET", "/api/notifications/deliveries", (c) =>
 );
 
 routerAdd("GET", "/api/settings/features", (c) => require(`${__hooks}/lib/handlers/features.js`).features(c));
+routerAdd("GET", "/api/rates/quote", (c) => require(`${__hooks}/lib/handlers/rates.js`).quote(c));
 
 routerAdd("POST", "/api/audit", (c) => require(`${__hooks}/lib/handlers/audit.js`).record(c));
 routerAdd("GET", "/api/audit", (c) => require(`${__hooks}/lib/handlers/audit.js`).list(c));
