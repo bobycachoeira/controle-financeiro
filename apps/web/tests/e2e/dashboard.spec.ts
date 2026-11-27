@@ -64,10 +64,15 @@ test.describe("atalhos", () => {
 
     await page.getByTestId("shortcuts-edit").click();
     await page.getByRole("button", { name: "Orçamentos" }).click();
+    const selected = page.locator("li", { hasText: "Orçamentos" });
+    for (let index = 0; index < 4; index += 1) {
+      await selected.getByLabel("Mover para cima").click();
+    }
     await page.getByRole("button", { name: "Salvar" }).click();
 
     const shortcut = page.getByTestId("shortcut").filter({ hasText: "Orçamentos" });
     await expect(shortcut).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("shortcut").first()).toContainText("Orçamentos");
     await shortcut.click();
     await expect(page.getByRole("heading", { name: "Orçamentos" })).toBeVisible({
       timeout: 15_000,
