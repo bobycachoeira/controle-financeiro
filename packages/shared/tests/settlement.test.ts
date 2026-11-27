@@ -11,7 +11,9 @@ const people: SettlementPerson[] = [
   { key: "maria", label: "Maria" },
 ];
 
-function expense(partial: Partial<SettlementTransaction> & { amount_cents: number }): SettlementTransaction {
+function expense(
+  partial: Partial<SettlementTransaction> & { amount_cents: number },
+): SettlementTransaction {
   return {
     type: "despesa",
     status: "pago",
@@ -48,9 +50,7 @@ describe("computeSettlement", () => {
     expect(paulo?.shareCents).toBe(5000);
     expect(paulo?.netCents).toBe(5000);
     expect(maria?.netCents).toBe(-5000);
-    expect(result.suggestions).toEqual([
-      { fromKey: "maria", toKey: "paulo", amountCents: 5000 },
-    ]);
+    expect(result.suggestions).toEqual([{ fromKey: "maria", toKey: "paulo", amountCents: 5000 }]);
   });
 
   it("mapeia atribuições legadas (meu/dela) para as pessoas atuais", () => {
@@ -64,6 +64,19 @@ describe("computeSettlement", () => {
       ],
     });
     expect(result.people.map((p) => p.netCents)).toEqual([0, 0]);
+  });
+
+  it("ignora lançamentos fora dos relatórios", () => {
+    const result = computeSettlement({
+      people,
+      month: "2026-10",
+      transactions: [
+        expense({ amount_cents: 10000, payer_user: "paulo" }),
+        expense({ amount_cents: 40000, payer_user: "paulo", exclude_from_reports: true }),
+      ],
+    });
+    expect(result.consideredCents).toBe(10000);
+    expect(result.people.map((p) => p.netCents)).toEqual([5000, -5000]);
   });
 
   it("ignora despesas sem pagador identificado", () => {

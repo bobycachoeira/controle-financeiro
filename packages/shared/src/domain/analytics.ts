@@ -12,6 +12,7 @@ export interface AnalyticsTransaction {
   merchant?: string | null;
   description?: string | null;
   deleted_at?: string | null;
+  exclude_from_reports?: boolean;
 }
 
 export interface AnalyticsAccount {
@@ -60,7 +61,7 @@ export function monthlyCashflow(
     ]),
   );
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type === "transferencia") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type === "transferencia") continue;
     const bucket = buckets.get(monthOf(tx.date));
     if (!bucket) continue;
     if (tx.type === "receita") bucket.receitasCents += tx.amount_cents;
@@ -132,7 +133,7 @@ export function spendingByCategory(
   const byId = new Map(categories.map((category) => [category.id, category]));
   const totals = new Map<string, number>();
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa") continue;
     if (monthOf(tx.date) !== month) continue;
     // Relação vazia vinda do sync chega como "" — trata igual a sem categoria.
     const key = tx.category || "__none__";
@@ -181,7 +182,7 @@ export function spendingByMerchant(
     { name: string; totalCents: number; count: number; lastDate: string }
   >();
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa") continue;
     if (!months.has(monthOf(tx.date))) continue;
     if (options.accountId && tx.account !== options.accountId) continue;
     if (options.creditCardId && tx.credit_card !== options.creditCardId) continue;

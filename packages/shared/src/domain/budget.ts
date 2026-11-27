@@ -24,6 +24,7 @@ export interface BudgetTransaction {
   category?: string | null;
   date: string;
   deleted_at?: string | null;
+  exclude_from_reports?: boolean;
 }
 
 export interface BudgetBill {
@@ -70,7 +71,7 @@ export function computeBudgetUsage(
 
   let spent = 0;
   for (const tx of transactions) {
-    if (tx.deleted_at) continue;
+    if (tx.deleted_at || tx.exclude_from_reports) continue;
     if (tx.type !== "despesa") continue;
     if (tx.date < range.start || tx.date > range.end) continue;
     if (!tx.category || !categoryIds.has(tx.category)) continue;

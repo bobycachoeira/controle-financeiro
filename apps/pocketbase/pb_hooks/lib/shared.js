@@ -4553,7 +4553,8 @@ var transactionSchema = syncBaseSchema.extend({
   tags: external_exports.array(external_exports.string()).default([]),
   note: external_exports.string().max(1e3).default(""),
   origin: external_exports.enum(["manual", "import", "recurrence"]).default("manual"),
-  external_ref: external_exports.string().nullable().optional()
+  external_ref: external_exports.string().nullable().optional(),
+  exclude_from_reports: external_exports.boolean().default(false)
 }).superRefine((value, ctx) => {
   if (value.type !== "transferencia" && value.amount_cents <= 0) {
     ctx.addIssue({
@@ -4860,7 +4861,7 @@ function totalsByAttribution(transactions) {
   var _a;
   const totals = {};
   for (const tx of transactions) {
-    if (!isActive(tx)) continue;
+    if (!isActive(tx) || tx.exclude_from_reports) continue;
     if (tx.type !== "despesa") continue;
     totals[tx.attribution] = ((_a = totals[tx.attribution]) != null ? _a : 0) + tx.amount_cents;
   }
@@ -4869,14 +4870,16 @@ function totalsByAttribution(transactions) {
 function totalNetForAttribution(transactions, attribution) {
   let net = 0;
   for (const tx of transactions) {
-    if (!isActive(tx)) continue;
+    if (!isActive(tx) || tx.exclude_from_reports) continue;
     if (tx.type === "transferencia" || tx.attribution !== attribution) continue;
     net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
   }
   return net;
 }
 function totalToPay(transactions) {
-  return transactions.filter((tx) => isActive(tx) && tx.type === "despesa" && tx.status === "a_pagar").filter((tx) => !tx.invoice).reduce((total, tx) => total + tx.amount_cents, 0);
+  return transactions.filter(
+    (tx) => isActive(tx) && !tx.exclude_from_reports && tx.type === "despesa" && tx.status === "a_pagar"
+  ).filter((tx) => !tx.invoice).reduce((total, tx) => total + tx.amount_cents, 0);
 }
 
 // src/domain/transfer.ts
@@ -5264,7 +5267,7 @@ function computeBudgetUsage(budget, transactions, bills = []) {
   const perCategoryMap = /* @__PURE__ */ new Map();
   let spent = 0;
   for (const tx of transactions) {
-    if (tx.deleted_at) continue;
+    if (tx.deleted_at || tx.exclude_from_reports) continue;
     if (tx.type !== "despesa") continue;
     if (tx.date < range.start || tx.date > range.end) continue;
     if (!tx.category || !categoryIds.has(tx.category)) continue;
@@ -5358,7 +5361,8 @@ function computeSettlement(input) {
   let consideredCents = 0;
   let ignoredCents = 0;
   for (const tx of input.transactions) {
-    if (tx.deleted_at || tx.type !== "despesa" || tx.status !== "pago") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa" || tx.status !== "pago")
+      continue;
     if (monthOf(tx.date) !== input.month) continue;
     const payer = tx.payer_user ? rows.get(tx.payer_user) : void 0;
     if (!payer) {
@@ -5626,7 +5630,7 @@ function monthlyCashflow(transactions, endMonth, count = 6) {
     ])
   );
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type === "transferencia") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type === "transferencia") continue;
     const bucket = buckets.get(monthOf(tx.date));
     if (!bucket) continue;
     if (tx.type === "receita") bucket.receitasCents += tx.amount_cents;
@@ -5669,7 +5673,7 @@ function spendingByCategory(transactions, categories, month, limit = 5) {
   const byId = new Map(categories.map((category) => [category.id, category]));
   const totals = /* @__PURE__ */ new Map();
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa") continue;
     if (monthOf(tx.date) !== month) continue;
     const key = tx.category || "__none__";
     totals.set(key, ((_a = totals.get(key)) != null ? _a : 0) + tx.amount_cents);
@@ -5690,7 +5694,7 @@ function spendingByMerchant(transactions, options) {
   const months = new Set(options.months);
   const groups = /* @__PURE__ */ new Map();
   for (const tx of transactions) {
-    if (tx.deleted_at || tx.type !== "despesa") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa") continue;
     if (!months.has(monthOf(tx.date))) continue;
     if (options.accountId && tx.account !== options.accountId) continue;
     if (options.creditCardId && tx.credit_card !== options.creditCardId) continue;

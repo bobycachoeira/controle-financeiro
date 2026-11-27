@@ -7,6 +7,7 @@ export interface BalanceTransaction {
   /** Preenchido quando a compra está vinculada a uma fatura de cartão. */
   invoice?: string | null;
   deleted_at?: string | null;
+  exclude_from_reports?: boolean;
 }
 
 export interface AccountLike {
@@ -52,7 +53,7 @@ export function totalsByAttribution(
 ): Record<string, number> {
   const totals: Record<string, number> = {};
   for (const tx of transactions) {
-    if (!isActive(tx)) continue;
+    if (!isActive(tx) || tx.exclude_from_reports) continue;
     if (tx.type !== "despesa") continue;
     totals[tx.attribution] = (totals[tx.attribution] ?? 0) + tx.amount_cents;
   }
@@ -65,7 +66,7 @@ export function totalNetForAttribution(
 ): number {
   let net = 0;
   for (const tx of transactions) {
-    if (!isActive(tx)) continue;
+    if (!isActive(tx) || tx.exclude_from_reports) continue;
     if (tx.type === "transferencia" || tx.attribution !== attribution) continue;
     net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
   }
@@ -74,7 +75,10 @@ export function totalNetForAttribution(
 
 export function totalToPay(transactions: readonly BalanceTransaction[]): number {
   return transactions
-    .filter((tx) => isActive(tx) && tx.type === "despesa" && tx.status === "a_pagar")
+    .filter(
+      (tx) =>
+        isActive(tx) && !tx.exclude_from_reports && tx.type === "despesa" && tx.status === "a_pagar",
+    )
     // Compras no cartão são um compromisso da fatura, não um "a pagar" solto
     // (senão o mesmo valor apareceria duas vezes no painel).
     .filter((tx) => !tx.invoice)

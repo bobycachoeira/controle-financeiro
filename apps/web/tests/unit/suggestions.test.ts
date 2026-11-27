@@ -28,6 +28,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string }): LocalTransacti
     tags: [],
     note: "",
     origin: "manual",
+    exclude_from_reports: false,
     updated_by: null,
     deleted_at: null,
     ...partial,

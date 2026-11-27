@@ -48,6 +48,7 @@ function tx(partial: Partial<LocalTransaction> & { id: string; amount_cents: num
     note: "",
     origin: "manual",
     external_ref: null,
+    exclude_from_reports: false,
     updated_by: null,
     deleted_at: null,
     ...partial,

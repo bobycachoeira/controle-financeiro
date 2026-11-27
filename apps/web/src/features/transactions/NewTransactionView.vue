@@ -97,6 +97,7 @@ function applyMerchantSuggestion(suggestion: MerchantSuggestion): void {
   if (!category.value && suggestion.category) category.value = suggestion.category;
 }
 const tagsInput = ref("");
+const excludeFromReports = ref(false);
 const attachment = ref<string | null>(null);
 const attachmentBusy = ref(false);
 const photoInput = ref<HTMLInputElement | null>(null);
@@ -202,6 +203,7 @@ async function submit(): Promise<void> {
       status: status.value,
       tags: parseTags(),
       attachment: attachment.value,
+      exclude_from_reports: excludeFromReports.value,
     };
     if (isEdit.value) {
       const id = String(route.params.id);
@@ -323,6 +325,7 @@ onMounted(async () => {
       attribution.value = tx.attribution;
       status.value = tx.status;
       category.value = tx.category ?? "";
+      excludeFromReports.value = tx.exclude_from_reports ?? false;
       tagsInput.value = (tx.tags ?? []).join(", ");
       attachment.value = tx.attachment ?? null;
       const rows = await db.installments.where("root_transaction").equals(tx.id).toArray();
@@ -556,6 +559,29 @@ watch(
                 <option value="pago">Pago</option>
                 <option value="a_pagar">A pagar</option>
               </Select>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-bold">Fora dos relatórios</p>
+                <p class="text-xs text-muted-foreground">
+                  Não soma em gastos, orçamentos e acertos.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                data-testid="exclude-reports-toggle"
+                aria-label="Fora dos relatórios"
+                :aria-checked="excludeFromReports"
+                class="relative h-6 w-11 shrink-0 rounded-full transition"
+                :class="excludeFromReports ? 'bg-primary' : 'bg-muted-foreground/30'"
+                @click="excludeFromReports = !excludeFromReports"
+              >
+                <span
+                  class="absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all"
+                  :class="excludeFromReports ? 'left-[1.4rem]' : 'left-0.5'"
+                />
+              </button>
             </div>
             <div class="space-y-2">
               <Label for="tags">Etiquetas (opcional)</Label>

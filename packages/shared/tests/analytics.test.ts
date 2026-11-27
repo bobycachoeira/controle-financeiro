@@ -8,7 +8,9 @@ import {
   type AnalyticsTransaction,
 } from "../src/domain/analytics";
 
-const tx = (partial: Partial<AnalyticsTransaction> & { date: string; amount_cents: number }): AnalyticsTransaction => ({
+const tx = (
+  partial: Partial<AnalyticsTransaction> & { date: string; amount_cents: number },
+): AnalyticsTransaction => ({
   type: "despesa",
   status: "pago",
   deleted_at: null,
@@ -116,9 +118,26 @@ describe("spendingByMerchant", () => {
   it("usa a descrição como fallback e filtra por conta e categoria", () => {
     const result = spendingByMerchant(
       [
-        tx({ date: "2024-04-01", amount_cents: 1000, description: "Mercado antigo", account: "a1" }),
-        tx({ date: "2024-04-02", amount_cents: 2000, merchant: "Uber", account: "a2", category: "transporte" }),
-        tx({ date: "2024-04-03", amount_cents: 3000, merchant: "Uber", account: "a2", category: "lazer" }),
+        tx({
+          date: "2024-04-01",
+          amount_cents: 1000,
+          description: "Mercado antigo",
+          account: "a1",
+        }),
+        tx({
+          date: "2024-04-02",
+          amount_cents: 2000,
+          merchant: "Uber",
+          account: "a2",
+          category: "transporte",
+        }),
+        tx({
+          date: "2024-04-03",
+          amount_cents: 3000,
+          merchant: "Uber",
+          account: "a2",
+          category: "lazer",
+        }),
       ],
       { months: ["2024-04"], accountId: "a2", categoryId: "transporte" },
     );
@@ -142,5 +161,28 @@ describe("spendingByMerchant", () => {
       { months: ["2024-04"] },
     );
     expect(result).toEqual([]);
+  });
+});
+
+describe("exclude_from_reports", () => {
+  const flagged: AnalyticsTransaction[] = [
+    tx({
+      date: "2024-04-01",
+      amount_cents: 40000,
+      merchant: "Cofrinhos",
+      exclude_from_reports: true,
+    }),
+    tx({ date: "2024-04-02", amount_cents: 1000, merchant: "Mercado" }),
+  ];
+
+  it("sai do fluxo de caixa e dos gastos", () => {
+    const cash = monthlyCashflow(flagged, "2024-04", 1)[0];
+    expect(cash?.despesasCents).toBe(1000);
+
+    const merchants = spendingByMerchant(flagged, { months: ["2024-04"] });
+    expect(merchants.map((item) => item.name)).toEqual(["Mercado"]);
+
+    const categories = spendingByCategory(flagged, [], "2024-04");
+    expect(categories[0]?.totalCents).toBe(1000);
   });
 });

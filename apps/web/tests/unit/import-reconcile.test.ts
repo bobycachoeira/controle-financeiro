@@ -40,6 +40,7 @@ function tx(
     note: "",
     origin: "manual",
     external_ref: null,
+    exclude_from_reports: false,
     updated_by: null,
     deleted_at: null,
   };

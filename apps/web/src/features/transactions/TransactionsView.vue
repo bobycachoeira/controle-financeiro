@@ -500,6 +500,9 @@ watch(() => sync.dataVersion, loadAll);
                   <Badge v-if="installmentLabel(tx)" variant="secondary" class="ml-1 align-middle">
                     parcela {{ installmentLabel(tx) }}
                   </Badge>
+                  <Badge v-if="tx.exclude_from_reports" variant="outline" class="ml-1 align-middle">
+                    fora dos relatórios
+                  </Badge>
                 </p>
                 <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
                   <template v-if="tx.merchant && tx.description">

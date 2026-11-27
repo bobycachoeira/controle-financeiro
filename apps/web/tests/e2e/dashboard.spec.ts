@@ -9,3 +9,53 @@ test.describe("dashboard", () => {
     }
   });
 });
+
+test.describe("relatórios", () => {
+  test("lançamento fora dos relatórios sai dos gastos por estabelecimento", async ({
+    page,
+    loginAs,
+  }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const merchant = `Cofrinho Teste ${stamp}`;
+    const category = `Fora ${stamp}`;
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("123,45");
+    await page.locator("#merchant").fill(merchant);
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.locator("#category").click();
+    await page.getByPlaceholder(/Filtrar categoria/).fill(category);
+    await page.getByRole("button", { name: /^Criar/ }).click();
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(merchant, { exact: true }).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.goto("/");
+    const spend = page.getByTestId("merchant-spend");
+    await expect(spend).toBeVisible({ timeout: 15_000 });
+    await page.locator("#merchant-category").selectOption({ label: category });
+    await expect(spend.getByText(merchant, { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    await page.goto("/transactions");
+    const row = page.locator("li", { hasText: merchant });
+    await row.getByLabel("Editar lançamento").click();
+    await expect(page.getByRole("heading", { name: "Editar lançamento" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId("tx-more").click();
+    await page.getByTestId("exclude-reports-toggle").click();
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText(merchant, { exact: true }).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.goto("/");
+    await expect(page.getByTestId("merchant-spend")).toBeVisible({ timeout: 15_000 });
+    await page.locator("#merchant-category").selectOption({ label: category });
+    await expect(
+      page.getByTestId("merchant-spend").getByText("Sem despesas nesse filtro."),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+});

@@ -36,6 +36,7 @@ export const transactionSchema = syncBaseSchema
     note: z.string().max(1000).default(""),
     origin: z.enum(["manual", "import", "recurrence"]).default("manual"),
     external_ref: z.string().nullable().optional(),
+    exclude_from_reports: z.boolean().default(false),
   })
   .superRefine((value, ctx) => {
     if (value.type !== "transferencia" && value.amount_cents <= 0) {

@@ -16,6 +16,7 @@ export interface SettlementTransaction {
   payer_user?: string | null;
   date: string;
   deleted_at?: string | null;
+  exclude_from_reports?: boolean;
 }
 
 export interface SettlementTransferLike {
@@ -100,7 +101,8 @@ export function computeSettlement(input: SettlementInput): SettlementResult {
   let ignoredCents = 0;
 
   for (const tx of input.transactions) {
-    if (tx.deleted_at || tx.type !== "despesa" || tx.status !== "pago") continue;
+    if (tx.deleted_at || tx.exclude_from_reports || tx.type !== "despesa" || tx.status !== "pago")
+      continue;
     if (monthOf(tx.date) !== input.month) continue;
     const payer = tx.payer_user ? rows.get(tx.payer_user) : undefined;
     if (!payer) {

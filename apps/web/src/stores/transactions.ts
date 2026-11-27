@@ -46,6 +46,7 @@ export interface TransactionInput {
   note?: string;
   origin?: "manual" | "import" | "recurrence";
   external_ref?: string | null;
+  exclude_from_reports?: boolean;
 }
 
 export interface CardPurchaseInput extends Omit<TransactionInput, "type"> {
@@ -138,6 +139,7 @@ export const useTransactionsStore = defineStore("transactions", () => {
       note: input.note ?? "",
       origin: input.origin ?? "manual",
       external_ref: input.external_ref ?? null,
+      exclude_from_reports: input.exclude_from_reports ?? false,
       updated_by: session.user?.id ?? null,
       deleted_at: null,
     };

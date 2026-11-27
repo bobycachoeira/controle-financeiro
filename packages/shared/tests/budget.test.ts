@@ -21,9 +21,18 @@ function expense(category: string, amount: number, date = "2024-03-10") {
 
 describe("budget", () => {
   it("computes period ranges", () => {
-    expect(budgetPeriodRange("mensal", "2024-03")).toEqual({ start: "2024-03-01", end: "2024-03-31" });
-    expect(budgetPeriodRange("trimestral", "2024-01")).toEqual({ start: "2024-01-01", end: "2024-03-31" });
-    expect(budgetPeriodRange("anual", "2024-06")).toEqual({ start: "2024-06-01", end: "2025-05-31" });
+    expect(budgetPeriodRange("mensal", "2024-03")).toEqual({
+      start: "2024-03-01",
+      end: "2024-03-31",
+    });
+    expect(budgetPeriodRange("trimestral", "2024-01")).toEqual({
+      start: "2024-01-01",
+      end: "2024-03-31",
+    });
+    expect(budgetPeriodRange("anual", "2024-06")).toEqual({
+      start: "2024-06-01",
+      end: "2025-05-31",
+    });
   });
 
   it("sums spending for budgeted categories in the period", () => {
@@ -33,12 +42,32 @@ describe("budget", () => {
       expense("other", 99999),
       expense("food", 50000, "2024-04-01"),
       { type: "receita", amount_cents: 5000, category: "food", date: "2024-03-10" },
-      { type: "despesa", amount_cents: 1000, category: "food", date: "2024-03-10", deleted_at: "x" },
+      {
+        type: "despesa",
+        amount_cents: 1000,
+        category: "food",
+        date: "2024-03-10",
+        deleted_at: "x",
+      },
     ]);
     expect(usage.spentCents).toBe(50000);
     expect(usage.remainingCents).toBe(50000);
     expect(usage.percent).toBe(50);
     expect(usage.status).toBe("ok");
+  });
+
+  it("ignora lançamentos fora dos relatórios", () => {
+    const usage = computeBudgetUsage(budget, [
+      expense("food", 40000),
+      {
+        type: "despesa",
+        amount_cents: 90000,
+        category: "food",
+        date: "2024-03-10",
+        exclude_from_reports: true,
+      },
+    ]);
+    expect(usage.spentCents).toBe(40000);
   });
 
   it("flags alerta and estouro", () => {

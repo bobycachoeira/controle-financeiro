@@ -165,7 +165,9 @@ export function selectCardUsage(
   cardsCount: number,
   month: string,
 ): CardUsageSummary {
-  const active = transactions.filter((tx) => !tx.deleted_at && monthOf(tx.date) === month);
+  const active = transactions.filter(
+    (tx) => !tx.deleted_at && !tx.exclude_from_reports && monthOf(tx.date) === month,
+  );
   const spentCents = active
     .filter((tx) => tx.type === "despesa" && tx.credit_card)
     .reduce((sum, tx) => sum + tx.amount_cents, 0);
@@ -214,7 +216,10 @@ export function selectToPay30Days(transactions: LocalTransaction[], today: strin
   limit.setUTCDate(limit.getUTCDate() + 30);
   const limitISO = limit.toISOString().slice(0, 10);
   return transactions
-    .filter((tx) => !tx.deleted_at && tx.type === "despesa" && tx.status === "a_pagar")
+    .filter(
+      (tx) =>
+        !tx.deleted_at && !tx.exclude_from_reports && tx.type === "despesa" && tx.status === "a_pagar",
+    )
     // Compras do cartão entram na fatura (exibida em "Faturas abertas").
     .filter((tx) => !tx.invoice)
     .filter((tx) => tx.date >= today && tx.date <= limitISO)
