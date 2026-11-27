@@ -6,6 +6,7 @@ import { useRatesStore, parseRateToMicros } from "@/stores/rates";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
 import { formatDate } from "@/lib/format";
+import { COMMON_CURRENCIES } from "@/lib/currencies";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -13,20 +14,6 @@ import CardHeader from "@/components/ui/CardHeader.vue";
 import CardTitle from "@/components/ui/CardTitle.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
-
-const COMMON_CURRENCIES = [
-  { code: "USD", label: "Dólar americano" },
-  { code: "EUR", label: "Euro" },
-  { code: "GBP", label: "Libra esterlina" },
-  { code: "ARS", label: "Peso argentino" },
-  { code: "CAD", label: "Dólar canadense" },
-  { code: "AUD", label: "Dólar australiano" },
-  { code: "JPY", label: "Iene japonês" },
-  { code: "CHF", label: "Franco suíço" },
-  { code: "CNY", label: "Yuan chinês" },
-  { code: "PYG", label: "Guarani paraguaio" },
-  { code: "UYU", label: "Peso uruguaio" },
-];
 
 const store = useRatesStore();
 const sync = useSyncStore();

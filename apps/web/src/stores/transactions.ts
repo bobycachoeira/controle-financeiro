@@ -34,6 +34,8 @@ export interface TransactionInput {
   account: string;
   credit_card?: string | null;
   amount_cents: number;
+  original_currency?: string | null;
+  original_amount_cents?: number | null;
   type: TransactionType;
   date: string;
   attribution: string;
@@ -121,6 +123,8 @@ export const useTransactionsStore = defineStore("transactions", () => {
       credit_card: input.credit_card ?? null,
       amount_cents: input.amount_cents,
       currency: "BRL",
+      original_currency: input.original_currency ?? null,
+      original_amount_cents: input.original_amount_cents ?? null,
       type: input.type,
       date: input.date,
       posting_date: null,

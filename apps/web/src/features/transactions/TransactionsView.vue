@@ -289,6 +289,14 @@ function titleOf(tx: LocalTransaction): string {
   return (tx.merchant ?? "").trim() || tx.description || "Lançamento";
 }
 
+function originalAmountLabel(tx: LocalTransaction): string {
+  if (!tx.original_currency || !tx.original_amount_cents) return "";
+  return (tx.original_amount_cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: tx.original_currency,
+  });
+}
+
 function amountLabel(tx: LocalTransaction): string {
   if (tx.type === "transferencia") {
     return `${tx.amount_cents < 0 ? "−" : "+"}${formatBRL(Math.abs(tx.amount_cents))}`;
@@ -480,7 +488,10 @@ watch(() => sync.dataVersion, loadAll);
               @click.capture="onRowClick(tx.id, $event)"
             >
               <IconChip
-                :name="categoryById.get(tx.category ?? '')?.icon ?? (tx.type === 'receita' ? 'hand-coins' : 'tag')"
+                :name="
+                  categoryById.get(tx.category ?? '')?.icon ??
+                  (tx.type === 'receita' ? 'hand-coins' : 'tag')
+                "
                 :color="categoryById.get(tx.category ?? '')?.color"
                 :seed="tx.category ?? tx.type"
               />
@@ -504,14 +515,17 @@ watch(() => sync.dataVersion, loadAll);
                     fora dos relatórios
                   </Badge>
                 </p>
-                <p class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground">
-                  <template v-if="tx.merchant && tx.description">
-                    {{ tx.description }} ·
-                  </template>
+                <p
+                  class="line-clamp-2 break-words text-xs font-semibold leading-snug text-muted-foreground"
+                >
+                  <template v-if="tx.merchant && tx.description"> {{ tx.description }} · </template>
                   {{ formatDateShort(tx.date) }}
                   <template v-if="sourceName(tx)"> · {{ sourceName(tx) }}</template>
+                  <template v-if="originalAmountLabel(tx)">
+                    · {{ originalAmountLabel(tx) }}</template
+                  >
                   <template v-if="categoryById.get(tx.category ?? '')">
-                    · {{ categoryById.get(tx.category ?? '')?.name }}</template
+                    · {{ categoryById.get(tx.category ?? "")?.name }}</template
                   >
                   <template v-if="attributionLabel(tx.attribution)">
                     · {{ attributionLabel(tx.attribution) }}</template

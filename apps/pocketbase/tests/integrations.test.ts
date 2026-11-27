@@ -158,6 +158,8 @@ describe("integrations and multicurrency", () => {
           status: "pago",
           origin: "import",
           external_ref: "abc123",
+          original_currency: "USD",
+          original_amount_cents: 530,
         },
         txId,
       ),
@@ -166,5 +168,7 @@ describe("integrations and multicurrency", () => {
     const record = tx.data.results[0]?.record as Record<string, unknown>;
     expect(record?.origin).toBe("import");
     expect(record?.external_ref).toBe("abc123");
+    expect(record?.original_currency).toBe("USD");
+    expect(record?.original_amount_cents).toBe(530);
   });
 });

@@ -18,6 +18,8 @@ export const transactionSchema = syncBaseSchema
     // Transferências usam valores com sinal (a perna de origem é negativa).
     amount_cents: cents,
     currency: z.string().default("BRL"),
+    original_currency: z.string().max(8).nullable().optional(),
+    original_amount_cents: z.number().int().positive().nullable().optional(),
     type: transactionTypeSchema,
     date: isoDate,
     posting_date: isoDate.nullable().optional(),

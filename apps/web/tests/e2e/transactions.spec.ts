@@ -47,6 +47,29 @@ test.describe("lançamentos", () => {
     await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
   });
 
+  test("registra compra internacional com moeda original", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    const stamp = Date.now();
+    const description = `Compra USD ${stamp}`;
+
+    await page.goto("/transactions/new");
+    await page.locator("#amount").fill("28,14");
+    await page.locator("#description").fill(description);
+    await page.locator("#account").selectOption({ label: "Conta Principal" });
+    await page.getByTestId("tx-more").click();
+    await page.locator("#original-currency").fill("USD");
+    await page.locator("#original-amount").fill("5,30");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText(description)).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator("li", { hasText: description });
+    await expect(row).toContainText(/US\$\s*5,30/);
+    await row.getByLabel("Editar lançamento").click();
+    await page.getByTestId("tx-more").click();
+    await expect(page.locator("#original-currency")).toHaveValue("USD");
+    await expect(page.locator("#original-amount")).toHaveValue("5,30");
+  });
+
   test("anexa comprovante (foto) no lançamento", async ({ page, loginAs }) => {
     await loginAs("titular");
     const stamp = Date.now();
@@ -87,7 +110,10 @@ test.describe("lançamentos", () => {
     await page.getByPlaceholder(/Texto na descrição/).fill(`padaria${stamp}`);
     await page.locator("#rule-category").click();
     await page.getByPlaceholder(/Filtrar categoria/).fill("Supermercado");
-    await page.getByRole("button", { name: /Supermercado/ }).first().click();
+    await page
+      .getByRole("button", { name: /Supermercado/ })
+      .first()
+      .click();
     await page.getByRole("button", { name: /Adicionar regra/ }).click();
     await expect(page.getByText(`padaria${stamp}`)).toBeVisible({ timeout: 10_000 });
 

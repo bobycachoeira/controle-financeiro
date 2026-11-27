@@ -120,6 +120,7 @@ __export(src_exports, {
   errorEnvelopeSchema: () => errorEnvelopeSchema,
   exchangeRateSchema: () => exchangeRateSchema,
   expectedDateForInstallment: () => expectedDateForInstallment,
+  fixedCostsForMonth: () => fixedCostsForMonth,
   formatBRL: () => formatBRL,
   formatISOMonth: () => formatISOMonth,
   fromCents: () => fromCents,
@@ -4536,6 +4537,8 @@ var transactionSchema = syncBaseSchema.extend({
   // Transferências usam valores com sinal (a perna de origem é negativa).
   amount_cents: cents,
   currency: external_exports.string().default("BRL"),
+  original_currency: external_exports.string().max(8).nullable().optional(),
+  original_amount_cents: external_exports.number().int().positive().nullable().optional(),
   type: transactionTypeSchema,
   date: isoDate,
   posting_date: isoDate.nullable().optional(),
@@ -5214,7 +5217,11 @@ function buildOccurrence(parsed, dtstart, index) {
     return toISODate(date);
   }
   if (parsed.freq === "MONTHLY") {
-    const { year: year2, month: month2 } = addMonths(start.getUTCFullYear(), start.getUTCMonth() + 1, index * parsed.interval);
+    const { year: year2, month: month2 } = addMonths(
+      start.getUTCFullYear(),
+      start.getUTCMonth() + 1,
+      index * parsed.interval
+    );
     const day2 = (_a = parsed.byMonthDay) != null ? _a : start.getUTCDate();
     return `${year2}-${pad2(month2)}-${pad2(clampDay(year2, month2, day2))}`;
   }
@@ -5247,6 +5254,96 @@ function nextOccurrence(rrule, dtstart, fromISO) {
     if (occurrence > fromISO) return occurrence;
   }
   return null;
+}
+function fixedCostsForMonth(input) {
+  var _a, _b, _c, _d, _e;
+  const { year, month: monthNumber } = parseISOMonth(input.month);
+  const start = `${input.month}-01`;
+  const end = `${input.month}-${pad2(daysInMonth(year, monthNumber))}`;
+  const before = parseISODate(start);
+  before.setUTCDate(before.getUTCDate() - 1);
+  const after = toISODate(before);
+  const items = [];
+  for (const recurrence of input.recurrences) {
+    if (recurrence.deleted_at || recurrence.active === false) continue;
+    const dtstart = recurrence.start_date.slice(0, 10);
+    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
+    for (const occurrence of occurrences) {
+      if (occurrence < start || occurrence > end) continue;
+      if (recurrence.target === "bill") {
+        const bill = input.bills.find(
+          (item) => {
+            var _a2;
+            return item.recurrence === recurrence.id && !item.deleted_at && ((_a2 = item.emission_date) != null ? _a2 : "").slice(0, 10) === occurrence;
+          }
+        );
+        if (bill) {
+          if (bill.status === "cancelado") continue;
+          items.push({
+            key: `${recurrence.id}:${occurrence}`,
+            recurrenceId: recurrence.id,
+            name: recurrence.name,
+            occurrence,
+            dueDate: bill.due_date.slice(0, 10),
+            amountCents: bill.amount_cents,
+            nature: bill.nature,
+            target: "bill",
+            status: bill.status === "pago" ? "pago" : bill.status === "a_confirmar" ? "a_confirmar" : "pendente"
+          });
+          continue;
+        }
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate: billDueDate(
+            occurrence,
+            (_a = recurrence.template.due_day) != null ? _a : Number(occurrence.slice(8, 10))
+          ),
+          amountCents: (_c = (_b = recurrence.template.default_amount_cents) != null ? _b : recurrence.template.amount_cents) != null ? _c : 0,
+          nature: (_d = recurrence.template.nature) != null ? _d : "saida",
+          target: "bill",
+          status: "previsto"
+        });
+        continue;
+      }
+      const tx = input.transactions.find(
+        (item) => item.recurrence === recurrence.id && !item.deleted_at && item.date.slice(0, 10) === occurrence
+      );
+      if (tx) {
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate: null,
+          amountCents: tx.amount_cents,
+          nature: tx.type === "receita" ? "entrada" : "saida",
+          target: "transaction",
+          status: tx.status === "pago" ? "pago" : "pendente"
+        });
+        continue;
+      }
+      items.push({
+        key: `${recurrence.id}:${occurrence}`,
+        recurrenceId: recurrence.id,
+        name: recurrence.name,
+        occurrence,
+        dueDate: null,
+        amountCents: (_e = recurrence.template.amount_cents) != null ? _e : 0,
+        nature: recurrence.template.type === "receita" ? "entrada" : "saida",
+        target: "transaction",
+        status: "previsto"
+      });
+    }
+  }
+  return items.sort((a, b) => {
+    var _a2, _b2;
+    const left = (_a2 = a.dueDate) != null ? _a2 : a.occurrence;
+    const right = (_b2 = b.dueDate) != null ? _b2 : b.occurrence;
+    return left === right ? a.name.localeCompare(b.name) : left < right ? -1 : 1;
+  });
 }
 
 // src/domain/budget.ts

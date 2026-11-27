@@ -65,3 +65,32 @@ describe("transactionSchema (estabelecimento)", () => {
     if (result.success) expect(result.data.merchant).toBe("Mercado");
   });
 });
+
+describe("transactionSchema (moeda original)", () => {
+  it("aceita moeda e valor original opcionais", () => {
+    const result = transactionSchema.safeParse({
+      ...base,
+      type: "despesa",
+      amount_cents: 2814,
+      original_currency: "USD",
+      original_amount_cents: 530,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.original_currency).toBe("USD");
+      expect(result.data.original_amount_cents).toBe(530);
+    }
+  });
+
+  it("rejeita valor original inválido", () => {
+    expect(
+      transactionSchema.safeParse({
+        ...base,
+        type: "despesa",
+        amount_cents: 2814,
+        original_currency: "USD",
+        original_amount_cents: 0,
+      }).success,
+    ).toBe(false);
+  });
+});

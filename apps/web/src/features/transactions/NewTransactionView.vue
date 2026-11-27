@@ -14,11 +14,7 @@ import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
 import { haptic } from "@/lib/haptics";
 import { trackUx } from "@/lib/ux-metrics";
-import {
-  matchTransactionRule,
-  parseImportRules,
-  type ImportRule,
-} from "@/lib/import-rules";
+import { matchTransactionRule, parseImportRules, type ImportRule } from "@/lib/import-rules";
 import {
   buildMerchantIndex,
   findMerchantCategory,
@@ -26,6 +22,7 @@ import {
   type MerchantSuggestion,
 } from "./suggestions";
 import { loadHouseholdSetting, waitForHousehold } from "@/lib/household-settings";
+import { COMMON_CURRENCIES } from "@/lib/currencies";
 import { compressImageFile, dataUrlSizeLabel } from "@/lib/photo";
 import { formatBRL } from "@/lib/format";
 import Button from "@/components/ui/Button.vue";
@@ -83,7 +80,9 @@ const ruleMatch = computed(() =>
 function resolvedCategory(): string | null {
   if (category.value) return category.value;
   if (ruleMatch.value) return ruleMatch.value.category;
-  return type.value === "receita" ? fallbackCategories.value.entrada : fallbackCategories.value.saida;
+  return type.value === "receita"
+    ? fallbackCategories.value.entrada
+    : fallbackCategories.value.saida;
 }
 
 watch([merchant, description], () => {
@@ -98,6 +97,8 @@ function applyMerchantSuggestion(suggestion: MerchantSuggestion): void {
 }
 const tagsInput = ref("");
 const excludeFromReports = ref(false);
+const originalCurrency = ref("");
+const originalAmountText = ref("");
 const attachment = ref<string | null>(null);
 const attachmentBusy = ref(false);
 const photoInput = ref<HTMLInputElement | null>(null);
@@ -116,6 +117,26 @@ const remainingInstallments = computed(() =>
  * (sem parcelas). Compra parcelada mantém a forma travada.
  */
 const canSwitchPayment = computed(() => !installmentInfo.value || installmentInfo.value.total <= 1);
+
+function parseOriginalAmount(value: string): number | null {
+  let normalized = value.trim().replace(/[^\d.,]/g, "");
+  if (!normalized) return null;
+  if (normalized.includes(",") && normalized.includes(".")) {
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+    if (lastComma > lastDot) normalized = normalized.replace(/\./g, "").replace(",", ".");
+    else normalized = normalized.replace(/,/g, "");
+  } else if (normalized.includes(",")) {
+    normalized = normalized.replace(".", "").replace(",", ".");
+  } else {
+    const parts = normalized.split(".");
+    const isDecimal = parts.length === 2 && (parts[1]?.length ?? 0) === 2;
+    if (!isDecimal) normalized = normalized.replace(/\./g, "");
+  }
+  const number = Number(normalized);
+  if (!Number.isFinite(number) || number <= 0) return null;
+  return Math.round(number * 100);
+}
 
 function parseTags(): string[] {
   const list = tagsInput.value
@@ -161,7 +182,9 @@ const card = computed(() => cardsStore.cards.find((item) => item.id === creditCa
 const accountOwner = computed<string>(() => {
   if (isCard.value && card.value) {
     if (card.value.owner && card.value.owner !== "indefinido") return card.value.owner;
-    return accountsStore.items.find((item) => item.id === card.value?.account)?.owner ?? "indefinido";
+    return (
+      accountsStore.items.find((item) => item.id === card.value?.account)?.owner ?? "indefinido"
+    );
   }
   return accountsStore.items.find((item) => item.id === account.value)?.owner ?? "indefinido";
 });
@@ -189,6 +212,15 @@ async function submit(): Promise<void> {
     toast.error("Informe um valor válido.");
     return;
   }
+  const originalCode = originalCurrency.value.trim().toUpperCase();
+  const originalCents = parseOriginalAmount(originalAmountText.value);
+  if (
+    (originalCode && originalCents === null) ||
+    (!originalCode && originalAmountText.value.trim())
+  ) {
+    toast.error("Preencha moeda e valor original juntos.");
+    return;
+  }
   saving.value = true;
   try {
     const base = {
@@ -204,6 +236,8 @@ async function submit(): Promise<void> {
       tags: parseTags(),
       attachment: attachment.value,
       exclude_from_reports: excludeFromReports.value,
+      original_currency: originalCode || null,
+      original_amount_cents: originalCode ? originalCents : null,
     };
     if (isEdit.value) {
       const id = String(route.params.id);
@@ -242,18 +276,12 @@ async function submit(): Promise<void> {
         toast.success("Lançamento atualizado.");
       }
     } else if (isCard.value && card.value) {
+      const { type: _type, ...cardBase } = base;
       await transactionsStore.createCardPurchase({
+        ...cardBase,
         account: card.value.account,
         credit_card: card.value.id,
-        amount_cents: cents,
-        date: date.value,
-        attribution: attribution.value,
-        category: resolvedCategory(),
-        merchant: merchant.value,
-        description: description.value,
         status: "a_pagar",
-        tags: parseTags(),
-        attachment: attachment.value,
         installments: installments.value,
         paid_installments: paidInstallments.value,
         closing_day: card.value.closing_day,
@@ -261,20 +289,7 @@ async function submit(): Promise<void> {
       });
       toast.success("Compra no cartão registrada e parcelada.");
     } else {
-      await transactionsStore.create({
-        account: account.value,
-        credit_card: null,
-        amount_cents: cents,
-        type: type.value,
-        date: date.value,
-        attribution: attribution.value,
-        category: resolvedCategory(),
-        merchant: merchant.value,
-        description: description.value,
-        status: status.value,
-        tags: parseTags(),
-        attachment: attachment.value,
-      });
+      await transactionsStore.create({ ...base, credit_card: null });
       toast.success("Lançamento salvo.");
     }
     haptic(12);
@@ -326,6 +341,10 @@ onMounted(async () => {
       status.value = tx.status;
       category.value = tx.category ?? "";
       excludeFromReports.value = tx.exclude_from_reports ?? false;
+      originalCurrency.value = tx.original_currency ?? "";
+      originalAmountText.value = tx.original_amount_cents
+        ? (tx.original_amount_cents / 100).toFixed(2).replace(".", ",")
+        : "";
       tagsInput.value = (tx.tags ?? []).join(", ");
       attachment.value = tx.attachment ?? null;
       const rows = await db.installments.where("root_transaction").equals(tx.id).toArray();
@@ -393,7 +412,11 @@ watch(
           <button
             type="button"
             class="h-11 rounded-full text-sm font-extrabold transition disabled:opacity-50"
-            :class="type === 'despesa' ? 'bg-primary text-primary-foreground shadow-lift' : 'text-muted-foreground'"
+            :class="
+              type === 'despesa'
+                ? 'bg-primary text-primary-foreground shadow-lift'
+                : 'text-muted-foreground'
+            "
             :disabled="isEdit && isCard"
             @click="type = 'despesa'"
           >
@@ -438,7 +461,12 @@ watch(
 
         <div class="space-y-2">
           <Label for="description">Descrição (opcional)</Label>
-          <Input id="description" v-model="description" maxlength="200" placeholder="Ex.: compra do mês" />
+          <Input
+            id="description"
+            v-model="description"
+            maxlength="200"
+            placeholder="Ex.: compra do mês"
+          />
         </div>
 
         <div class="space-y-2">
@@ -500,10 +528,7 @@ watch(
               </option>
             </optgroup>
           </Select>
-          <p
-            v-if="isEdit && !canSwitchPayment"
-            class="text-xs font-semibold text-muted-foreground"
-          >
+          <p v-if="isEdit && !canSwitchPayment" class="text-xs font-semibold text-muted-foreground">
             Compra parcelada: para trocar a forma de pagamento, remova e recrie o lançamento.
           </p>
         </div>
@@ -548,7 +573,11 @@ watch(
             <div class="space-y-2">
               <Label for="attribution">Atribuição</Label>
               <Select id="attribution" v-model="attribution">
-                <option v-for="option in people.selectable" :key="option.value" :value="option.value">
+                <option
+                  v-for="option in people.selectable"
+                  :key="option.value"
+                  :value="option.value"
+                >
                   {{ option.label }}
                 </option>
               </Select>
@@ -583,6 +612,40 @@ watch(
                 />
               </button>
             </div>
+            <div class="space-y-3 rounded-2xl border-2 border-border p-3">
+              <div>
+                <p class="text-sm font-bold">Compra em outra moeda (opcional)</p>
+                <p class="text-xs text-muted-foreground">
+                  Só para registro. O valor em R$ acima é o que entra nas faturas e relatórios.
+                </p>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-2">
+                  <Label for="original-currency">Moeda</Label>
+                  <Input
+                    id="original-currency"
+                    v-model="originalCurrency"
+                    list="original-currency-options"
+                    maxlength="8"
+                    placeholder="USD"
+                  />
+                  <datalist id="original-currency-options">
+                    <option v-for="item in COMMON_CURRENCIES" :key="item.code" :value="item.code">
+                      {{ item.label }}
+                    </option>
+                  </datalist>
+                </div>
+                <div class="space-y-2">
+                  <Label for="original-amount">Valor original</Label>
+                  <Input
+                    id="original-amount"
+                    v-model="originalAmountText"
+                    inputmode="decimal"
+                    placeholder="5,30"
+                  />
+                </div>
+              </div>
+            </div>
             <div class="space-y-2">
               <Label for="tags">Etiquetas (opcional)</Label>
               <Input
@@ -612,31 +675,45 @@ watch(
                 >
                   Anexar foto
                 </Button>
-                <span class="text-xs text-muted-foreground">A imagem é comprimida antes de salvar.</span>
+                <span class="text-xs text-muted-foreground"
+                  >A imagem é comprimida antes de salvar.</span
+                >
               </div>
               <div v-else class="flex items-center gap-3 rounded-2xl border-2 border-border p-2">
-                <img :src="attachment" alt="Comprovante" class="h-16 w-16 rounded-xl object-cover" />
+                <img
+                  :src="attachment"
+                  alt="Comprovante"
+                  class="h-16 w-16 rounded-xl object-cover"
+                />
                 <p class="min-w-0 flex-1 text-xs text-muted-foreground">
                   Foto anexada · {{ dataUrlSizeLabel(attachment) }}
                 </p>
-                <Button variant="ghost" size="sm" type="button" @click="attachment = null">Remover</Button>
+                <Button variant="ghost" size="sm" type="button" @click="attachment = null"
+                  >Remover</Button
+                >
               </div>
             </div>
           </div>
         </div>
 
-        <p v-if="isCard && card && !isEdit" class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+        <p
+          v-if="isCard && card && !isEdit"
+          class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground"
+        >
           <template v-if="paidInstallments > 0">
-            Compra em andamento: o valor digitado é <strong>cada parcela</strong>. Entram as parcelas
-            {{ paidInstallments + 1 }} a {{ installments }} ({{ remainingInstallments }}x), a partir
-            da fatura pelo fechamento (dia {{ card.closing_day }}).
+            Compra em andamento: o valor digitado é <strong>cada parcela</strong>. Entram as
+            parcelas {{ paidInstallments + 1 }} a {{ installments }} ({{ remainingInstallments }}x),
+            a partir da fatura pelo fechamento (dia {{ card.closing_day }}).
           </template>
           <template v-else>
             Cai na fatura pelo fechamento (dia {{ card.closing_day }}), em {{ installments }}x.
           </template>
         </p>
 
-        <p v-if="isEdit && installmentInfo" class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+        <p
+          v-if="isEdit && installmentInfo"
+          class="rounded-2xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground"
+        >
           Parcela {{ installmentInfo.number }} de {{ installmentInfo.total }} desta compra.
         </p>
 
