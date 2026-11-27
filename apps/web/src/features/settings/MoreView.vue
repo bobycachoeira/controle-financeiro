@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
-import { Moon, Sun } from "lucide-vue-next";
+import { Moon, Search, Sun } from "lucide-vue-next";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useTheme } from "@/composables/useTheme";
@@ -10,6 +10,7 @@ import { hapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
+import Input from "@/components/ui/Input.vue";
 
 const session = useSessionStore();
 const sync = useSyncStore();
@@ -18,6 +19,7 @@ const toast = useToast();
 const { theme, setTheme } = useTheme();
 
 const hapticsOn = ref(hapticsEnabled());
+const search = ref("");
 
 function toggleHaptics(): void {
   hapticsOn.value = !hapticsOn.value;
@@ -33,21 +35,31 @@ interface MoreLink {
 
 const groups: { title: string; links: MoreLink[] }[] = [
   {
-    title: "Finanças",
+    title: "Dia a dia",
     links: [
       { name: "review", label: "Revisar lançamentos" },
       { name: "transfers", label: "Transferências" },
       { name: "bills", label: "Contas a pagar/receber" },
       { name: "settle", label: "Acerto do mês" },
-      { name: "recurrences", label: "Recorrências" },
-      { name: "budgets", label: "Orçamentos" },
-      { name: "goals", label: "Metas" },
       { name: "calendar", label: "Calendário" },
+    ],
+  },
+  {
+    title: "Planejamento",
+    links: [
+      { name: "goals", label: "Metas e cofrinhos" },
+      { name: "budgets", label: "Orçamentos" },
+      { name: "recurrences", label: "Recorrências" },
       { name: "closing", label: "Fechamento do mês" },
       { name: "investments", label: "Investimentos" },
+    ],
+  },
+  {
+    title: "Dados",
+    links: [
       { name: "import", label: "Importar dados" },
-      { name: "currencies", label: "Moedas e cotações" },
       { name: "categories", label: "Categorias" },
+      { name: "currencies", label: "Moedas e cotações" },
     ],
   },
   {
@@ -76,16 +88,33 @@ const groups: { title: string; links: MoreLink[] }[] = [
   },
 ];
 
+function normalize(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 const visibleGroups = computed(() => {
+  const term = normalize(search.value);
   const canSee = (link: MoreLink): boolean => {
     if (!link.ownerOnly) return true;
     if (session.currentRole === "owner") return true;
-    return Boolean(link.permission && session.currentMembership?.permissions?.[link.permission] === true);
+    return Boolean(
+      link.permission && session.currentMembership?.permissions?.[link.permission] === true,
+    );
   };
   return groups
-    .map((group) => ({ title: group.title, links: group.links.filter(canSee) }))
+    .map((group) => ({
+      title: group.title,
+      links: group.links
+        .filter(canSee)
+        .filter((link) => !term || normalize(link.label).includes(term)),
+    }))
     .filter((group) => group.links.length > 0);
 });
+const hasResults = computed(() => visibleGroups.value.length > 0);
 
 const initial = computed(() => (session.user?.name ?? "?").trim().charAt(0).toUpperCase() || "?");
 
@@ -107,13 +136,25 @@ async function logout(): Promise<void> {
       <h1 class="font-display text-3xl font-black tracking-tight">Mais</h1>
     </div>
 
-    <RouterLink :to="{ name: 'profile' }" class="block">
+    <div class="relative">
+      <Search
+        class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input id="more-search" v-model="search" class="pl-9" placeholder="Buscar opção…" />
+    </div>
+
+    <RouterLink v-if="!search.trim()" :to="{ name: 'profile' }" class="block">
       <Card>
         <CardContent class="flex items-center gap-4 p-4">
           <div
             class="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-xl font-black text-muted-foreground"
           >
-            <img v-if="session.user?.avatar" :src="session.user.avatar" alt="" class="h-full w-full object-cover" />
+            <img
+              v-if="session.user?.avatar"
+              :src="session.user.avatar"
+              alt=""
+              class="h-full w-full object-cover"
+            />
             <span v-else>{{ initial }}</span>
           </div>
           <div class="min-w-0 flex-1">
@@ -125,14 +166,18 @@ async function logout(): Promise<void> {
       </Card>
     </RouterLink>
 
-    <Card>
+    <Card v-if="!search.trim()">
       <CardContent class="space-y-3 p-4">
-        <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Aparência</p>
+        <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Aparência
+        </p>
         <div class="grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
           <button
             type="button"
             class="flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
-            :class="theme === 'light' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
+            :class="
+              theme === 'light' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'
+            "
             @click="setTheme('light')"
           >
             <Sun class="h-4 w-4" /> Claro
@@ -140,7 +185,9 @@ async function logout(): Promise<void> {
           <button
             type="button"
             class="flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 text-sm font-extrabold transition"
-            :class="theme === 'dark' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'"
+            :class="
+              theme === 'dark' ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground'
+            "
             @click="setTheme('dark')"
           >
             <Moon class="h-4 w-4" /> Escuro
@@ -167,6 +214,13 @@ async function logout(): Promise<void> {
         </button>
       </CardContent>
     </Card>
+
+    <p
+      v-if="!hasResults"
+      class="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
+    >
+      Nenhuma opção encontrada para “{{ search.trim() }}”.
+    </p>
 
     <div v-for="group in visibleGroups" :key="group.title" class="space-y-2">
       <p class="px-1 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
