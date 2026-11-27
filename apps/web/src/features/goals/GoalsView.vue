@@ -18,6 +18,7 @@ import CurrencyInput from "@/components/ui/CurrencyInput.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
+import IconChip from "@/components/ui/IconChip.vue";
 import Modal from "@/components/ui/Modal.vue";
 
 const GOAL_COLORS = ["#3F9A6A", "#3B82B6", "#8A6FD1", "#F2A93B", "#E4572E", "#B0477E"];
@@ -61,6 +62,15 @@ const progressById = computed(() => {
   }
   return map;
 });
+const totalSaved = computed(() =>
+  goals.items.reduce((sum, goal) => sum + (progressById.value.get(goal.id)?.savedCents ?? 0), 0),
+);
+const totalTarget = computed(() => goals.items.reduce((sum, goal) => sum + goal.target_cents, 0));
+const totalPercent = computed(() =>
+  totalTarget.value > 0
+    ? Math.min(100, Math.round((totalSaved.value / totalTarget.value) * 100))
+    : 0,
+);
 
 function historyOf(goal: LocalGoal) {
   return [...(goal.entries ?? [])].reverse().slice(0, 6);
@@ -200,9 +210,28 @@ watch(() => sync.dataVersion, loadAll);
     </div>
 
     <p class="text-sm text-muted-foreground">
-      Caixinhas compartilhadas: separe um valor do saldo para um objetivo — viagem, reserva, entrada.
-      O dinheiro continua na conta; a meta só organiza.
+      Caixinhas compartilhadas: separe um valor do saldo para um objetivo — viagem, reserva,
+      entrada. O dinheiro continua na conta; a meta só organiza.
     </p>
+
+    <Card v-if="goals.items.length > 0" data-testid="goals-summary">
+      <CardContent class="space-y-2 p-4">
+        <div class="flex items-center gap-2">
+          <IconChip name="piggy-bank" color="#3F9A6A" size="sm" />
+          <h2 class="font-display text-lg font-bold">Resumo dos cofrinhos</h2>
+        </div>
+        <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+          Guardado nas metas
+        </p>
+        <p class="font-display text-3xl font-black">{{ formatBRL(totalSaved) }}</p>
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
+          <div class="h-full rounded-full bg-primary" :style="{ width: totalPercent + '%' }" />
+        </div>
+        <p class="text-xs text-muted-foreground">
+          {{ totalPercent }}% de {{ formatBRL(totalTarget) }} · {{ goals.items.length }} meta(s)
+        </p>
+      </CardContent>
+    </Card>
 
     <p
       v-if="goals.items.length === 0"
@@ -259,7 +288,9 @@ watch(() => sync.dataVersion, loadAll);
               <span class="font-display font-bold">
                 {{ formatBRL(progressById.get(goal.id)?.savedCents ?? 0) }}
                 <span class="text-xs font-semibold text-muted-foreground">
-                  de {{ formatBRL(goal.target_cents) }} ({{ progressById.get(goal.id)?.percent ?? 0 }}%)
+                  de {{ formatBRL(goal.target_cents) }} ({{
+                    progressById.get(goal.id)?.percent ?? 0
+                  }}%)
                 </span>
               </span>
               <Badge v-if="progressById.get(goal.id)?.completed" variant="success">concluída</Badge>
@@ -284,7 +315,10 @@ watch(() => sync.dataVersion, loadAll);
             </Button>
           </div>
 
-          <ul v-if="historyOf(goal).length > 0" class="space-y-1 border-t border-border/60 pt-2 text-xs">
+          <ul
+            v-if="historyOf(goal).length > 0"
+            class="space-y-1 border-t border-border/60 pt-2 text-xs"
+          >
             <li
               v-for="entry in historyOf(goal)"
               :key="entry.id"
@@ -294,8 +328,12 @@ watch(() => sync.dataVersion, loadAll);
                 {{ formatDate(entry.date) }}
                 <template v-if="entry.note"> · {{ entry.note }}</template>
               </span>
-              <span class="font-bold" :class="entry.amount_cents >= 0 ? 'text-leaf' : 'text-primary'">
-                {{ entry.amount_cents >= 0 ? "+" : "−" }}{{ formatBRL(Math.abs(entry.amount_cents)) }}
+              <span
+                class="font-bold"
+                :class="entry.amount_cents >= 0 ? 'text-leaf' : 'text-primary'"
+              >
+                {{ entry.amount_cents >= 0 ? "+" : "−"
+                }}{{ formatBRL(Math.abs(entry.amount_cents)) }}
               </span>
             </li>
           </ul>
@@ -307,7 +345,13 @@ watch(() => sync.dataVersion, loadAll);
       <form class="space-y-4" @submit.prevent="submit">
         <div class="space-y-2">
           <Label for="goal-name">Nome</Label>
-          <Input id="goal-name" v-model="name" required maxlength="80" placeholder="Ex.: Viagem para a praia" />
+          <Input
+            id="goal-name"
+            v-model="name"
+            required
+            maxlength="80"
+            placeholder="Ex.: Viagem para a praia"
+          />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-2">
@@ -384,7 +428,12 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <div class="space-y-2">
           <Label for="entry-note">Observação (opcional)</Label>
-          <Input id="entry-note" v-model="entryNote" maxlength="200" placeholder="Ex.: 13º salário" />
+          <Input
+            id="entry-note"
+            v-model="entryNote"
+            maxlength="200"
+            placeholder="Ex.: 13º salário"
+          />
         </div>
         <div class="flex justify-end gap-2 pt-1">
           <Button variant="ghost" type="button" @click="entryOpen = false">Cancelar</Button>

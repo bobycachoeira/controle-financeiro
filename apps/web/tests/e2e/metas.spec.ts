@@ -32,6 +32,7 @@ test.describe("metas", () => {
     const withdrawForm = page.locator("form", { has: page.locator("#entry-amount") });
     await withdrawForm.getByRole("button", { name: "Resgatar" }).click();
     await expect(card).toContainText("R$ 200,00", { timeout: 15_000 });
+    await expect(page.getByTestId("goals-summary")).toContainText("R$ 200,00");
 
     // O Início mostra o resumo dos cofrinhos.
     await page.goto("/");
