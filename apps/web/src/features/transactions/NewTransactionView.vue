@@ -509,7 +509,7 @@ watch(
           <div class="space-y-2">
             <Label for="installments">Parcelas (total)</Label>
             <Select id="installments" v-model.number="installments">
-              <option v-for="n in 12" :key="n" :value="n">{{ n }}x</option>
+              <option v-for="n in 48" :key="n" :value="n">{{ n }}x</option>
             </Select>
           </div>
           <div class="space-y-2">
