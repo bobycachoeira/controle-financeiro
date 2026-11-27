@@ -94,7 +94,7 @@ watch(() => sync.dataVersion, load);
         <h2 class="font-display text-lg font-bold">Atalhos</h2>
         <button
           type="button"
-          class="ml-auto text-xs font-bold text-primary"
+          class="ml-auto flex min-h-11 items-center px-1 text-xs font-bold text-primary"
           data-testid="shortcuts-edit"
           @click="openEdit"
         >

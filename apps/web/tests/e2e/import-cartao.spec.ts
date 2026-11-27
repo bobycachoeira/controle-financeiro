@@ -88,6 +88,7 @@ test.describe("importação de compras do cartão", () => {
     await page.getByRole("button", { name: "Pré-visualizar" }).click();
     await expect(page.getByText("LOJA TESTE")).toBeVisible();
     await expect(page.getByText(/Parcela 7\/10/)).toBeVisible();
+    await page.locator("#card-import-card").selectOption(cardId);
 
     await page.getByRole("button", { name: "Confirmar importação" }).click();
     await expect(page.getByText(/1 compra\(s\) importada\(s\)/)).toBeVisible({ timeout: 15_000 });

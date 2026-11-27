@@ -343,7 +343,10 @@ watch(() => sync.dataVersion, loadAll);
         <div class="flex items-center gap-2">
           <IconChip name="piggy-bank" color="#3F9A6A" size="sm" />
           <h2 class="font-display text-lg font-bold">Cofrinhos</h2>
-          <RouterLink :to="{ name: 'goals' }" class="ml-auto text-xs font-bold text-primary">
+          <RouterLink
+            :to="{ name: 'goals' }"
+            class="ml-auto flex min-h-11 items-center px-1 text-xs font-bold text-primary"
+          >
             {{ goalsSummary.length > 0 ? "Ver metas" : "Criar meta" }}
           </RouterLink>
         </div>
