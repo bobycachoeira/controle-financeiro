@@ -11,7 +11,9 @@ test.describe("Regressões", () => {
     await page.locator("#rec-name").fill(name);
     await page.locator("#rec-amount").fill("1500,00");
     await page.getByRole("button", { name: /Criar recorrência/i }).click();
-    await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("recurrence-row").filter({ hasText: name })).toBeVisible({
+      timeout: 10_000,
+    });
 
     await page.goto("/bills");
     await expect(page.getByRole("heading", { name: "Contas" })).toBeVisible({ timeout: 15_000 });

@@ -26,6 +26,7 @@ const selected = ref<string[]>([]);
 const draft = ref<string[]>([]);
 const modalOpen = ref(false);
 const saving = ref(false);
+const loaded = ref(false);
 const dragging = ref<number | null>(null);
 
 const settingKey = computed(() => `dashboard_shortcuts:${session.user?.id ?? "anon"}`);
@@ -48,17 +49,31 @@ function normalize(value: unknown): string[] {
 
 async function load(): Promise<void> {
   const householdId = session.currentHouseholdId;
-  if (!householdId) return;
-  const perUser = await loadHouseholdSetting<string[] | null>(householdId, settingKey.value, null);
-  const legacy = await loadHouseholdSetting<string[] | null>(
-    householdId,
-    "dashboard_shortcuts",
-    null,
-  );
-  selected.value = normalize(perUser ?? legacy ?? [...DEFAULT_SHORTCUTS]);
+  if (!householdId) {
+    selected.value = [...DEFAULT_SHORTCUTS];
+    loaded.value = true;
+    return;
+  }
+  try {
+    const perUser = await loadHouseholdSetting<string[] | null>(
+      householdId,
+      settingKey.value,
+      null,
+    );
+    const legacy =
+      session.currentRole === "owner"
+        ? await loadHouseholdSetting<string[] | null>(householdId, "dashboard_shortcuts", null)
+        : null;
+    selected.value = normalize(perUser ?? legacy ?? [...DEFAULT_SHORTCUTS]);
+  } catch {
+    selected.value = [...DEFAULT_SHORTCUTS];
+  } finally {
+    loaded.value = true;
+  }
 }
 
-function openEdit(): void {
+async function openEdit(): Promise<void> {
+  if (!loaded.value) await load();
   draft.value = [...selected.value];
   dragging.value = null;
   modalOpen.value = true;
@@ -123,6 +138,7 @@ async function save(): Promise<void> {
 }
 
 onMounted(load);
+watch(() => session.currentHouseholdId, load);
 watch(() => session.user?.id, load);
 watch(() => sync.dataVersion, load);
 </script>

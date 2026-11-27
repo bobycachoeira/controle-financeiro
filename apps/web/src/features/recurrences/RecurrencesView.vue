@@ -325,6 +325,7 @@ watch(() => sync.dataVersion, loadAll);
           <li
             v-for="item in store.items"
             :key="item.id"
+            data-testid="recurrence-row"
             class="flex items-center justify-between gap-3 py-3 text-sm"
           >
             <div>

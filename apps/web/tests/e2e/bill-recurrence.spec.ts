@@ -15,7 +15,9 @@ test.describe("Recorrência → a confirmar → pagar", () => {
     await page.locator("#rec-due-day").fill("20");
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: /Criar recorrência/i }).click();
-    await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("recurrence-row").filter({ hasText: name })).toBeVisible({
+      timeout: 10_000,
+    });
 
     await page.goto("/bills");
     await expect(page.getByRole("heading", { name: "Contas" })).toBeVisible({ timeout: 15_000 });
