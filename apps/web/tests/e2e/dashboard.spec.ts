@@ -63,6 +63,7 @@ test.describe("atalhos", () => {
     await expect(page.getByTestId("shortcuts-card")).toBeVisible({ timeout: 15_000 });
 
     await page.getByTestId("shortcuts-edit").click();
+    await expect(page.getByRole("button", { name: "Recorrências" })).toBeVisible();
     await page.getByRole("button", { name: "Orçamentos" }).click();
     const selected = page.locator("li", { hasText: "Orçamentos" });
     for (let index = 0; index < 4; index += 1) {

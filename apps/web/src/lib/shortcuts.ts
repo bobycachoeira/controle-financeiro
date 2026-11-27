@@ -8,6 +8,7 @@ export const SHORTCUT_OPTIONS: readonly ShortcutOption[] = [
   { name: "transaction-new", label: "Novo lançamento", icon: "plus-circle" },
   { name: "transfers", label: "Transferir", icon: "repeat" },
   { name: "bills", label: "Contas", icon: "receipt" },
+  { name: "recurrences", label: "Recorrências", icon: "repeat" },
   { name: "review", label: "Revisar", icon: "tag" },
   { name: "settle", label: "Acerto", icon: "hand-coins" },
   { name: "goals", label: "Metas e cofrinhos", icon: "piggy-bank" },
