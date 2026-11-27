@@ -33,8 +33,16 @@ test.describe("metas", () => {
     await withdrawForm.getByRole("button", { name: "Resgatar" }).click();
     await expect(card).toContainText("R$ 200,00", { timeout: 15_000 });
 
+    // O Início mostra o resumo dos cofrinhos.
+    await page.goto("/");
+    const goalsCard = page.getByTestId("goals-card");
+    await expect(goalsCard).toContainText(name, { timeout: 15_000 });
+    await expect(goalsCard).toContainText("R$ 200,00");
+
     // Persiste no servidor (sync da nova entidade "goals").
-    await expect(page.getByText("Sincronizado")).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.getByRole("button", { name: /Status de sincronização: Sincronizado/ }),
+    ).toBeVisible({ timeout: 20_000 });
   });
 
   test("guardar e resgatar movendo de uma conta (cofrinho)", async ({ page, loginAs }) => {

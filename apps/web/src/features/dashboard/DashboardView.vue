@@ -5,6 +5,7 @@ import {
   balanceEvolution,
   computeBudgetUsage,
   computeSettlement,
+  goalProgress,
   monthlyCashflow,
   todayISO,
 } from "@cf/shared";
@@ -17,6 +18,7 @@ import { useTransactionsStore } from "@/stores/transactions";
 import { useCardsStore } from "@/stores/cards";
 import { useRatesStore } from "@/stores/rates";
 import { usePeopleStore } from "@/stores/people";
+import { useGoalsStore } from "@/stores/goals";
 import { useTransfersStore } from "@/stores/transfers";
 import { useToast } from "@/composables/useToast";
 import { seedSampleData } from "@/lib/sample-data";
@@ -41,6 +43,7 @@ import {
 } from "./selectors";
 import ConflictPanel from "@/features/sync/ConflictPanel.vue";
 import MerchantSpendCard from "@/features/dashboard/MerchantSpendCard.vue";
+import ShortcutsCard from "@/features/dashboard/ShortcutsCard.vue";
 import AreaChart from "@/components/charts/AreaChart.vue";
 import BarsChart from "@/components/charts/BarsChart.vue";
 import Card from "@/components/ui/Card.vue";
@@ -57,6 +60,7 @@ const transactionsStore = useTransactionsStore();
 const cardsStore = useCardsStore();
 const ratesStore = useRatesStore();
 const people = usePeopleStore();
+const goalsStore = useGoalsStore();
 const transfersStore = useTransfersStore();
 const toast = useToast();
 const seeding = ref(false);
@@ -81,7 +85,9 @@ async function createSample(): Promise<void> {
 const bills = ref<LocalBill[]>([]);
 const invoices = ref<LocalInvoice[]>([]);
 const categories = ref<LocalCategory[]>([]);
-const budgetAlerts = ref<{ id: string; name: string; percent: number; category: string | null }[]>([]);
+const budgetAlerts = ref<{ id: string; name: string; percent: number; category: string | null }[]>(
+  [],
+);
 const today = todayISO();
 const currentMonth = today.slice(0, 7);
 
@@ -94,8 +100,16 @@ const balancePoints = computed(() =>
 );
 const cashflowLabels = computed(() => cashflow.value.map((point) => point.label));
 const cashflowSeries = computed(() => [
-  { label: "Receitas", color: "#3F9A6A", values: cashflow.value.map((point) => point.receitasCents) },
-  { label: "Despesas", color: "#E4572E", values: cashflow.value.map((point) => point.despesasCents) },
+  {
+    label: "Receitas",
+    color: "#3F9A6A",
+    values: cashflow.value.map((point) => point.receitasCents),
+  },
+  {
+    label: "Despesas",
+    color: "#E4572E",
+    values: cashflow.value.map((point) => point.despesasCents),
+  },
 ]);
 const hasCashflow = computed(() =>
   cashflow.value.some((point) => point.receitasCents > 0 || point.despesasCents > 0),
@@ -171,6 +185,18 @@ const cardUsage = computed(() =>
   ),
 );
 const recent = computed(() => selectRecentTransactions(transactionsStore.items));
+const goalsSummary = computed(() =>
+  goalsStore.items.map((goal) => ({
+    goal,
+    progress: goalProgress(goal.target_cents, goal.entries ?? []),
+  })),
+);
+const savedInGoals = computed(() =>
+  goalsSummary.value.reduce((sum, item) => sum + item.progress.savedCents, 0),
+);
+const topGoals = computed(() =>
+  [...goalsSummary.value].sort((a, b) => b.progress.percent - a.progress.percent).slice(0, 3),
+);
 const toPay = computed(() => selectToPay30Days(transactionsStore.items, today));
 const settleSummary = computed(() => {
   const ownerByAccount = new Map(
@@ -198,7 +224,9 @@ const settleLabelByKey = computed(
 async function loadExtras(): Promise<void> {
   if (!session.currentHouseholdId) return;
   const h = session.currentHouseholdId;
-  bills.value = (await db.bills.where("household").equals(h).toArray()).filter((b) => !b.deleted_at);
+  bills.value = (await db.bills.where("household").equals(h).toArray()).filter(
+    (b) => !b.deleted_at,
+  );
   invoices.value = (await db.invoices.where("household").equals(h).toArray()).filter(
     (invoice) => !invoice.deleted_at,
   );
@@ -231,6 +259,7 @@ async function loadAll(): Promise<void> {
     cardsStore.load(),
     ratesStore.load(),
     people.load(),
+    goalsStore.load(),
     transfersStore.load(),
     loadExtras(),
   ]);
@@ -250,15 +279,21 @@ watch(() => sync.dataVersion, loadAll);
         <img :src="session.user.avatar" alt="" class="h-full w-full object-cover" />
       </div>
       <div>
-        <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Painel da família</p>
+        <p class="text-xs font-extrabold uppercase tracking-wider text-primary">
+          Painel da família
+        </p>
         <h1 class="font-display text-3xl font-black tracking-tight">Olá, {{ firstName }}!</h1>
       </div>
     </div>
 
     <ConflictPanel />
 
-    <Card class="relative overflow-hidden border-none bg-gradient-to-br from-primary to-[hsl(352_60%_38%)] text-primary-foreground">
-      <div class="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-sun/30 blur-2xl" />
+    <Card
+      class="relative overflow-hidden border-none bg-gradient-to-br from-primary to-[hsl(352_60%_38%)] text-primary-foreground"
+    >
+      <div
+        class="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-sun/30 blur-2xl"
+      />
       <CardContent class="relative p-6">
         <p class="text-xs font-extrabold uppercase tracking-wider opacity-80">Saldo total</p>
         <p class="mt-1 font-display text-4xl font-black tracking-tight">
@@ -266,14 +301,22 @@ watch(() => sync.dataVersion, loadAll);
         </p>
         <p v-if="hasForeignCurrency" class="mt-1 text-xs font-semibold opacity-80">
           consolidado em BRL
-          <template v-if="consolidated.missing.length"> · sem cotação: {{ consolidated.missing.join(", ") }}</template>
+          <template v-if="consolidated.missing.length">
+            · sem cotação: {{ consolidated.missing.join(", ") }}</template
+          >
         </p>
         <div class="mt-4 flex items-center gap-2">
           <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold">
             A pagar 30 dias · {{ formatBRL(toPay) }}
           </span>
           <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold">
-            {{ sync.online ? (sync.pending > 0 ? `${sync.pending} pendente(s)` : "sincronizado") : "offline" }}
+            {{
+              sync.online
+                ? sync.pending > 0
+                  ? `${sync.pending} pendente(s)`
+                  : "sincronizado"
+                : "offline"
+            }}
           </span>
         </div>
       </CardContent>
@@ -289,9 +332,60 @@ watch(() => sync.dataVersion, loadAll);
           Crie dados de exemplo para ver o app preenchido e entender como funciona. Você pode apagar
           depois.
         </p>
-        <Button size="sm" :loading="seeding" @click="createSample">
-          Criar dados de exemplo
-        </Button>
+        <Button size="sm" :loading="seeding" @click="createSample"> Criar dados de exemplo </Button>
+      </CardContent>
+    </Card>
+
+    <ShortcutsCard />
+
+    <Card data-testid="goals-card">
+      <CardContent class="space-y-3 p-4">
+        <div class="flex items-center gap-2">
+          <IconChip name="piggy-bank" color="#3F9A6A" size="sm" />
+          <h2 class="font-display text-lg font-bold">Cofrinhos</h2>
+          <RouterLink :to="{ name: 'goals' }" class="ml-auto text-xs font-bold text-primary">
+            {{ goalsSummary.length > 0 ? "Ver metas" : "Criar meta" }}
+          </RouterLink>
+        </div>
+        <template v-if="goalsSummary.length === 0">
+          <p class="text-xs text-muted-foreground">
+            Separe dinheiro para uma viagem, reserva ou entrada. O valor continua na conta; a meta
+            só organiza.
+          </p>
+          <RouterLink
+            :to="{ name: 'goals' }"
+            class="inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm font-extrabold text-primary-foreground"
+          >
+            Criar primeira meta
+          </RouterLink>
+        </template>
+        <template v-else>
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+              Guardado nas metas
+            </p>
+            <p class="font-display text-3xl font-black">{{ formatBRL(savedInGoals) }}</p>
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in topGoals" :key="item.goal.id">
+              <div class="flex items-center justify-between gap-2 text-sm">
+                <span class="truncate font-semibold">{{ item.goal.name }}</span>
+                <span class="shrink-0 text-xs text-muted-foreground">
+                  {{ formatBRL(item.progress.savedCents) }} · {{ item.progress.percent }}%
+                </span>
+              </div>
+              <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
+                <div
+                  class="h-full rounded-full"
+                  :style="{
+                    width: item.progress.percent + '%',
+                    backgroundColor: item.goal.color || '#3F9A6A',
+                  }"
+                />
+              </div>
+            </li>
+          </ul>
+        </template>
       </CardContent>
     </Card>
 
@@ -335,7 +429,9 @@ watch(() => sync.dataVersion, loadAll);
           }"
           class="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-sun/20 px-3 py-2.5 text-xs font-semibold text-accent-foreground"
         >
-          <span class="truncate">{{ alert.name }} em {{ alert.percent }}% do orçamento — vale olhar.</span>
+          <span class="truncate"
+            >{{ alert.name }} em {{ alert.percent }}% do orçamento — vale olhar.</span
+          >
           <span aria-hidden="true">›</span>
         </RouterLink>
 
@@ -454,7 +550,9 @@ watch(() => sync.dataVersion, loadAll);
             :key="column.key"
             class="min-w-[6.5rem] flex-1 rounded-2xl bg-muted px-2 py-3"
           >
-            <p class="truncate text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground">
+            <p
+              class="truncate text-[0.62rem] font-extrabold uppercase tracking-wider text-muted-foreground"
+            >
               {{ column.label }}
             </p>
             <p class="font-display font-bold">{{ formatBRL(column.totalCents) }}</p>
@@ -482,11 +580,10 @@ watch(() => sync.dataVersion, loadAll);
           <div class="mt-2 flex items-center justify-center gap-3 text-xs font-bold">
             <span class="text-leaf">+{{ formatBRL(currentBucket?.receitasCents ?? 0) }}</span>
             <span class="text-primary">−{{ formatBRL(currentBucket?.despesasCents ?? 0) }}</span>
-            <span
-              :class="(currentBucket?.netCents ?? 0) >= 0 ? 'text-leaf' : 'text-destructive'"
-            >
+            <span :class="(currentBucket?.netCents ?? 0) >= 0 ? 'text-leaf' : 'text-destructive'">
               sobra
-              {{ (currentBucket?.netCents ?? 0) >= 0 ? "+" : "−" }}{{ formatBRL(Math.abs(currentBucket?.netCents ?? 0)) }}
+              {{ (currentBucket?.netCents ?? 0) >= 0 ? "+" : "−"
+              }}{{ formatBRL(Math.abs(currentBucket?.netCents ?? 0)) }}
             </span>
           </div>
         </div>
@@ -518,13 +615,20 @@ watch(() => sync.dataVersion, loadAll);
             <IconChip name="credit-card" color="#B0477E" size="sm" />
             <h2 class="font-display text-base font-bold">Faturas abertas</h2>
           </div>
-          <p v-if="openInvoices.length === 0" class="text-xs text-muted-foreground">Nenhuma fatura.</p>
+          <p v-if="openInvoices.length === 0" class="text-xs text-muted-foreground">
+            Nenhuma fatura.
+          </p>
           <ul v-else class="space-y-2">
             <li v-for="invoice in openInvoices" :key="invoice.id" class="text-sm">
               <p class="font-bold">{{ formatBRL(invoice.total_cents) }}</p>
               <p class="text-xs text-muted-foreground">
-                <span class="first-letter:uppercase">{{ formatMonth(invoice.reference_month) }}</span> ·
-                <Badge :variant="invoice.status === 'vencida' ? 'destructive' : 'secondary'">{{ invoice.status }}</Badge>
+                <span class="first-letter:uppercase">{{
+                  formatMonth(invoice.reference_month)
+                }}</span>
+                ·
+                <Badge :variant="invoice.status === 'vencida' ? 'destructive' : 'secondary'">{{
+                  invoice.status
+                }}</Badge>
               </p>
             </li>
           </ul>
@@ -614,9 +718,18 @@ watch(() => sync.dataVersion, loadAll);
         </div>
         <p v-if="recent.length === 0" class="text-sm text-muted-foreground">Nada por aqui ainda.</p>
         <ul v-else class="divide-y">
-          <li v-for="tx in recent" :key="tx.id" class="flex items-center justify-between py-2.5 text-sm">
-            <span class="truncate font-semibold">{{ tx.merchant || tx.description || "Lançamento" }}</span>
-            <span class="font-display font-bold" :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'">
+          <li
+            v-for="tx in recent"
+            :key="tx.id"
+            class="flex items-center justify-between py-2.5 text-sm"
+          >
+            <span class="truncate font-semibold">{{
+              tx.merchant || tx.description || "Lançamento"
+            }}</span>
+            <span
+              class="font-display font-bold"
+              :class="tx.type === 'receita' ? 'text-leaf' : 'text-foreground'"
+            >
               {{ tx.type === "receita" ? "+" : "−" }}{{ formatBRL(tx.amount_cents) }}
             </span>
           </li>
@@ -624,7 +737,9 @@ watch(() => sync.dataVersion, loadAll);
       </CardContent>
     </Card>
 
-    <div class="flex items-center justify-center gap-2 pb-2 text-xs font-bold text-muted-foreground">
+    <div
+      class="flex items-center justify-center gap-2 pb-2 text-xs font-bold text-muted-foreground"
+    >
       <Sparkles class="h-3.5 w-3.5" />
       Feito com carinho para a sua família
     </div>

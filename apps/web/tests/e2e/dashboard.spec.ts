@@ -28,9 +28,7 @@ test.describe("relatórios", () => {
     await page.getByPlaceholder(/Filtrar categoria/).fill(category);
     await page.getByRole("button", { name: /^Criar/ }).click();
     await page.getByRole("button", { name: "Salvar" }).click();
-    await expect(page.getByText(merchant, { exact: true }).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.locator("li", { hasText: merchant })).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/");
     const spend = page.getByTestId("merchant-spend");
@@ -47,9 +45,7 @@ test.describe("relatórios", () => {
     await page.getByTestId("tx-more").click();
     await page.getByTestId("exclude-reports-toggle").click();
     await page.getByRole("button", { name: "Salvar alterações" }).click();
-    await expect(page.getByText(merchant, { exact: true }).first()).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.locator("li", { hasText: merchant })).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/");
     await expect(page.getByTestId("merchant-spend")).toBeVisible({ timeout: 15_000 });
@@ -57,5 +53,24 @@ test.describe("relatórios", () => {
     await expect(
       page.getByTestId("merchant-spend").getByText("Sem despesas nesse filtro."),
     ).toBeVisible({ timeout: 10_000 });
+  });
+});
+
+test.describe("atalhos", () => {
+  test("personaliza e usa um atalho no Início", async ({ page, loginAs }) => {
+    await loginAs("titular");
+    await page.goto("/");
+    await expect(page.getByTestId("shortcuts-card")).toBeVisible({ timeout: 15_000 });
+
+    await page.getByTestId("shortcuts-edit").click();
+    await page.getByRole("button", { name: "Orçamentos" }).click();
+    await page.getByRole("button", { name: "Salvar" }).click();
+
+    const shortcut = page.getByTestId("shortcut").filter({ hasText: "Orçamentos" });
+    await expect(shortcut).toBeVisible({ timeout: 10_000 });
+    await shortcut.click();
+    await expect(page.getByRole("heading", { name: "Orçamentos" })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });
