@@ -9,12 +9,16 @@ import CardContent from "@/components/ui/CardContent.vue";
 import Badge from "@/components/ui/Badge.vue";
 import IconChip from "@/components/ui/IconChip.vue";
 
-const props = defineProps<{
-  recurrences: LocalRecurrence[];
-  bills: LocalBill[];
-  transactions: LocalTransaction[];
-  month: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    recurrences: LocalRecurrence[];
+    bills: LocalBill[];
+    transactions: LocalTransaction[];
+    month: string;
+    showManage?: boolean;
+  }>(),
+  { showManage: true },
+);
 
 const STATUS_LABELS = {
   pago: "pago",
@@ -59,6 +63,7 @@ const totalIncomes = computed(() => incomes.value.reduce((sum, item) => sum + it
         <IconChip name="repeat" color="#3B82B6" size="sm" />
         <h2 class="font-display text-lg font-bold">Custos fixos</h2>
         <RouterLink
+          v-if="props.showManage"
           :to="{ name: 'recurrences' }"
           class="ml-auto flex min-h-11 items-center px-1 text-xs font-bold text-primary"
         >
@@ -119,6 +124,7 @@ const totalIncomes = computed(() => incomes.value.reduce((sum, item) => sum + it
       <p v-else class="text-sm text-muted-foreground">
         Nenhum custo fixo previsto para este mês.
         <RouterLink
+          v-if="props.showManage"
           :to="{ name: 'recurrences' }"
           class="inline-flex min-h-11 items-center font-bold text-primary"
         >

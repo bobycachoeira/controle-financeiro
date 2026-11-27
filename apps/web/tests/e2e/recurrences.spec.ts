@@ -11,7 +11,11 @@ test.describe("recorrências", () => {
     await page.locator("#rec-name").fill(name);
     await page.locator("#rec-amount").fill("1000,00");
     await page.getByRole("button", { name: /Criar recorrência/i }).click();
-    await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(name, { exact: true }).last()).toBeVisible({ timeout: 10_000 });
+
+    const pageFixed = page.getByTestId("fixed-costs");
+    await expect(pageFixed).toContainText(name, { timeout: 15_000 });
+    await expect(pageFixed).toContainText("R$ 1.000,00");
 
     await page.goto("/");
     const fixed = page.getByTestId("fixed-costs");

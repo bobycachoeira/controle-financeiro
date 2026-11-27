@@ -3,8 +3,11 @@ import { computed, onMounted, ref, watch } from "vue";
 import { todayISO } from "@cf/shared";
 import { Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { useRecurrencesStore } from "@/stores/recurrences";
+import { useTransactionsStore } from "@/stores/transactions";
+import { useSessionStore } from "@/stores/session";
 import { useAccountsStore } from "@/stores/accounts";
 import { useSyncStore } from "@/stores/sync";
+import { db, type LocalBill } from "@/db/schema";
 import { useToast } from "@/composables/useToast";
 import { formatBRL } from "@/lib/format-input";
 import Button from "@/components/ui/Button.vue";
@@ -18,11 +21,25 @@ import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 import Select from "@/components/ui/Select.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
+import FixedCostsCard from "@/features/dashboard/FixedCostsCard.vue";
 
 const store = useRecurrencesStore();
 const accountsStore = useAccountsStore();
+const transactionsStore = useTransactionsStore();
+const session = useSessionStore();
 const sync = useSyncStore();
 const toast = useToast();
+
+const bills = ref<LocalBill[]>([]);
+const currentMonth = todayISO().slice(0, 7);
+
+async function loadBills(): Promise<void> {
+  const household = session.currentHouseholdId;
+  if (!household) return;
+  bills.value = (await db.bills.where("household").equals(household).toArray()).filter(
+    (bill) => !bill.deleted_at,
+  );
+}
 
 const FREQ_PRESETS = [
   { key: "diaria", label: "Diária", rrule: "FREQ=DAILY;INTERVAL=1" },
@@ -52,7 +69,10 @@ const saving = ref(false);
 const isCustomFreq = computed(() => frequency.value === "custom");
 const effectiveRrule = computed(() => {
   if (isCustomFreq.value) return rrule.value;
-  return FREQ_PRESETS.find((preset) => preset.key === frequency.value)?.rrule ?? "FREQ=MONTHLY;INTERVAL=1";
+  return (
+    FREQ_PRESETS.find((preset) => preset.key === frequency.value)?.rrule ??
+    "FREQ=MONTHLY;INTERVAL=1"
+  );
 });
 
 function detectFrequency(value: string): string {
@@ -153,10 +173,12 @@ async function remove(id: string): Promise<void> {
   toast.info("Recorrência removida.");
 }
 
-onMounted(async () => {
-  await Promise.all([accountsStore.load(), store.load()]);
-});
-watch(() => sync.dataVersion, () => store.load());
+async function loadAll(): Promise<void> {
+  await Promise.all([accountsStore.load(), store.load(), transactionsStore.load(), loadBills()]);
+}
+
+onMounted(loadAll);
+watch(() => sync.dataVersion, loadAll);
 </script>
 
 <template>
@@ -166,11 +188,25 @@ watch(() => sync.dataVersion, () => store.load());
         <p class="text-xs font-extrabold uppercase tracking-wider text-primary">Automação</p>
         <h1 class="font-display text-3xl font-black tracking-tight">Recorrências</h1>
       </div>
-      <Button size="sm" variant="secondary" @click="resetForm"><Plus class="h-4 w-4" /> Nova</Button>
+      <Button size="sm" variant="secondary" @click="resetForm"
+        ><Plus class="h-4 w-4" /> Nova</Button
+      >
     </div>
 
+    <FixedCostsCard
+      :recurrences="store.items"
+      :bills="bills"
+      :transactions="transactionsStore.items"
+      :month="currentMonth"
+      :show-manage="false"
+    />
+
     <Card>
-      <CardHeader><CardTitle>{{ editingId ? "Editar recorrência" : "Nova recorrência" }}</CardTitle></CardHeader>
+      <CardHeader
+        ><CardTitle>{{
+          editingId ? "Editar recorrência" : "Nova recorrência"
+        }}</CardTitle></CardHeader
+      >
       <CardContent>
         <form class="space-y-4" @submit.prevent="submit">
           <div class="space-y-2">
@@ -250,7 +286,11 @@ watch(() => sync.dataVersion, () => store.load());
               />
             </div>
             <label class="flex items-end gap-2 pb-3 text-sm font-bold">
-              <input v-model="confirmRequired" type="checkbox" class="h-5 w-5 rounded border-2 border-input" />
+              <input
+                v-model="confirmRequired"
+                type="checkbox"
+                class="h-5 w-5 rounded border-2 border-input"
+              />
               Exige confirmação (a confirmar)
             </label>
           </div>
@@ -264,7 +304,9 @@ watch(() => sync.dataVersion, () => store.load());
             />
           </div>
           <div class="flex justify-end gap-2 pt-1">
-            <Button v-if="editingId" variant="ghost" type="button" @click="resetForm">Cancelar</Button>
+            <Button v-if="editingId" variant="ghost" type="button" @click="resetForm"
+              >Cancelar</Button
+            >
             <Button type="submit" :loading="saving">
               {{ editingId ? "Salvar alterações" : "Criar recorrência" }}
             </Button>
