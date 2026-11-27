@@ -5,15 +5,17 @@ import { useMediaQuery } from "@vueuse/core";
 import type { TransactionStatus, TransactionType } from "@cf/shared";
 import { normalizeMerchantName, todayISO } from "@cf/shared";
 import { Pencil, Plus, Receipt, Search, SlidersHorizontal, Trash2, X } from "lucide-vue-next";
-import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
+import { db, type LocalAccount, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useAccountsStore } from "@/stores/accounts";
+import { useCardsStore } from "@/stores/cards";
 import { useSessionStore } from "@/stores/session";
 import { usePeopleStore } from "@/stores/people";
 import { useSyncStore } from "@/stores/sync";
 import { useQuickAddStore } from "@/stores/quick-add";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDateShort } from "@/lib/format";
+import { accountDisplayName, buildSourceName } from "@/lib/source-label";
 import Button from "@/components/ui/Button.vue";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
@@ -26,6 +28,7 @@ import IconChip from "@/components/ui/IconChip.vue";
 
 const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
+const cardsStore = useCardsStore();
 const session = useSessionStore();
 const people = usePeopleStore();
 const sync = useSyncStore();
@@ -125,7 +128,7 @@ const allTags = ref<string[]>([]);
 const allMerchants = ref<string[]>([]);
 const installmentsByRoot = ref<Map<string, { number: number; total: number }>>(new Map());
 
-const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item])));
+const sourceName = computed(() => buildSourceName(accountsStore.items, cardsStore.cards));
 const categoryById = computed(() => new Map(categories.value.map((item) => [item.id, item])));
 
 const hasFilters = computed(
@@ -212,7 +215,13 @@ async function reload(): Promise<void> {
 }
 
 async function loadAll(): Promise<void> {
-  await Promise.all([accountsStore.load(), loadFiltersData(), people.load(), reload()]);
+  await Promise.all([
+    accountsStore.load(),
+    cardsStore.load(),
+    loadFiltersData(),
+    people.load(),
+    reload(),
+  ]);
 }
 
 async function removeTransaction(tx: LocalTransaction): Promise<void> {
@@ -267,8 +276,8 @@ async function confirmRemoveAll(): Promise<void> {
   }
 }
 
-function accountName(id: string): string {
-  return accountById.value.get(id)?.name ?? "";
+function accountFilterName(item: LocalAccount): string {
+  return accountDisplayName(item, cardsStore.cards);
 }
 
 function attributionLabel(attribution: string): string {
@@ -354,7 +363,7 @@ watch(() => sync.dataVersion, loadAll);
             <Select id="filter-account" v-model="account">
               <option value="">Todas</option>
               <option v-for="item in accountsStore.items" :key="item.id" :value="item.id">
-                {{ item.name }}
+                {{ accountFilterName(item) }}
               </option>
             </Select>
           </div>
@@ -497,7 +506,7 @@ watch(() => sync.dataVersion, loadAll);
                     {{ tx.description }} ·
                   </template>
                   {{ formatDateShort(tx.date) }}
-                  <template v-if="accountName(tx.account)"> · {{ accountName(tx.account) }}</template>
+                  <template v-if="sourceName(tx)"> · {{ sourceName(tx) }}</template>
                   <template v-if="categoryById.get(tx.category ?? '')">
                     · {{ categoryById.get(tx.category ?? '')?.name }}</template
                   >

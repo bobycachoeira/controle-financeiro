@@ -5,11 +5,13 @@ import { CheckCircle2, Pencil } from "lucide-vue-next";
 import { todayISO } from "@cf/shared";
 import { db, type LocalCategory, type LocalTransaction } from "@/db/schema";
 import { useAccountsStore } from "@/stores/accounts";
+import { useCardsStore } from "@/stores/cards";
 import { useSessionStore } from "@/stores/session";
 import { useSyncStore } from "@/stores/sync";
 import { useTransactionsStore } from "@/stores/transactions";
 import { useToast } from "@/composables/useToast";
 import { formatBRL, formatDateShort } from "@/lib/format";
+import { buildSourceName } from "@/lib/source-label";
 import Card from "@/components/ui/Card.vue";
 import CardContent from "@/components/ui/CardContent.vue";
 import CategorySelect from "@/components/ui/CategorySelect.vue";
@@ -23,6 +25,7 @@ import {
 
 const transactionsStore = useTransactionsStore();
 const accountsStore = useAccountsStore();
+const cardsStore = useCardsStore();
 const session = useSessionStore();
 const sync = useSyncStore();
 const toast = useToast();
@@ -39,7 +42,7 @@ const queue = computed(() =>
   }),
 );
 
-const accountById = computed(() => new Map(accountsStore.items.map((item) => [item.id, item.name])));
+const sourceName = computed(() => buildSourceName(accountsStore.items, cardsStore.cards));
 
 async function assign(tx: LocalTransaction, categoryId: string): Promise<void> {
   if (!categoryId) return;
@@ -61,7 +64,7 @@ async function assign(tx: LocalTransaction, categoryId: string): Promise<void> {
 }
 
 async function loadAll(): Promise<void> {
-  await Promise.all([transactionsStore.load(), accountsStore.load()]);
+  await Promise.all([transactionsStore.load(), accountsStore.load(), cardsStore.load()]);
   if (session.currentHouseholdId) {
     categories.value = (
       await db.categories.where("household").equals(session.currentHouseholdId).toArray()
@@ -134,9 +137,7 @@ watch(() => sync.dataVersion, loadAll);
                 <p class="truncate font-bold">{{ tx.merchant || tx.description || "Lançamento" }}</p>
                 <p class="text-xs font-semibold text-muted-foreground">
                   {{ formatDateShort(tx.date) }}
-                  <template v-if="accountById.get(tx.account)">
-                    · {{ accountById.get(tx.account) }}</template
-                  >
+                  <template v-if="sourceName(tx)"> · {{ sourceName(tx) }}</template>
                 </p>
               </div>
               <span
