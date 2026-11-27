@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { todayISO } from "@cf/shared";
+import type { LocalExchangeRate } from "@/db/schema";
 import { useRatesStore, parseRateToMicros } from "@/stores/rates";
 import { useSyncStore } from "@/stores/sync";
 import { useToast } from "@/composables/useToast";
@@ -13,6 +14,20 @@ import CardTitle from "@/components/ui/CardTitle.vue";
 import Input from "@/components/ui/Input.vue";
 import Label from "@/components/ui/Label.vue";
 
+const COMMON_CURRENCIES = [
+  { code: "USD", label: "Dólar americano" },
+  { code: "EUR", label: "Euro" },
+  { code: "GBP", label: "Libra esterlina" },
+  { code: "ARS", label: "Peso argentino" },
+  { code: "CAD", label: "Dólar canadense" },
+  { code: "AUD", label: "Dólar australiano" },
+  { code: "JPY", label: "Iene japonês" },
+  { code: "CHF", label: "Franco suíço" },
+  { code: "CNY", label: "Yuan chinês" },
+  { code: "PYG", label: "Guarani paraguaio" },
+  { code: "UYU", label: "Peso uruguaio" },
+];
+
 const store = useRatesStore();
 const sync = useSyncStore();
 const toast = useToast();
@@ -23,15 +38,32 @@ const rate = ref("");
 const saving = ref(false);
 const fetching = ref(false);
 
+const currencyGroups = computed(() => {
+  const groups = new Map<string, LocalExchangeRate[]>();
+  for (const item of store.items) {
+    const list = groups.get(item.currency) ?? [];
+    list.push(item);
+    groups.set(item.currency, list);
+  }
+  return [...groups.entries()]
+    .map(([code, items]) => ({
+      code,
+      items: [...items].sort((a, b) => (a.date < b.date ? 1 : -1)),
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+});
+
 async function create(): Promise<void> {
   const micros = parseRateToMicros(rate.value);
-  if (!currency.value || micros === null) {
+  const code = currency.value.trim().toUpperCase();
+  if (!/^[A-Z]{3,8}$/.test(code) || micros === null) {
     toast.error("Informe moeda e cotação válidas.");
     return;
   }
+  currency.value = code;
   saving.value = true;
   try {
-    await store.create({ currency: currency.value, date: date.value, rate_micros: micros });
+    await store.create({ currency: code, date: date.value, rate_micros: micros });
     toast.success("Cotação salva.");
     rate.value = "";
   } catch (error) {
@@ -86,7 +118,18 @@ watch(
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-2">
               <Label for="rate-currency">Moeda</Label>
-              <Input id="rate-currency" v-model="currency" maxlength="8" placeholder="USD" />
+              <Input
+                id="rate-currency"
+                v-model="currency"
+                list="currency-options"
+                maxlength="8"
+                placeholder="USD"
+              />
+              <datalist id="currency-options">
+                <option v-for="item in COMMON_CURRENCIES" :key="item.code" :value="item.code">
+                  {{ item.label }}
+                </option>
+              </datalist>
             </div>
             <div class="space-y-2">
               <Label for="rate-date">Data</Label>
@@ -125,22 +168,29 @@ watch(
     <Card>
       <CardHeader><CardTitle>Histórico</CardTitle></CardHeader>
       <CardContent>
-        <p v-if="store.items.length === 0" class="text-sm text-muted-foreground">
+        <p v-if="currencyGroups.length === 0" class="text-sm text-muted-foreground">
           Nenhuma cotação cadastrada.
         </p>
-        <ul v-else class="divide-y">
-          <li
-            v-for="item in store.items"
-            :key="item.id"
-            class="flex items-center justify-between py-2 text-sm"
-          >
-            <span>{{ item.currency }} · {{ formatDate(item.date) }}</span>
-            <span class="flex items-center gap-2">
-              R$ {{ formatMicros(item.rate_micros) }}
-              <Button size="sm" variant="ghost" @click="store.remove(item.id)">Excluir</Button>
-            </span>
-          </li>
-        </ul>
+        <div v-else class="space-y-4">
+          <div v-for="group in currencyGroups" :key="group.code" class="space-y-1">
+            <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+              {{ group.code }}
+            </p>
+            <ul class="divide-y">
+              <li
+                v-for="item in group.items"
+                :key="item.id"
+                class="flex items-center justify-between py-2 text-sm"
+              >
+                <span>{{ item.currency }} · {{ formatDate(item.date) }}</span>
+                <span class="flex items-center gap-2">
+                  R$ {{ formatMicros(item.rate_micros) }}
+                  <Button size="sm" variant="ghost" @click="store.remove(item.id)">Excluir</Button>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </CardContent>
     </Card>
   </div>

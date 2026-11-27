@@ -68,6 +68,56 @@ describe("integrations and multicurrency", () => {
     expect(pull.data.changes.some((change) => change.entity === "exchange_rates")).toBe(true);
   });
 
+  it("atualiza a cotação duplicada no sync", async () => {
+    const date = "2024-03-02";
+    const firstId = crypto.randomUUID();
+    const firstSync = crypto.randomUUID();
+    const first = await push(harness, family.token, family.householdId, [
+      operation(
+        firstSync,
+        "exchange_rates",
+        "create",
+        {
+          id: firstId,
+          household: "",
+          sync_id: firstSync,
+          currency: "EUR",
+          date,
+          rate_micros: 6000000,
+        },
+        firstId,
+      ),
+    ]);
+    expect(first.data.results[0]?.status).toBe("applied");
+
+    const secondId = crypto.randomUUID();
+    const secondSync = crypto.randomUUID();
+    const second = await push(harness, family.token, family.householdId, [
+      operation(
+        secondSync,
+        "exchange_rates",
+        "create",
+        {
+          id: secondId,
+          household: "",
+          sync_id: secondSync,
+          currency: "EUR",
+          date,
+          rate_micros: 6100000,
+        },
+        secondId,
+      ),
+    ]);
+    const result = second.data.results[0] as {
+      status?: string;
+      code?: string;
+      record?: { rate_micros?: number };
+    };
+    expect(result.status).toBe("applied");
+    expect(result.code).toBe("duplicate_merged");
+    expect(result.record?.rate_micros).toBe(6100000);
+  });
+
   it("persists import origin and external reference on transactions", async () => {
     const accountId = crypto.randomUUID();
     const accountSync = crypto.randomUUID();

@@ -35,6 +35,9 @@ test.describe("moedas e cotações", () => {
 
     await page.getByRole("button", { name: /Salvar cotação/i }).click();
     await expect(page.getByText("Cotação salva.")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/USD · 27\/11\/2026/)).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("rate-fetch").click();
+    await page.getByRole("button", { name: /Salvar cotação/i }).click();
+    await expect(page.getByText(/USD · 27\/11\/2026/)).toHaveCount(1, { timeout: 10_000 });
   });
 });

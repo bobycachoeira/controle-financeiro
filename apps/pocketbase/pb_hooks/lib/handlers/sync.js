@@ -127,6 +127,21 @@ function invoicePaymentWins(entity, record, payload) {
  * inclusive se estiver soft-deleted, pois o ciclo fechado não deve voltar.
  */
 function findDuplicateRecord(entity, record) {
+  if (entity === "exchange_rates") {
+    try {
+      return $app.findFirstRecordByFilter(
+        "exchange_rates",
+        "household = {:household} && currency = {:currency} && date = {:date}",
+        {
+          household: record.getString("household"),
+          currency: record.getString("currency"),
+          date: record.getString("date"),
+        },
+      );
+    } catch (err) {
+      return null;
+    }
+  }
   if (entity !== "invoices") return null;
   try {
     return $app.findFirstRecordByFilter(
@@ -338,6 +353,12 @@ function applyOperation(household, userId, role, operation) {
     } catch (err) {
       const existing = findDuplicateRecord(entity, record);
       if (!existing) throw err;
+      if (entity === "exchange_rates") {
+        setWhitelistedFields(existing, collection, payload);
+        existing.set("updated_by", userId);
+        existing.set("deleted_at", null);
+        $app.save(existing);
+      }
       result.status = "applied";
       result.code = "duplicate_merged";
       result.remote_id = existing.id;

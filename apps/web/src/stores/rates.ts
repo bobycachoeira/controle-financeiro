@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { apiClient } from "@/api/client";
 import { ref } from "vue";
 import { db, type LocalExchangeRate } from "../db/schema";
-import { createLocal, newLocalId, newSyncId, softDeleteLocal } from "../db/repositories";
+import { createLocal, newLocalId, newSyncId, softDeleteLocal, updateLocal } from "../db/repositories";
 import { useSessionStore } from "./session";
 
 export interface RateInput {
@@ -49,11 +49,31 @@ export const useRatesStore = defineStore("rates", () => {
 
   async function create(input: RateInput): Promise<LocalExchangeRate> {
     const session = useSessionStore();
+    const household = session.currentHouseholdId ?? "";
+    const currency = input.currency.toUpperCase();
+    const existing = await db.exchange_rates
+      .where("household")
+      .equals(household)
+      .filter((item) => item.currency === currency && item.date === input.date)
+      .first();
+    if (existing) {
+      const updated: LocalExchangeRate = {
+        ...existing,
+        currency,
+        date: input.date,
+        rate_micros: input.rate_micros,
+        updated_by: session.user?.id ?? null,
+        deleted_at: null,
+      };
+      await updateLocal("exchange_rates", updated);
+      await load();
+      return updated;
+    }
     const record: LocalExchangeRate = {
       id: newLocalId(),
-      household: session.currentHouseholdId ?? "",
+      household,
       sync_id: newSyncId(),
-      currency: input.currency.toUpperCase(),
+      currency,
       date: input.date,
       rate_micros: input.rate_micros,
       updated_by: session.user?.id ?? null,
