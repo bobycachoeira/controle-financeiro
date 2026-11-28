@@ -97,7 +97,7 @@ const totalIncomes = computed(() => incomes.value.reduce((sum, item) => sum + it
       </p>
       <div>
         <p class="font-display text-3xl font-black">{{ formatBRL(totalCosts) }}</p>
-        <p class="text-xs text-muted-foreground">em custos fixos previstos</p>
+        <p class="text-xs text-muted-foreground">em custos fixos por vencimento</p>
         <p v-if="totalIncomes > 0" class="mt-1 text-xs font-bold text-leaf">
           + {{ formatBRL(totalIncomes) }} em entradas fixas
         </p>

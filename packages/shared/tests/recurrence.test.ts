@@ -171,6 +171,33 @@ describe("fixedCostsForMonth", () => {
     });
   });
 
+  it("agrupa pelo mês do vencimento, não da emissão", () => {
+    const rolling = { ...base, start_date: "2026-01-22" };
+    const november = fixedCostsForMonth({
+      recurrences: [rolling],
+      bills: [],
+      transactions: [],
+      month: "2026-11",
+    });
+    expect(november).toHaveLength(1);
+    expect(november[0]).toMatchObject({
+      occurrence: "2026-10-22",
+      dueDate: "2026-11-10",
+    });
+
+    const december = fixedCostsForMonth({
+      recurrences: [rolling],
+      bills: [],
+      transactions: [],
+      month: "2026-12",
+    });
+    expect(december).toHaveLength(1);
+    expect(december[0]).toMatchObject({
+      occurrence: "2026-11-22",
+      dueDate: "2026-12-10",
+    });
+  });
+
   it("projeta o próximo mês a partir da recorrência", () => {
     const items = fixedCostsForMonth({
       recurrences: [base],

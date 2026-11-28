@@ -5256,58 +5256,76 @@ function nextOccurrence(rrule, dtstart, fromISO) {
   return null;
 }
 function fixedCostsForMonth(input) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const { year, month: monthNumber } = parseISOMonth(input.month);
   const start = `${input.month}-01`;
   const end = `${input.month}-${pad2(daysInMonth(year, monthNumber))}`;
   const before = parseISODate(start);
   before.setUTCDate(before.getUTCDate() - 1);
   const after = toISODate(before);
+  const previous = addMonths(year, monthNumber, -1);
+  const previousMonth = formatISOMonth(previous.year, previous.month);
+  const previousStart = `${previousMonth}-01`;
+  const beforePrevious = parseISODate(previousStart);
+  beforePrevious.setUTCDate(beforePrevious.getUTCDate() - 1);
+  const billAfter = toISODate(beforePrevious);
   const items = [];
   for (const recurrence of input.recurrences) {
     if (recurrence.deleted_at || recurrence.active === false) continue;
     const dtstart = recurrence.start_date.slice(0, 10);
-    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
-    for (const occurrence of occurrences) {
-      if (occurrence < start || occurrence > end) continue;
-      if (recurrence.target === "bill") {
-        const bill = input.bills.find(
-          (item) => {
-            var _a2;
-            return item.recurrence === recurrence.id && !item.deleted_at && ((_a2 = item.emission_date) != null ? _a2 : "").slice(0, 10) === occurrence;
-          }
-        );
-        if (bill) {
-          if (bill.status === "cancelado") continue;
-          items.push({
-            key: `${recurrence.id}:${occurrence}`,
-            recurrenceId: recurrence.id,
-            name: recurrence.name,
-            occurrence,
-            dueDate: bill.due_date.slice(0, 10),
-            amountCents: bill.amount_cents,
-            nature: bill.nature,
-            target: "bill",
-            status: bill.status === "pago" ? "pago" : bill.status === "a_confirmar" ? "a_confirmar" : "pendente"
-          });
-          continue;
-        }
+    if (recurrence.target === "bill") {
+      const generated = input.bills.filter(
+        (item) => item.recurrence === recurrence.id && !item.deleted_at
+      );
+      const generatedByEmission = new Map(
+        generated.map((item) => {
+          var _a2;
+          return [((_a2 = item.emission_date) != null ? _a2 : "").slice(0, 10), item];
+        })
+      );
+      for (const bill of generated) {
+        const dueDate = bill.due_date.slice(0, 10);
+        if (dueDate.slice(0, 7) !== input.month) continue;
+        if (bill.status === "cancelado") continue;
+        const occurrence = ((_a = bill.emission_date) != null ? _a : dueDate).slice(0, 10);
         items.push({
           key: `${recurrence.id}:${occurrence}`,
           recurrenceId: recurrence.id,
           name: recurrence.name,
           occurrence,
-          dueDate: billDueDate(
-            occurrence,
-            (_a = recurrence.template.due_day) != null ? _a : Number(occurrence.slice(8, 10))
-          ),
-          amountCents: (_c = (_b = recurrence.template.default_amount_cents) != null ? _b : recurrence.template.amount_cents) != null ? _c : 0,
-          nature: (_d = recurrence.template.nature) != null ? _d : "saida",
+          dueDate,
+          amountCents: bill.amount_cents,
+          nature: bill.nature,
+          target: "bill",
+          status: bill.status === "pago" ? "pago" : bill.status === "a_confirmar" ? "a_confirmar" : "pendente"
+        });
+      }
+      const occurrences2 = occurrencesBetween(recurrence.rrule, dtstart, billAfter, end);
+      for (const occurrence of occurrences2) {
+        if (occurrence < previousStart || occurrence > end) continue;
+        if (generatedByEmission.has(occurrence)) continue;
+        const dueDate = billDueDate(
+          occurrence,
+          (_b = recurrence.template.due_day) != null ? _b : Number(occurrence.slice(8, 10))
+        );
+        if (dueDate.slice(0, 7) !== input.month) continue;
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate,
+          amountCents: (_d = (_c = recurrence.template.default_amount_cents) != null ? _c : recurrence.template.amount_cents) != null ? _d : 0,
+          nature: (_e = recurrence.template.nature) != null ? _e : "saida",
           target: "bill",
           status: "previsto"
         });
-        continue;
       }
+      continue;
+    }
+    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
+    for (const occurrence of occurrences) {
+      if (occurrence < start || occurrence > end) continue;
       const tx = input.transactions.find(
         (item) => item.recurrence === recurrence.id && !item.deleted_at && item.date.slice(0, 10) === occurrence
       );
@@ -5331,7 +5349,7 @@ function fixedCostsForMonth(input) {
         name: recurrence.name,
         occurrence,
         dueDate: null,
-        amountCents: (_e = recurrence.template.amount_cents) != null ? _e : 0,
+        amountCents: (_f = recurrence.template.amount_cents) != null ? _f : 0,
         nature: recurrence.template.type === "receita" ? "entrada" : "saida",
         target: "transaction",
         status: "previsto"

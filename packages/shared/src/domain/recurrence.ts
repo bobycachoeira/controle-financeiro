@@ -2,6 +2,7 @@ import {
   addMonths,
   clampDay,
   daysInMonth,
+  formatISOMonth,
   pad2,
   parseISODate,
   parseISOMonth,
@@ -193,58 +194,75 @@ export function fixedCostsForMonth(input: FixedCostsInput): FixedCostItem[] {
   before.setUTCDate(before.getUTCDate() - 1);
   const after = toISODate(before);
 
+  const previous = addMonths(year, monthNumber, -1);
+  const previousMonth = formatISOMonth(previous.year, previous.month);
+  const previousStart = `${previousMonth}-01`;
+  const beforePrevious = parseISODate(previousStart);
+  beforePrevious.setUTCDate(beforePrevious.getUTCDate() - 1);
+  const billAfter = toISODate(beforePrevious);
+
   const items: FixedCostItem[] = [];
   for (const recurrence of input.recurrences) {
     if (recurrence.deleted_at || recurrence.active === false) continue;
     const dtstart = recurrence.start_date.slice(0, 10);
-    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
-    for (const occurrence of occurrences) {
-      if (occurrence < start || occurrence > end) continue;
-      if (recurrence.target === "bill") {
-        const bill = input.bills.find(
-          (item) =>
-            item.recurrence === recurrence.id &&
-            !item.deleted_at &&
-            (item.emission_date ?? "").slice(0, 10) === occurrence,
-        );
-        if (bill) {
-          if (bill.status === "cancelado") continue;
-          items.push({
-            key: `${recurrence.id}:${occurrence}`,
-            recurrenceId: recurrence.id,
-            name: recurrence.name,
-            occurrence,
-            dueDate: bill.due_date.slice(0, 10),
-            amountCents: bill.amount_cents,
-            nature: bill.nature,
-            target: "bill",
-            status:
-              bill.status === "pago"
-                ? "pago"
-                : bill.status === "a_confirmar"
-                  ? "a_confirmar"
-                  : "pendente",
-          });
-          continue;
-        }
+
+    if (recurrence.target === "bill") {
+      const generated = input.bills.filter(
+        (item) => item.recurrence === recurrence.id && !item.deleted_at,
+      );
+      const generatedByEmission = new Map(
+        generated.map((item) => [(item.emission_date ?? "").slice(0, 10), item]),
+      );
+      for (const bill of generated) {
+        const dueDate = bill.due_date.slice(0, 10);
+        if (dueDate.slice(0, 7) !== input.month) continue;
+        if (bill.status === "cancelado") continue;
+        const occurrence = (bill.emission_date ?? dueDate).slice(0, 10);
         items.push({
           key: `${recurrence.id}:${occurrence}`,
           recurrenceId: recurrence.id,
           name: recurrence.name,
           occurrence,
-          dueDate: billDueDate(
-            occurrence,
-            recurrence.template.due_day ?? Number(occurrence.slice(8, 10)),
-          ),
+          dueDate,
+          amountCents: bill.amount_cents,
+          nature: bill.nature,
+          target: "bill",
+          status:
+            bill.status === "pago"
+              ? "pago"
+              : bill.status === "a_confirmar"
+                ? "a_confirmar"
+                : "pendente",
+        });
+      }
+      const occurrences = occurrencesBetween(recurrence.rrule, dtstart, billAfter, end);
+      for (const occurrence of occurrences) {
+        if (occurrence < previousStart || occurrence > end) continue;
+        if (generatedByEmission.has(occurrence)) continue;
+        const dueDate = billDueDate(
+          occurrence,
+          recurrence.template.due_day ?? Number(occurrence.slice(8, 10)),
+        );
+        if (dueDate.slice(0, 7) !== input.month) continue;
+        items.push({
+          key: `${recurrence.id}:${occurrence}`,
+          recurrenceId: recurrence.id,
+          name: recurrence.name,
+          occurrence,
+          dueDate,
           amountCents:
             recurrence.template.default_amount_cents ?? recurrence.template.amount_cents ?? 0,
           nature: recurrence.template.nature ?? "saida",
           target: "bill",
           status: "previsto",
         });
-        continue;
       }
+      continue;
+    }
 
+    const occurrences = occurrencesBetween(recurrence.rrule, dtstart, after, end);
+    for (const occurrence of occurrences) {
+      if (occurrence < start || occurrence > end) continue;
       const tx = input.transactions.find(
         (item) =>
           item.recurrence === recurrence.id &&
