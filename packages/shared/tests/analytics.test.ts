@@ -50,6 +50,31 @@ describe("balanceEvolution", () => {
   });
 });
 
+describe("balanceEvolution (fora dos relatórios)", () => {
+  it("exclui itens marcados quando solicitado", () => {
+    const data = [
+      tx({ date: "2024-01-15", amount_cents: 5000, status: "pago" }),
+      tx({
+        date: "2024-01-20",
+        amount_cents: 7000,
+        status: "pago",
+        exclude_from_reports: true,
+      }),
+    ];
+    const withAll = balanceEvolution([{ id: "a1", initial_balance_cents: 0 }], data, "2024-01", 1);
+    expect(withAll[0]?.balanceCents).toBe(-12000);
+
+    const filtered = balanceEvolution(
+      [{ id: "a1", initial_balance_cents: 0 }],
+      data,
+      "2024-01",
+      1,
+      { excludeFromReports: true },
+    );
+    expect(filtered[0]?.balanceCents).toBe(-5000);
+  });
+});
+
 describe("spendingByCategory", () => {
   it("ranks categories for the month", () => {
     const result = spendingByCategory(

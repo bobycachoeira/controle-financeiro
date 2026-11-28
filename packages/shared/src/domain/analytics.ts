@@ -30,7 +30,20 @@ export interface MonthBucket {
   netCents: number;
 }
 
-const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTHS_PT = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 
 export function monthLabel(monthISO: string): string {
   const { month } = parseISOMonth(monthISO);
@@ -78,6 +91,7 @@ export function balanceEvolution(
   transactions: readonly AnalyticsTransaction[],
   endMonth: string,
   count = 6,
+  options: { excludeFromReports?: boolean } = {},
 ): { month: string; label: string; balanceCents: number }[] {
   const initial = accounts
     .filter((account) => !account.deleted_at && account.include_in_total !== false)
@@ -88,8 +102,10 @@ export function balanceEvolution(
     let net = 0;
     for (const tx of transactions) {
       if (tx.deleted_at || tx.date > end) continue;
+      if (options.excludeFromReports && tx.exclude_from_reports) continue;
       if (tx.type === "transferencia") net += tx.amount_cents;
-      else if (tx.status === "pago") net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+      else if (tx.status === "pago")
+        net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: initial + net };
   });
@@ -110,7 +126,8 @@ export function accountBalanceEvolution(
       if (tx.deleted_at || tx.date > end) continue;
       if (tx.account !== account.id) continue;
       if (tx.type === "transferencia") balance += tx.amount_cents;
-      else if (tx.status === "pago") balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+      else if (tx.status === "pago")
+        balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: balance };
   });

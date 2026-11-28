@@ -36,6 +36,10 @@ test.describe("relatórios", () => {
     await page.locator("#merchant-category").selectOption({ label: category });
     await expect(spend.getByText(merchant, { exact: true })).toBeVisible({ timeout: 10_000 });
 
+    await spend.getByRole("button", { name: "Categoria", exact: true }).click();
+    await expect(spend).toContainText(category);
+    await spend.getByRole("button", { name: "Estabelecimento", exact: true }).click();
+
     await page.goto("/transactions");
     const row = page.locator("li", { hasText: merchant });
     await row.getByLabel("Editar lançamento").click();

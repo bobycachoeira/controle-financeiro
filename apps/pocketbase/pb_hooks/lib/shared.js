@@ -5721,7 +5721,20 @@ function merchantDisplayName(tx) {
 }
 
 // src/domain/analytics.ts
-var MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+var MONTHS_PT = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez"
+];
 function monthLabel(monthISO) {
   var _a;
   const { month } = parseISOMonth(monthISO);
@@ -5755,7 +5768,7 @@ function monthlyCashflow(transactions, endMonth, count = 6) {
   for (const bucket of list) bucket.netCents = bucket.receitasCents - bucket.despesasCents;
   return list;
 }
-function balanceEvolution(accounts, transactions, endMonth, count = 6) {
+function balanceEvolution(accounts, transactions, endMonth, count = 6, options = {}) {
   const initial = accounts.filter((account) => !account.deleted_at && account.include_in_total !== false).reduce((total, account) => total + account.initial_balance_cents, 0);
   const months = lastMonths(endMonth, count);
   return months.map((month) => {
@@ -5763,8 +5776,10 @@ function balanceEvolution(accounts, transactions, endMonth, count = 6) {
     let net = 0;
     for (const tx of transactions) {
       if (tx.deleted_at || tx.date > end) continue;
+      if (options.excludeFromReports && tx.exclude_from_reports) continue;
       if (tx.type === "transferencia") net += tx.amount_cents;
-      else if (tx.status === "pago") net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+      else if (tx.status === "pago")
+        net += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: initial + net };
   });
@@ -5778,7 +5793,8 @@ function accountBalanceEvolution(account, transactions, endMonth, count = 6) {
       if (tx.deleted_at || tx.date > end) continue;
       if (tx.account !== account.id) continue;
       if (tx.type === "transferencia") balance += tx.amount_cents;
-      else if (tx.status === "pago") balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
+      else if (tx.status === "pago")
+        balance += tx.type === "receita" ? tx.amount_cents : -tx.amount_cents;
     }
     return { month, label: monthLabel(month), balanceCents: balance };
   });

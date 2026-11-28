@@ -47,6 +47,23 @@ const baselineY = computed(() => {
   const { min, max } = bounds.value;
   return H - PAD - ((0 - min) / (max - min || 1)) * (H - PAD * 2);
 });
+
+function compactValue(cents: number): string {
+  const value = cents / 100;
+  const sign = value < 0 ? "-" : "";
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000) {
+    return `${sign}R$ ${(absolute / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  }
+  if (absolute >= 1_000) {
+    return `${sign}R$ ${(absolute / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
+  }
+  return `${sign}R$ ${absolute.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+}
+
+function fullValue(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 </script>
 
 <template>
@@ -86,9 +103,26 @@ const baselineY = computed(() => {
         r="2.4"
         :fill="color"
         vector-effect="non-scaling-stroke"
-      />
+      >
+        <title>{{ fullValue(c.value) }}</title>
+      </circle>
+      <text
+        v-for="(c, i) in coords"
+        :key="`value-${i}`"
+        :x="c.x"
+        :y="Math.max(8, c.y - 5)"
+        :text-anchor="i === 0 ? 'start' : i === coords.length - 1 ? 'end' : 'middle'"
+        fill="currentColor"
+        class="text-muted-foreground"
+        font-size="6"
+        font-weight="700"
+      >
+        {{ compactValue(c.value) }}
+      </text>
     </svg>
-    <div class="mt-1 flex justify-between text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground">
+    <div
+      class="mt-1 flex justify-between text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground"
+    >
       <span v-for="point in points" :key="point.label">{{ point.label }}</span>
     </div>
   </div>

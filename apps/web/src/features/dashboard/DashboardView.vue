@@ -96,7 +96,9 @@ const currentMonth = today.slice(0, 7);
 
 const cashflow = computed(() => monthlyCashflow(transactionsStore.items, currentMonth, 6));
 const balancePoints = computed(() =>
-  balanceEvolution(accountsStore.items, transactionsStore.items, currentMonth, 6).map((point) => ({
+  balanceEvolution(accountsStore.items, transactionsStore.items, currentMonth, 6, {
+    excludeFromReports: true,
+  }).map((point) => ({
     label: point.label,
     value: point.balanceCents,
   })),
@@ -342,60 +344,6 @@ watch(() => sync.dataVersion, loadAll);
 
     <ShortcutsCard />
 
-    <Card data-testid="goals-card">
-      <CardContent class="space-y-3 p-4">
-        <div class="flex items-center gap-2">
-          <IconChip name="piggy-bank" color="#3F9A6A" size="sm" />
-          <h2 class="font-display text-lg font-bold">Cofrinhos</h2>
-          <RouterLink
-            :to="{ name: 'goals' }"
-            class="ml-auto flex min-h-11 items-center px-1 text-xs font-bold text-primary"
-          >
-            {{ goalsSummary.length > 0 ? "Ver metas" : "Criar meta" }}
-          </RouterLink>
-        </div>
-        <template v-if="goalsSummary.length === 0">
-          <p class="text-xs text-muted-foreground">
-            Separe dinheiro para uma viagem, reserva ou entrada. O valor continua na conta; a meta
-            só organiza.
-          </p>
-          <RouterLink
-            :to="{ name: 'goals' }"
-            class="inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm font-extrabold text-primary-foreground"
-          >
-            Criar primeira meta
-          </RouterLink>
-        </template>
-        <template v-else>
-          <div>
-            <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-              Guardado nas metas
-            </p>
-            <p class="font-display text-3xl font-black">{{ formatBRL(savedInGoals) }}</p>
-          </div>
-          <ul class="space-y-2">
-            <li v-for="item in topGoals" :key="item.goal.id">
-              <div class="flex items-center justify-between gap-2 text-sm">
-                <span class="truncate font-semibold">{{ item.goal.name }}</span>
-                <span class="shrink-0 text-xs text-muted-foreground">
-                  {{ formatBRL(item.progress.savedCents) }} · {{ item.progress.percent }}%
-                </span>
-              </div>
-              <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
-                <div
-                  class="h-full rounded-full"
-                  :style="{
-                    width: item.progress.percent + '%',
-                    backgroundColor: item.goal.color || '#3F9A6A',
-                  }"
-                />
-              </div>
-            </li>
-          </ul>
-        </template>
-      </CardContent>
-    </Card>
-
     <FixedCostsCard
       :recurrences="recurrencesStore.items"
       :bills="bills"
@@ -601,6 +549,9 @@ watch(() => sync.dataVersion, loadAll);
             </span>
           </div>
         </div>
+        <p class="text-xs text-muted-foreground">
+          Itens marcados como “fora dos relatórios” não entram nos gráficos.
+        </p>
       </CardContent>
     </Card>
 
@@ -649,6 +600,60 @@ watch(() => sync.dataVersion, loadAll);
         </CardContent>
       </Card>
     </div>
+
+    <Card data-testid="goals-card">
+      <CardContent class="space-y-3 p-4">
+        <div class="flex items-center gap-2">
+          <IconChip name="piggy-bank" color="#3F9A6A" size="sm" />
+          <h2 class="font-display text-lg font-bold">Cofrinhos</h2>
+          <RouterLink
+            :to="{ name: 'goals' }"
+            class="ml-auto flex min-h-11 items-center px-1 text-xs font-bold text-primary"
+          >
+            {{ goalsSummary.length > 0 ? "Ver metas" : "Criar meta" }}
+          </RouterLink>
+        </div>
+        <template v-if="goalsSummary.length === 0">
+          <p class="text-xs text-muted-foreground">
+            Separe dinheiro para uma viagem, reserva ou entrada. O valor continua na conta; a meta
+            só organiza.
+          </p>
+          <RouterLink
+            :to="{ name: 'goals' }"
+            class="inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm font-extrabold text-primary-foreground"
+          >
+            Criar primeira meta
+          </RouterLink>
+        </template>
+        <template v-else>
+          <div>
+            <p class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+              Guardado nas metas
+            </p>
+            <p class="font-display text-3xl font-black">{{ formatBRL(savedInGoals) }}</p>
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in topGoals" :key="item.goal.id">
+              <div class="flex items-center justify-between gap-2 text-sm">
+                <span class="truncate font-semibold">{{ item.goal.name }}</span>
+                <span class="shrink-0 text-xs text-muted-foreground">
+                  {{ formatBRL(item.progress.savedCents) }} · {{ item.progress.percent }}%
+                </span>
+              </div>
+              <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/70">
+                <div
+                  class="h-full rounded-full"
+                  :style="{
+                    width: item.progress.percent + '%',
+                    backgroundColor: item.goal.color || '#3F9A6A',
+                  }"
+                />
+              </div>
+            </li>
+          </ul>
+        </template>
+      </CardContent>
+    </Card>
 
     <Card v-if="cardUsage.cardsCount > 0 || cardUsage.spentCents > 0" data-testid="card-usage">
       <CardContent class="p-4">
